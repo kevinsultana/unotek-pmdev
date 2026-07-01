@@ -77,7 +77,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.menuGroup}>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/profile-detail")}>
             <Ionicons name="person-outline" size={22} color="#4B5563" />
             <Text style={styles.menuText}>Detail Data Diri</Text>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
