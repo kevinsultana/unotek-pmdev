@@ -1,0 +1,32 @@
+import { api } from "./api";
+import type { ApiResponse } from "../types/api";
+import type {
+  Task,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+} from "../types/task";
+
+export const taskService = {
+  list: (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    project_id?: number;
+    user_id?: number;
+    stage_id?: number;
+    priority?: string;
+    my_tasks?: boolean;
+  }) => api.get<ApiResponse<{ items: Task[]; total: number; page: number; per_page: number }>>("/tasks", { params }),
+
+  getById: (id: number) =>
+    api.get<ApiResponse<Task>>(`/tasks/${id}`),
+
+  create: (data: CreateTaskRequest) =>
+    api.post<ApiResponse<Task>>("/tasks", data),
+
+  update: (id: number, data: UpdateTaskRequest) =>
+    api.put<ApiResponse<Task>>(`/tasks/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete<ApiResponse<null>>(`/tasks/${id}`),
+};

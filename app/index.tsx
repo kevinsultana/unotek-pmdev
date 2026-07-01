@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,19 +15,28 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../hooks/useAuth";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Validation and UI states
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [generalError, setGeneralError] = useState("");
+
+  // ── Auto-redirect if already authenticated (session restored from storage) ──
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace("/(tabs)/home");
+    }
+  }, [authLoading, isAuthenticated]);
 
   const validateEmail = (text: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,34 +48,59 @@ export default function LoginScreen() {
     return "";
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     // Reset errors
     setEmailError("");
     setPasswordError("");
     setGeneralError("");
 
-    // const emailErr = validateEmail(email);
-    // const passErr = password.length < 6 ? "Password minimal 6 karakter" : "";
+    const emailErr = validateEmail(email);
 
-    // if (emailErr || passErr) {
-    //   setEmailError(emailErr);
-    //   setPasswordError(passErr);
-    //   return;
-    // }
+    if (emailErr) {
+      setEmailError(emailErr);
+      return;
+    }
 
     setIsLoading(true);
 
-    // Simulate login API call
-    setTimeout(() => {
+    try {
+      // Remember Me controls whether tokens persist after app close
+      await login(email, password, rememberMe);
+      router.replace("/(tabs)/home");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Email atau password salah. Silakan coba lagi.";
+      setGeneralError(message);
+    } finally {
       setIsLoading(false);
-      // Simple mock credentials: any email containing unotek, or default demo credentials
-      // if (password === "1" || email.includes("@")) {
-      router.replace("/home");
-      // } else {
-      // setGeneralError("Email atau password salah. Silakan coba lagi.");
-      // }
-    }, 1500);
+    }
   };
+
+  // Show a loading splash while AuthContext checks stored tokens on app start
+  if (authLoading) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <View style={{ alignItems: "center" }}>
+          <View style={styles.logoBadge}>
+            <Ionicons name="finger-print" size={40} color="#2E5BFF" />
+          </View>
+          <Text style={styles.title}>UNOTEK PMDEV</Text>
+          <ActivityIndicator
+            size="large"
+            color="#2E5BFF"
+            style={{ marginTop: 24 }}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
@@ -16,16 +17,26 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-
-interface LeaveAllocation {
-  type: string;
-  allocated: number;
-  used: number;
-  remaining: number;
-}
+import { useAttendance } from "../../hooks/useAttendance";
+import { useTimeOff } from "../../hooks/useTimeOff";
 
 export default function KehadiranScreen() {
   const insets = useSafeAreaInsets();
+  const {
+    status: attStatus,
+    isLoading: attLoading,
+    checkIn,
+    checkOut,
+    refresh: refreshAttendance,
+  } = useAttendance();
+  const {
+    balances,
+    types,
+    isLoading: toLoading,
+    createTimeOff,
+    refresh: refreshTimeOff,
+  } = useTimeOff();
+
   // Clock states
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
@@ -35,10 +46,10 @@ export default function KehadiranScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
-  // Attendance simulation states
-  const [hasCheckedIn, setHasCheckedIn] = useState(false);
-  const [checkInTime, setCheckInTime] = useState("");
-  const [checkOutTime, setCheckOutTime] = useState("");
+  // Attendance derived from API
+  const hasCheckedIn = attStatus?.checked_in ?? false;
+  const checkInTime = attStatus?.check_in_time ?? "";
+  const checkOutTime = attStatus?.check_out_time ?? "";
 
   // Camera & GPS simulation modals
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
@@ -56,13 +67,6 @@ export default function KehadiranScreen() {
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
-
-  // Mock time-off allocations (GET Time-Off Allocation API)
-  const allocations: LeaveAllocation[] = [
-    { type: "Cuti Tahunan", allocated: 15, used: 3, remaining: 12 },
-    { type: "Sakit", allocated: 10, used: 2, remaining: 8 },
-    { type: "Izin Khusus", allocated: 5, used: 1, remaining: 4 },
-  ];
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -169,8 +173,8 @@ export default function KehadiranScreen() {
     }
   };
 
-  // Handle final submission (POST Checkin / POST Checkout API mockup)
-  const handleConfirmAttendance = () => {
+  // Handle final submission (POST Checkin / POST Checkout API)
+  const handleConfirmAttendance = async () => {
     if (!photoCaptured) {
       Alert.alert("Foto Diperlukan", "Harap ambil foto wajah Anda terlebih dahulu.");
       return;
@@ -181,40 +185,82 @@ export default function KehadiranScreen() {
     }
 
     setIsSubmittingAttendance(true);
-    setTimeout(() => {
-      setIsSubmittingAttendance(false);
-      setIsAttendanceModalVisible(false);
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    try {
+      // Convert photo to base64
+      let photoBase64: string | undefined;
+      if (photoUri) {
+        photoBase64 = await FileSystem.readAsStringAsync(photoUri, {
+          encoding: "base64",
+        });
+      }
+
+      const payload = {
+        photo: photoBase64,
+        latitude: parseFloat(gpsCoords.lat),
+        longitude: parseFloat(gpsCoords.lng),
+        address: gpsAddress || undefined,
+      };
 
       if (attendanceType === "checkin") {
-        setHasCheckedIn(true);
-        setCheckInTime(timeStr);
-        Alert.alert("Check In Sukses", `Anda berhasil absen masuk pada jam ${timeStr}`);
+        await checkIn(payload);
+        Alert.alert("Check In Sukses", "Anda berhasil absen masuk.");
       } else {
-        setHasCheckedIn(false);
-        setCheckOutTime(timeStr);
-        Alert.alert("Check Out Sukses", `Anda berhasil absen keluar pada jam ${timeStr}`);
+        await checkOut(payload);
+        Alert.alert("Check Out Sukses", "Anda berhasil absen keluar.");
       }
-    }, 1500);
+
+      setIsAttendanceModalVisible(false);
+      setPhotoCaptured(false);
+      setPhotoUri(null);
+      setGpsCoords(null);
+      setGpsAddress(null);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || "Gagal mengirim presensi. Silakan coba lagi.";
+      Alert.alert("Presensi Gagal", message);
+    } finally {
+      setIsSubmittingAttendance(false);
+    }
   };
 
-  // Submit Leave (POST Leave API mockup)
-  const handleRequestLeave = () => {
+  // Submit Leave (POST Time-Off API)
+  const handleRequestLeave = async () => {
     if (!startDate || !endDate || !reason) {
       Alert.alert("Form Belum Lengkap", "Silakan isi semua kolom tanggal dan alasan cuti.");
       return;
     }
 
     setIsSubmittingLeave(true);
-    setTimeout(() => {
-      setIsSubmittingLeave(false);
+    try {
+      // Map selected leave type name to holiday_status_id from API types
+      const selectedType = types.find((t) => t.name === leaveType);
+      if (!selectedType) {
+        Alert.alert("Error", "Tipe cuti tidak ditemukan. Silakan pilih ulang.");
+        return;
+      }
+
+      await createTimeOff({
+        holiday_status_id: selectedType.id,
+        date_from: startDate,
+        date_to: endDate,
+        name: reason,
+      });
+
       setIsLeaveModalVisible(false);
-      Alert.alert("Pengajuan Berhasil", "Pengajuan cuti/izin Anda telah dikirim dan menunggu persetujuan HRD.");
       setStartDate("");
       setEndDate("");
       setReason("");
-    }, 1500);
+      Alert.alert(
+        "Pengajuan Berhasil",
+        "Pengajuan cuti/izin Anda telah dikirim dan menunggu persetujuan HRD.",
+      );
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || "Gagal mengajukan cuti. Silakan coba lagi.";
+      Alert.alert("Pengajuan Gagal", message);
+    } finally {
+      setIsSubmittingLeave(false);
+    }
   };
 
   return (
@@ -275,20 +321,24 @@ export default function KehadiranScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* List of allocations */}
+        {/* List of allocations from API */}
         <View style={styles.allocationsContainer}>
-          {allocations.map((alloc) => (
-            <View key={alloc.type} style={styles.allocCard}>
-              <View style={styles.allocInfo}>
-                <Text style={styles.allocType}>{alloc.type}</Text>
-                <Text style={styles.allocDetail}>Terpakai: {alloc.used} hari</Text>
+          {toLoading ? (
+            <ActivityIndicator size="small" color="#2E5BFF" style={{ marginVertical: 20 }} />
+          ) : (
+            balances.map((bal) => (
+              <View key={bal.holiday_status_id} style={styles.allocCard}>
+                <View style={styles.allocInfo}>
+                  <Text style={styles.allocType}>{bal.name}</Text>
+                  <Text style={styles.allocDetail}>Terpakai: {bal.taken} hari</Text>
+                </View>
+                <View style={styles.allocValueWrapper}>
+                  <Text style={styles.allocValue}>{bal.remaining}</Text>
+                  <Text style={styles.allocSubVal}>/{bal.allocated} hari</Text>
+                </View>
               </View>
-              <View style={styles.allocValueWrapper}>
-                <Text style={styles.allocValue}>{alloc.remaining}</Text>
-                <Text style={styles.allocSubVal}>/{alloc.allocated} hari</Text>
-              </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </ScrollView>
 

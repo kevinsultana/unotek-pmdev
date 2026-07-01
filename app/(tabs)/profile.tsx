@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,13 +12,54 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../../hooks/useAuth";
+import { useProfile } from "../../hooks/useProfile";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { logout } = useAuth();
+  const { profile, isLoading } = useProfile();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = () => {
-    router.replace("/");
+    Alert.alert(
+      "Konfirmasi",
+      "Apakah Anda yakin ingin keluar dari aplikasi?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Keluar",
+          style: "destructive",
+          onPress: async () => {
+            setIsLoggingOut(true);
+            try {
+              await logout();
+            } catch {
+              // Logout failed locally — still redirect
+            }
+            router.replace("/");
+          },
+        },
+      ],
+    );
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#2E5BFF" />
+      </SafeAreaView>
+    );
+  }
+
+  // Data from API response → data.employee (field employee)
+  const emp = profile?.employee;
+  const userName = emp?.name || profile?.user?.name || "User";
+  const userRole = emp?.job_title || "";
+  const userDept = emp?.department || "";
+  const userCompany = emp?.company || "";
+  const userEmail = profile?.user?.email || "";
+  const avatarInitials = userName.charAt(0).toUpperCase();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -24,11 +67,13 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCardBig}>
           <View style={styles.avatarBig}>
-            <Text style={styles.avatarBigText}>U</Text>
+            <Text style={styles.avatarBigText}>{avatarInitials}</Text>
           </View>
-          <Text style={styles.profileNameBig}>User</Text>
-          <Text style={styles.profileRoleBig}>Mobile Developer</Text>
-          <Text style={styles.profileIdBig}>NIP: UNOTEK-2024-0042</Text>
+          <Text style={styles.profileNameBig}>{userName}</Text>
+          <Text style={styles.profileRoleBig}>{userRole}</Text>
+          {userCompany ? (
+            <Text style={styles.profileIdBig}>{userCompany}</Text>
+          ) : null}
         </View>
 
         <View style={styles.menuGroup}>
@@ -50,9 +95,19 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color="#EF4444" />
-            <Text style={[styles.menuText, { color: "#EF4444" }]}>Keluar dari Aplikasi</Text>
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            onPress={handleLogout}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+            )}
+            <Text style={[styles.menuText, { color: "#EF4444" }]}>
+              {isLoggingOut ? "Keluar..." : "Keluar dari Aplikasi"}
+            </Text>
             <Ionicons name="chevron-forward" size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>

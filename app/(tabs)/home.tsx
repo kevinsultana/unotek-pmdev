@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,34 +11,48 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useProfile } from "../../hooks/useProfile";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { profile, isLoading } = useProfile();
 
-  // Mock data representing GET User API response
-  const user = {
-    name: "User",
-    role: "Mobile Developer",
-    department: "Tech Department",
-    avatarInitials: "U",
-    sisaCuti: 12,
-    tasksCount: 5,
-  };
+  const userName = profile?.employee?.name || "User";
+  const userDept = profile?.employee?.department || "";
+  const avatarInitials = userName.charAt(0).toUpperCase();
+  const sisaCuti = 12; // placeholder — will come from time-off API later
+  const tasksCount = 5; // placeholder — will come from tasks API later
+
+  if (isLoading) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color="#2E5BFF" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Top Profile Header */}
         <View style={styles.header}>
           <View style={styles.profileRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{user.avatarInitials}</Text>
+              <Text style={styles.avatarText}>{avatarInitials}</Text>
             </View>
             <View style={styles.profileTextContainer}>
               <Text style={styles.welcomeText}>Selamat Datang,</Text>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userDept}>{user.department}</Text>
+              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userDept}>{userDept}</Text>
             </View>
             <View style={styles.badgeContainer}>
               <Text style={styles.badgeText}>Aktif</Text>
@@ -51,7 +66,7 @@ export default function HomeScreen() {
             <View style={[styles.iconWrapper, { backgroundColor: "#E0E7FF" }]}>
               <Ionicons name="checkbox-outline" size={24} color="#2E5BFF" />
             </View>
-            <Text style={styles.statValue}>{user.tasksCount}</Text>
+            <Text style={styles.statValue}>{tasksCount}</Text>
             <Text style={styles.statLabel}>Tugas Aktif</Text>
           </View>
 
@@ -59,18 +74,24 @@ export default function HomeScreen() {
             <View style={[styles.iconWrapper, { backgroundColor: "#E6F4EA" }]}>
               <Ionicons name="calendar-outline" size={24} color="#10B981" />
             </View>
-            <Text style={styles.statValue}>{user.sisaCuti}</Text>
+            <Text style={styles.statValue}>{sisaCuti}</Text>
             <Text style={styles.statLabel}>Sisa Cuti</Text>
           </View>
         </View>
 
         {/* Info Banner / Quick Guide */}
         <View style={styles.infoBanner}>
-          <Ionicons name="information-circle" size={24} color="#2E5BFF" style={styles.infoIcon} />
+          <Ionicons
+            name="information-circle"
+            size={24}
+            color="#2E5BFF"
+            style={styles.infoIcon}
+          />
           <View style={styles.infoTextWrapper}>
             <Text style={styles.infoTitle}>Aksi Cepat Absensi</Text>
             <Text style={styles.infoDesc}>
-              Sekarang tombol absensi Check-in & Check-out berada langsung di tab **Kehadiran** di bagian tengah bawah.
+              Sekarang tombol absensi Check-in & Check-out berada langsung di
+              tab **Kehadiran** di bagian tengah bawah.
             </Text>
           </View>
         </View>

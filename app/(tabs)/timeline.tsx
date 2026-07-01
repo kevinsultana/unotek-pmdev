@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,85 +10,27 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-type TaskStatus = "all" | "todo" | "in_progress" | "done";
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  status: "todo" | "in_progress" | "done";
-  priority: "High" | "Medium" | "Low";
-}
+import { useTasks } from "../../hooks/useTasks";
 
 export default function TimelineScreen() {
-  const [filter, setFilter] = useState<TaskStatus>("all");
-
-  // Mock data representing GET Task API response
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: "T-001",
-      title: "Integrasi API Kehadiran & GPS",
-      description: "Melakukan pengujian pengiriman koordinat latitude/longitude saat absen check-in.",
-      dueDate: "30 Juni 2026",
-      status: "in_progress",
-      priority: "High",
-    },
-    {
-      id: "T-002",
-      title: "Desain Dashboard Mobile",
-      description: "Memperbarui antarmuka pengguna halaman beranda agar selaras dengan skema warna baru.",
-      dueDate: "2 Juli 2026",
-      status: "todo",
-      priority: "Medium",
-    },
-    {
-      id: "T-003",
-      title: "Perbaikan Bug Kamera Halaman Absen",
-      description: "Memperbaiki orientasi gambar yang diambil oleh kamera depan di perangkat Android tertentu.",
-      dueDate: "28 Juni 2026",
-      status: "done",
-      priority: "High",
-    },
-    {
-      id: "T-004",
-      title: "Pemberkasan Cuti Karyawan",
-      description: "Melakukan sinkronisasi riwayat cuti tahunan dengan tim administrasi HR.",
-      dueDate: "5 Juli 2026",
-      status: "todo",
-      priority: "Low",
-    },
-    {
-      id: "T-005",
-      title: "Review Kode Bulanan",
-      description: "Menghadiri agenda bulanan evaluasi kualitas performa dan arsitektur kode.",
-      dueDate: "25 Juni 2026",
-      status: "done",
-      priority: "Medium",
-    },
-  ]);
-
-  const handleToggleStatus = (id: string) => {
-    setTasks(
-      tasks.map((task) => {
-        if (task.id === id) {
-          const nextStatus: Record<string, "todo" | "in_progress" | "done"> = {
-            todo: "in_progress",
-            in_progress: "done",
-            done: "todo",
-          };
-          return { ...task, status: nextStatus[task.status] };
-        }
-        return task;
-      })
-    );
-  };
+  const { tasks, isLoading, error, filter, setFilter, toggleStatus } = useTasks();
 
   const filteredTasks = tasks.filter((task) => {
     if (filter === "all") return true;
-    return task.status === filter;
+
+    // Map filter to kanban_state / stage interpretation
+    if (filter === "todo") return !task.kanban_state || task.kanban_state === "todo" || task.stage_id === 1;
+    if (filter === "in_progress") return task.kanban_state === "in_progress" || task.stage_id === 2;
+    if (filter === "done") return task.kanban_state === "done" || task.stage_id === 3;
+    return true;
   });
+
+  const getDisplayStatus = (task: typeof tasks[0]): string => {
+    const state = task.kanban_state || "";
+    if (state === "done") return "done";
+    if (state === "in_progress") return "in_progress";
+    return "todo";
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -147,7 +90,7 @@ export default function TimelineScreen() {
         <View style={styles.filterRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {(["all", "todo", "in_progress", "done"] as const).map((type) => {
-              const labelMap: Record<TaskStatus, string> = {
+              const labelMap: Record<string, string> = {
                 all: "Semua",
                 todo: "To Do",
                 in_progress: "In Progress",
@@ -171,40 +114,54 @@ export default function TimelineScreen() {
 
         {/* Task List */}
         <View style={styles.taskListContainer}>
-          {filteredTasks.length === 0 ? (
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#2E5BFF" style={{ marginVertical: 40 }} />
+          ) : error ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+              <Text style={styles.emptyText}>{error}</Text>
+            </View>
+          ) : filteredTasks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="documents-outline" size={48} color="#9CA3AF" />
               <Text style={styles.emptyText}>Tidak ada tugas untuk filter ini.</Text>
             </View>
           ) : (
-            filteredTasks.map((task) => (
-              <View key={task.id} style={styles.taskCard}>
-                <View style={styles.taskCardHeader}>
-                  <View style={styles.row}>
-                    <Text style={styles.taskId}>{task.id}</Text>
-                    {getPriorityBadge(task.priority)}
-                  </View>
-                  {getStatusBadge(task.status)}
-                </View>
-
-                <Text style={styles.taskTitle}>{task.title}</Text>
-                <Text style={styles.taskDesc}>{task.description}</Text>
-
-                <View style={styles.taskCardFooter}>
-                  <View style={styles.dueDateWrapper}>
-                    <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-                    <Text style={styles.dueDateText}>Batas: {task.dueDate}</Text>
+            filteredTasks.map((task) => {
+              const displayStatus = getDisplayStatus(task);
+              return (
+                <View key={task.id} style={styles.taskCard}>
+                  <View style={styles.taskCardHeader}>
+                    <View style={styles.row}>
+                      <Text style={styles.taskId}>#{task.id}</Text>
+                      {getPriorityBadge(task.priority || "Medium")}
+                    </View>
+                    {getStatusBadge(displayStatus)}
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => handleToggleStatus(task.id)}
-                  >
-                    <Text style={styles.actionBtnText}>Ubah Status</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.taskTitle}>{task.name}</Text>
+                  {task.description ? (
+                    <Text style={styles.taskDesc}>{task.description}</Text>
+                  ) : null}
+
+                  <View style={styles.taskCardFooter}>
+                    <View style={styles.dueDateWrapper}>
+                      <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+                      <Text style={styles.dueDateText}>
+                        Batas: {task.date_deadline || "Tidak ditentukan"}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => toggleStatus(task.id, task.stage_id)}
+                    >
+                      <Text style={styles.actionBtnText}>Ubah Status</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
