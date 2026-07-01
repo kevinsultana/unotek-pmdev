@@ -53,9 +53,23 @@ export interface CreateTaskRequest {
   user_ids?: number[];
   date_deadline?: string;
   priority?: string;
+  planned_hours?: number;
   stage_id?: number;
   parent_id?: number | null;
   tag_ids?: number[];
+}
+
+export interface TaskStageItem {
+  id: number;
+  name: string;
+  sequence?: number;
+  fold?: boolean;
+}
+
+export interface TaskTagItem {
+  id: number;
+  name: string;
+  color?: number;
 }
 
 export type UpdateTaskRequest = Partial<CreateTaskRequest> & {

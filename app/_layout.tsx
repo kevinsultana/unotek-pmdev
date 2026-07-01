@@ -22,6 +22,7 @@ export default function RootLayout() {
           <Stack.Screen name="time-off-detail" />
           <Stack.Screen name="task-detail" />
           <Stack.Screen name="profile-detail" />
+          <Stack.Screen name="task-create" />
           <Stack.Screen name="(tabs)" />
         </Stack>
       </AuthProvider>

@@ -4,6 +4,8 @@ import type {
   Task,
   CreateTaskRequest,
   UpdateTaskRequest,
+  TaskStageItem,
+  TaskTagItem,
 } from "../types/task";
 
 export const taskService = {
@@ -29,4 +31,10 @@ export const taskService = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<null>>(`/tasks/${id}`),
+
+  listStages: (params?: { project_id?: number }) =>
+    api.get<ApiResponse<TaskStageItem[]>>("/tasks/stages", { params }),
+
+  listTags: () =>
+    api.get<ApiResponse<TaskTagItem[]>>("/tasks/tags"),
 };

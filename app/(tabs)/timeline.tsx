@@ -210,6 +210,11 @@ export default function TimelineScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* FAB — Create Task */}
+      <TouchableOpacity style={styles.fab} onPress={() => router.push("/task-create")}>
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -297,4 +302,20 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 10, fontWeight: "600", color: "#2E5BFF" },
   emptyContainer: { alignItems: "center", paddingVertical: 40 },
   emptyText: { fontSize: 14, color: "#9CA3AF", marginTop: 12 },
+  fab: {
+    position: "absolute",
+    right: 24,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#2E5BFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#2E5BFF",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
 });
