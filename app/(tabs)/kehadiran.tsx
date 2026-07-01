@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useFocusEffect, useRouter } from "expo-router";
 import * as Location from "expo-location";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -11,7 +11,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -46,18 +45,21 @@ export default function KehadiranScreen() {
   const hasCheckedIn = attStatus?.employee?.attendance_state === "checked_in";
   const todayRecords = attStatus?.today ?? [];
   const lastRecord = todayRecords[todayRecords.length - 1];
-  const hasCheckedOutToday = todayRecords.length > 0 && lastRecord?.check_out !== null;
+  const hasCheckedOutToday =
+    todayRecords.length > 0 && lastRecord?.check_out !== null;
 
   const formatTime = (isoString: string | null | undefined) => {
     if (!isoString) return "";
     try {
       const date = new Date(isoString);
-      return date.toLocaleTimeString("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        timeZone: "Asia/Jakarta",
-      }).replace(/\./g, ".");
+      return date
+        .toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          timeZone: "Asia/Jakarta",
+        })
+        .replace(/\./g, ".");
     } catch {
       return isoString;
     }
@@ -306,7 +308,13 @@ export default function KehadiranScreen() {
             const inTime = formatTime(record.check_in);
             const outTime = formatTime(record.check_out);
             return (
-              <View key={record.id} style={[styles.historyRow, idx > 0 && { borderTopWidth: 0, paddingTop: 4 }]}>
+              <View
+                key={record.id}
+                style={[
+                  styles.historyRow,
+                  idx > 0 && { borderTopWidth: 0, paddingTop: 4 },
+                ]}
+              >
                 <View style={styles.historyCol}>
                   <Text style={styles.historyLabel}>Check In</Text>
                   <Text style={styles.historyVal}>{inTime}</Text>
@@ -321,24 +329,34 @@ export default function KehadiranScreen() {
         </View>
 
         {/* Navigation Cards */}
-        <TouchableOpacity style={styles.navCard} onPress={() => router.push("/attendance-history")}>
+        <TouchableOpacity
+          style={[styles.navCard, { marginTop: 0 }]}
+          onPress={() => router.push("/attendance-history")}
+        >
           <View style={[styles.navIcon, { backgroundColor: "#E0E7FF" }]}>
             <Ionicons name="time-outline" size={24} color="#2E5BFF" />
           </View>
           <View style={styles.navTextContainer}>
             <Text style={styles.navTitle}>Riwayat Presensi</Text>
-            <Text style={styles.navDesc}>Lihat riwayat absensi harian lengkap</Text>
+            <Text style={styles.navDesc}>
+              Lihat riwayat absensi harian lengkap
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navCard} onPress={() => router.push("/leave-allocations")}>
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push("/leave-allocations")}
+        >
           <View style={[styles.navIcon, { backgroundColor: "#E6F4EA" }]}>
             <Ionicons name="umbrella-outline" size={24} color="#10B981" />
           </View>
           <View style={styles.navTextContainer}>
             <Text style={styles.navTitle}>Alokasi Cuti</Text>
-            <Text style={styles.navDesc}>Detail sisa cuti & tipe cuti tersedia</Text>
+            <Text style={styles.navDesc}>
+              Detail sisa cuti & tipe cuti tersedia
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
@@ -465,7 +483,6 @@ export default function KehadiranScreen() {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -481,7 +498,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   sectionHeader: {
-    marginBottom: 20,
+    marginBottom: 12,
     marginTop: 12,
   },
   sectionTitle: {
@@ -499,7 +516,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.03,
@@ -527,7 +544,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 24,
-    marginBottom: 28,
+    marginBottom: 12,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.03,
