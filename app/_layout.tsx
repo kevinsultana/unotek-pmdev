@@ -20,6 +20,7 @@ export default function RootLayout() {
           <Stack.Screen name="attendance-history" />
           <Stack.Screen name="leave-allocations" />
           <Stack.Screen name="time-off-detail" />
+          <Stack.Screen name="task-detail" />
           <Stack.Screen name="(tabs)" />
         </Stack>
       </AuthProvider>

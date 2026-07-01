@@ -7,7 +7,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.bottomTabBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 4 }]}>
+    <View
+      style={[
+        styles.bottomTabBar,
+        { paddingBottom: insets.bottom > 0 ? insets.bottom : 4 },
+      ]}
+    >
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const label = options.title !== undefined ? options.title : route.name;
@@ -36,7 +41,9 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               <View
                 style={[
                   styles.raisedTabIconContainer,
-                  isFocused ? styles.raisedTabActiveContainer : styles.raisedTabInactiveContainer,
+                  isFocused
+                    ? styles.raisedTabActiveContainer
+                    : styles.raisedTabInactiveContainer,
                 ]}
               >
                 <Ionicons
@@ -45,7 +52,12 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                   color="#FFFFFF"
                 />
               </View>
-              <Text style={[styles.raisedTabLabel, isFocused && styles.activeTabLabel]}>
+              <Text
+                style={[
+                  styles.raisedTabLabel,
+                  isFocused && styles.activeTabLabel,
+                ]}
+              >
                 {label}
               </Text>
             </TouchableOpacity>
@@ -53,10 +65,14 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         }
 
         let iconName = "home-outline";
-        if (route.name === "home") iconName = isFocused ? "home" : "home-outline";
-        else if (route.name === "timeline") iconName = isFocused ? "time" : "time-outline";
-        else if (route.name === "perusahaan") iconName = isFocused ? "briefcase" : "briefcase-outline";
-        else if (route.name === "profile") iconName = isFocused ? "person" : "person-outline";
+        if (route.name === "home")
+          iconName = isFocused ? "home" : "home-outline";
+        else if (route.name === "timeline")
+          iconName = isFocused ? "time" : "time-outline";
+        else if (route.name === "perusahaan")
+          iconName = isFocused ? "briefcase" : "briefcase-outline";
+        else if (route.name === "profile")
+          iconName = isFocused ? "person" : "person-outline";
 
         return (
           <TouchableOpacity
@@ -87,7 +103,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="home" options={{ title: "Home" }} />
-      <Tabs.Screen name="timeline" options={{ title: "Timeline" }} />
+      <Tabs.Screen name="timeline" options={{ title: "Task" }} />
       <Tabs.Screen name="kehadiran" options={{ title: "Kehadiran" }} />
       <Tabs.Screen name="perusahaan" options={{ title: "Perusahaan" }} />
       <Tabs.Screen name="profile" options={{ title: "Profil" }} />
@@ -103,7 +119,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#E5E7EB",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingTop: 4
+    paddingTop: 4,
   },
   tabButton: {
     alignItems: "center",

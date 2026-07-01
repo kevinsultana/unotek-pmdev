@@ -6,27 +6,25 @@ export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<"my" | "all">("my");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchTasks = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const params: Record<string, unknown> = { my_tasks: true };
+      const params: {
+        my_tasks?: boolean;
+        search?: string;
+      } = {};
 
-      // Map UI filter ("all", "todo", "in_progress", "done") to API stage_id
-      // Note: These stage_id values need to be verified against the actual API
-      if (filter !== "all") {
-        const stageMap: Record<string, number> = {
-          todo: 1,
-          in_progress: 2,
-          done: 3,
-        };
-        params.stage_id = stageMap[filter] || undefined;
+      params.my_tasks = filter === "my";
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim();
       }
 
       const res = await taskService.list(params);
-      setTasks(res.data.data.items || []);
+      setTasks(res.data.data || []);
     } catch (err: any) {
       const message =
         err?.response?.data?.message || "Gagal memuat daftar tugas";
@@ -34,25 +32,11 @@ export function useTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [filter]);
+  }, [filter, searchQuery]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
-
-  const toggleStatus = useCallback(
-    async (id: number, currentStageId?: number) => {
-      // Cycle through stages: todo(1) -> in_progress(2) -> done(3) -> todo(1)
-      const cycle: Record<number, number> = { 1: 2, 2: 3, 3: 1 };
-      const nextStageId = currentStageId
-        ? cycle[currentStageId] || 1
-        : 2;
-
-      await taskService.update(id, { stage_id: nextStageId });
-      await fetchTasks();
-    },
-    [fetchTasks],
-  );
 
   return {
     tasks,
@@ -60,7 +44,8 @@ export function useTasks() {
     error,
     filter,
     setFilter,
-    toggleStatus,
+    searchQuery,
+    setSearchQuery,
     refresh: fetchTasks,
   };
 }

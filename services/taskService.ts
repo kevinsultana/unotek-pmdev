@@ -16,7 +16,7 @@ export const taskService = {
     stage_id?: number;
     priority?: string;
     my_tasks?: boolean;
-  }) => api.get<ApiResponse<{ items: Task[]; total: number; page: number; per_page: number }>>("/tasks", { params }),
+  }) => api.get<{ success: boolean; data: Task[]; pagination: { page: number; per_page: number; total: number; total_pages: number } }>("/tasks", { params }),
 
   getById: (id: number) =>
     api.get<ApiResponse<Task>>(`/tasks/${id}`),

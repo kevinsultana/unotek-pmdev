@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback } from "react";
 import {
@@ -7,81 +7,59 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTasks } from "../../hooks/useTasks";
 
-export default function TimelineScreen() {
-  const { tasks, isLoading, error, filter, setFilter, toggleStatus, refresh } = useTasks();
+const stageColorMap: Record<string, { color: string; bg: string }> = {
+  Open: { color: "#FFB020", bg: "#FFF4E5" },
+  "In Progress": { color: "#2E5BFF", bg: "#E0E7FF" },
+  "Ready to Test": { color: "#8B5CF6", bg: "#EDE9FE" },
+  Passed: { color: "#10B981", bg: "#E6F4EA" },
+  Failed: { color: "#EF4444", bg: "#FEE2E2" },
+  Done: { color: "#10B981", bg: "#E6F4EA" },
+};
 
-  // Refresh tasks setiap kali tab ini di-fokuskan
+const priorityMap: Record<string, { label: string; color: string; bg: string }> = {
+  "0": { label: "Normal", color: "#6B7280", bg: "#F3F4F6" },
+  "1": { label: "Urgent", color: "#EF4444", bg: "#FEE2E2" },
+};
+
+export default function TimelineScreen() {
+  const router = useRouter();
+  const {
+    tasks,
+    isLoading,
+    error,
+    filter,
+    setFilter,
+    searchQuery,
+    setSearchQuery,
+    refresh,
+  } = useTasks();
+
   useFocusEffect(
     useCallback(() => {
       refresh();
     }, [refresh]),
   );
 
-  const filteredTasks = tasks.filter((task) => {
-    if (filter === "all") return true;
-
-    // Map filter to kanban_state / stage interpretation
-    if (filter === "todo") return !task.kanban_state || task.kanban_state === "todo" || task.stage_id === 1;
-    if (filter === "in_progress") return task.kanban_state === "in_progress" || task.stage_id === 2;
-    if (filter === "done") return task.kanban_state === "done" || task.stage_id === 3;
-    return true;
-  });
-
-  const getDisplayStatus = (task: typeof tasks[0]): string => {
-    const state = task.kanban_state || "";
-    if (state === "done") return "done";
-    if (state === "in_progress") return "in_progress";
-    return "todo";
+  const getStageStyle = (stageName?: string | null) => {
+    if (!stageName) return { color: "#9CA3AF", bg: "#F3F4F6", label: "—" };
+    const found = stageColorMap[stageName];
+    return found || { color: "#6B7280", bg: "#F3F4F6", label: stageName };
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "todo":
-        return (
-          <View style={[styles.statusBadge, { backgroundColor: "#FFF4E5" }]}>
-            <Text style={[styles.statusBadgeText, { color: "#FFB020" }]}>To Do</Text>
-          </View>
-        );
-      case "in_progress":
-        return (
-          <View style={[styles.statusBadge, { backgroundColor: "#E0E7FF" }]}>
-            <Text style={[styles.statusBadgeText, { color: "#2E5BFF" }]}>In Progress</Text>
-          </View>
-        );
-      case "done":
-        return (
-          <View style={[styles.statusBadge, { backgroundColor: "#E6F4EA" }]}>
-            <Text style={[styles.statusBadgeText, { color: "#10B981" }]}>Done</Text>
-          </View>
-        );
-      default:
-        return null;
-    }
+  const getPriorityStyle = (p: string) => {
+    return priorityMap[p] || priorityMap["0"];
   };
 
-  const getPriorityBadge = (priority: string) => {
-    let color = "#6B7280";
-    let bg = "#F3F4F6";
-
-    if (priority === "High") {
-      color = "#EF4444";
-      bg = "#FEE2E2";
-    } else if (priority === "Medium") {
-      color = "#3B82F6";
-      bg = "#DBEAFE";
-    }
-
-    return (
-      <View style={[styles.priorityBadge, { backgroundColor: bg }]}>
-        <Text style={[styles.priorityBadgeText, { color: color }]}>{priority}</Text>
-      </View>
-    );
+  const stripHtml = (html?: string | null) => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim();
   };
 
   return (
@@ -94,30 +72,41 @@ export default function TimelineScreen() {
           <Text style={styles.sectionSubtitle}>Daftar tugas yang didelegasikan untuk Anda</Text>
         </View>
 
-        {/* Filter Row */}
-        <View style={styles.filterRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {(["all", "todo", "in_progress", "done"] as const).map((type) => {
-              const labelMap: Record<string, string> = {
-                all: "Semua",
-                todo: "To Do",
-                in_progress: "In Progress",
-                done: "Done",
-              };
-              const isActive = filter === type;
-              return (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.filterButton, isActive ? styles.filterActiveButton : null]}
-                  onPress={() => setFilter(type)}
-                >
-                  <Text style={[styles.filterButtonText, isActive ? styles.filterActiveButtonText : null]}>
-                    {labelMap[type]}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        {/* Filter Toggle: My Tasks / All Tasks */}
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleBtn, filter === "my" && styles.toggleBtnActive]}
+            onPress={() => setFilter("my")}
+          >
+            <Text style={[styles.toggleBtnText, filter === "my" && styles.toggleBtnTextActive]}>
+              Tugas Saya
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, filter === "all" && styles.toggleBtnActive]}
+            onPress={() => setFilter("all")}
+          >
+            <Text style={[styles.toggleBtnText, filter === "all" && styles.toggleBtnTextActive]}>
+              Semua Tugas
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchWrapper}>
+          <Ionicons name="search-outline" size={20} color="#8F9BB3" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Cari tugas..."
+            placeholderTextColor="#A9B5C9"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color="#8F9BB3" />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Task List */}
@@ -129,45 +118,93 @@ export default function TimelineScreen() {
               <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
               <Text style={styles.emptyText}>{error}</Text>
             </View>
-          ) : filteredTasks.length === 0 ? (
+          ) : tasks.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="documents-outline" size={48} color="#9CA3AF" />
-              <Text style={styles.emptyText}>Tidak ada tugas untuk filter ini.</Text>
+              <Text style={styles.emptyText}>Tidak ada tugas.</Text>
             </View>
           ) : (
-            filteredTasks.map((task) => {
-              const displayStatus = getDisplayStatus(task);
+            tasks.map((task) => {
+              const st = getStageStyle(task.stage?.name);
+              const pr = getPriorityStyle(task.priority);
+              const desc = stripHtml(task.description);
               return (
-                <View key={task.id} style={styles.taskCard}>
-                  <View style={styles.taskCardHeader}>
-                    <View style={styles.row}>
-                      <Text style={styles.taskId}>#{task.id}</Text>
-                      {getPriorityBadge(task.priority || "Medium")}
+                <TouchableOpacity
+                  key={task.id}
+                  style={styles.taskCard}
+                  activeOpacity={0.7}
+                  onPress={() => router.push(`/task-detail?id=${task.id}`)}
+                >
+                  {/* Header: Project Name + Stage Badge */}
+                  <View style={styles.taskCardTop}>
+                    <Text style={styles.projectName} numberOfLines={1}>
+                      {task.project?.name || ""}
+                    </Text>
+                    <View style={[styles.stageBadge, { backgroundColor: st.bg }]}>
+                      <Text style={[styles.stageBadgeText, { color: st.color }]}>
+                        {task.stage?.name || "—"}
+                      </Text>
                     </View>
-                    {getStatusBadge(displayStatus)}
                   </View>
 
-                  <Text style={styles.taskTitle}>{task.name}</Text>
-                  {task.description ? (
-                    <Text style={styles.taskDesc}>{task.description}</Text>
+                  {/* Task Name */}
+                  <Text style={styles.taskName}>{task.name}</Text>
+
+                  {/* Description (stripped) */}
+                  {desc ? (
+                    <Text style={styles.taskDesc} numberOfLines={2}>
+                      {desc}
+                    </Text>
                   ) : null}
 
-                  <View style={styles.taskCardFooter}>
-                    <View style={styles.dueDateWrapper}>
-                      <Ionicons name="calendar-outline" size={14} color="#6B7280" />
-                      <Text style={styles.dueDateText}>
-                        Batas: {task.date_deadline || "Tidak ditentukan"}
+                  {/* Info Row: Priority + Partner + Deadline */}
+                  <View style={styles.infoRow}>
+                    <View style={[styles.priorityBadge, { backgroundColor: pr.bg }]}>
+                      <Text style={[styles.priorityBadgeText, { color: pr.color }]}>
+                        {pr.label}
                       </Text>
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => toggleStatus(task.id, task.stage_id)}
-                    >
-                      <Text style={styles.actionBtnText}>Ubah Status</Text>
-                    </TouchableOpacity>
+                    {task.partner_id ? (
+                      <View style={styles.partnerBadge}>
+                        <Ionicons name="business-outline" size={12} color="#6B7280" />
+                        <Text style={styles.partnerText}>{task.partner_id.name}</Text>
+                      </View>
+                    ) : null}
                   </View>
-                </View>
+
+                  {/* Footer: Deadline + Assignee */}
+                  <View style={styles.taskCardFooter}>
+                    {task.date_deadline ? (
+                      <View style={styles.footerItem}>
+                        <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+                        <Text style={styles.footerText}>
+                          {task.date_deadline.substring(0, 10)}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {task.user_ids && task.user_ids.length > 0 ? (
+                      <View style={styles.footerItem}>
+                        <Ionicons name="people-outline" size={14} color="#6B7280" />
+                        <Text style={styles.footerText} numberOfLines={1}>
+                          {task.user_ids.map((u) => u.name).join(", ")}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Tags */}
+                  {task.tag_ids && task.tag_ids.length > 0 ? (
+                    <View style={styles.tagsRow}>
+                      {task.tag_ids.map((tag) => (
+                        <View key={tag.id} style={styles.tagBadge}>
+                          <Text style={styles.tagText}>{tag.name}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
               );
             })
           )}
@@ -178,57 +215,44 @@ export default function TimelineScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#eeeeefff",
-    paddingBottom: -30,
-  },
-  scrollContainer: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  sectionHeader: {
-    marginBottom: 20,
-    marginTop: 12,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1F2937",
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 4,
-  },
-  filterRow: {
-    marginBottom: 20,
+  container: { flex: 1, backgroundColor: "#eeeeefff", paddingBottom: -30 },
+  scrollContainer: { padding: 24, paddingBottom: 40 },
+  sectionHeader: { marginBottom: 16, marginTop: 12 },
+  sectionTitle: { fontSize: 22, fontWeight: "800", color: "#1F2937" },
+  sectionSubtitle: { fontSize: 14, color: "#6B7280", marginTop: 4 },
+  // Toggle filter
+  toggleRow: {
     flexDirection: "row",
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  toggleBtnActive: { backgroundColor: "#FFFFFF", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  toggleBtnText: { fontSize: 13, fontWeight: "700", color: "#6B7280" },
+  toggleBtnTextActive: { color: "#2E5BFF" },
+  // Search
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
-    marginRight: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 48,
+    marginBottom: 20,
   },
-  filterActiveButton: {
-    backgroundColor: "#2E5BFF",
-    borderColor: "#2E5BFF",
-  },
-  filterButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-  },
-  filterActiveButtonText: {
-    color: "#FFFFFF",
-  },
-  taskListContainer: {
-    marginTop: 8,
-  },
+  searchIcon: { marginRight: 10 },
+  searchInput: { flex: 1, color: "#1F2937", fontSize: 14, fontWeight: "500" },
+  // Task list
+  taskListContainer: { marginTop: 4 },
   taskCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -240,52 +264,22 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 2,
   },
-  taskCardHeader: {
+  taskCardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  taskId: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#9CA3AF",
-    marginRight: 8,
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  priorityBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#1F2937",
-    marginBottom: 6,
-  },
-  taskDesc: {
-    fontSize: 13,
-    color: "#4B5563",
-    lineHeight: 18,
-    marginBottom: 16,
-  },
+  projectName: { fontSize: 12, fontWeight: "600", color: "#9CA3AF", flex: 1, marginRight: 8 },
+  stageBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  stageBadgeText: { fontSize: 11, fontWeight: "700" },
+  taskName: { fontSize: 16, fontWeight: "800", color: "#1F2937", marginBottom: 6 },
+  taskDesc: { fontSize: 13, color: "#6B7280", lineHeight: 18, marginBottom: 12 },
+  infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" },
+  priorityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  priorityBadgeText: { fontSize: 10, fontWeight: "700" },
+  partnerBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+  partnerText: { fontSize: 11, color: "#6B7280", fontWeight: "600" },
   taskCardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -293,35 +287,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
     paddingTop: 12,
+    flexWrap: "wrap",
+    gap: 8,
   },
-  dueDateWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dueDateText: {
-    fontSize: 11,
-    color: "#6B7280",
-    marginLeft: 6,
-    fontWeight: "500",
-  },
-  actionBtn: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  actionBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#2E5BFF",
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 12,
-  },
+  footerItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  footerText: { fontSize: 11, color: "#6B7280", fontWeight: "500", flexShrink: 1 },
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+  tagBadge: { backgroundColor: "#F0F4FF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  tagText: { fontSize: 10, fontWeight: "600", color: "#2E5BFF" },
+  emptyContainer: { alignItems: "center", paddingVertical: 40 },
+  emptyText: { fontSize: 14, color: "#9CA3AF", marginTop: 12 },
 });
