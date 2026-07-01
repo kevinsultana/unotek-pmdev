@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "unotek-pm2",
-    "slug": "unotek-pm2",
+    "name": "unotek-pmdev",
+    "slug": "unotek-pmdev",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kevinsultana.unotekpm2"
     },
     "web": {
       "output": "static",
