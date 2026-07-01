@@ -1,7 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
@@ -46,6 +46,7 @@ export default function AttendanceHistoryScreen() {
   const [dateFrom, setDateFrom] = useState<Date>(firstOfMonth);
   const [dateTo, setDateTo] = useState<Date>(lastOfMonth);
   const [showPicker, setShowPicker] = useState<"from" | "to" | null>(null);
+  const [tempPickerDate, setTempPickerDate] = useState(new Date());
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [page, setPage] = useState(1);
@@ -154,7 +155,10 @@ export default function AttendanceHistoryScreen() {
 
       {/* Custom Header */}
       <View style={styles.customHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBackBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerBackBtn}
+        >
           <Ionicons name="arrow-back" size={22} color="#2E5BFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Riwayat Presensi</Text>
@@ -163,28 +167,61 @@ export default function AttendanceHistoryScreen() {
 
       {/* Filter Row — Date Pickers */}
       <View style={styles.filterRow}>
-        <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowPicker("from")}>
+        <TouchableOpacity
+          style={styles.datePickerBtn}
+          onPress={() => setShowPicker("from")}
+        >
           <Text style={styles.datePickerLabel}>Dari</Text>
           <Text style={styles.datePickerValue}>{toDisplay(dateFrom)}</Text>
         </TouchableOpacity>
 
-        <Ionicons name="arrow-forward" size={16} color="#D1D5DB" style={{ marginHorizontal: 8 }} />
+        <Ionicons
+          name="arrow-forward"
+          size={16}
+          color="#D1D5DB"
+          style={{ marginHorizontal: 8 }}
+        />
 
-        <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowPicker("to")}>
+        <TouchableOpacity
+          style={styles.datePickerBtn}
+          onPress={() => setShowPicker("to")}
+        >
           <Text style={styles.datePickerLabel}>Sampai</Text>
           <Text style={styles.datePickerValue}>{toDisplay(dateTo)}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Date Time Picker Modal */}
-      {showPicker && (
+      {showPicker && Platform.OS === "ios" ? (
+        <View style={[StyleSheet.absoluteFill, styles.pickerOverlayIos]}>
+            <TouchableOpacity style={styles.pickerOverlayBgIos} onPress={() => setShowPicker(null)} />
+            <View style={styles.pickerContainerIos}>
+              <View style={styles.pickerHeaderIos}>
+                <TouchableOpacity onPress={() => {
+                  if (showPicker === "from") setDateFrom(tempPickerDate);
+                  else setDateTo(tempPickerDate);
+                  setShowPicker(null);
+                }}>
+                  <Text style={styles.pickerDoneTextIos}>Selesai</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={showPicker === "from" ? dateFrom : dateTo}
+                mode="date"
+                display="inline"
+                themeVariant="light"
+                onChange={(_e, d) => { if (d) setTempPickerDate(d); }}
+              />
+            </View>
+          </View>
+      ) : showPicker ? (
         <DateTimePicker
           value={showPicker === "from" ? dateFrom : dateTo}
           mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
+          display="default"
           onChange={handlePickerChange}
         />
-      )}
+      ) : null}
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -200,7 +237,11 @@ export default function AttendanceHistoryScreen() {
         }}
       >
         {isLoading ? (
-          <ActivityIndicator size="large" color="#2E5BFF" style={{ marginVertical: 40 }} />
+          <ActivityIndicator
+            size="large"
+            color="#2E5BFF"
+            style={{ marginVertical: 40 }}
+          />
         ) : error ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
@@ -219,8 +260,12 @@ export default function AttendanceHistoryScreen() {
             {records.map((rec) => (
               <View key={rec.id} style={styles.recordCard}>
                 <View style={styles.recordHeader}>
-                  <Text style={styles.recordDate}>{formatDateTime(rec.check_in)}</Text>
-                  <Text style={styles.recordHours}>{formatHours(rec.worked_hours)}</Text>
+                  <Text style={styles.recordDate}>
+                    {formatDateTime(rec.check_in)}
+                  </Text>
+                  <Text style={styles.recordHours}>
+                    {formatHours(rec.worked_hours)}
+                  </Text>
                 </View>
                 <View style={styles.recordDetail}>
                   <View style={styles.recordCol}>
@@ -252,7 +297,11 @@ export default function AttendanceHistoryScreen() {
               </View>
             ))}
             {isLoadingMore && (
-              <ActivityIndicator size="small" color="#2E5BFF" style={{ marginVertical: 16 }} />
+              <ActivityIndicator
+                size="small"
+                color="#2E5BFF"
+                style={{ marginVertical: 16 }}
+              />
             )}
             {page >= totalPages && records.length > 0 && (
               <Text style={styles.endText}>Semua data telah dimuat</Text>
@@ -398,5 +447,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     marginTop: 8,
+  },
+  // iOS Picker
+  pickerContainerIos: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  pickerHeaderIos: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  pickerDoneTextIos: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2E5BFF",
+  },
+  pickerOverlayIos: {
+    zIndex: 999,
+    justifyContent: "flex-end",
+  },
+  pickerOverlayBgIos: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
 });

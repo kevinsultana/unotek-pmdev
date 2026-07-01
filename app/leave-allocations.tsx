@@ -70,6 +70,7 @@ export default function LeaveAllocationsScreen() {
   const [dateFrom, setDateFrom] = useState<Date>(firstOfMonth);
   const [dateTo, setDateTo] = useState<Date>(lastOfMonth);
   const [showPicker, setShowPicker] = useState<"from" | "to" | null>(null);
+  const [tempPickerDate, setTempPickerDate] = useState(new Date());
 
   // ── Balances ──
   const [balances, setBalances] = useState<TimeOffBalanceItem[]>([]);
@@ -226,14 +227,42 @@ export default function LeaveAllocationsScreen() {
         </TouchableOpacity>
       </View>
 
-      {showPicker && (
+      {showPicker && Platform.OS === "ios" ? (
+        <View style={[StyleSheet.absoluteFill, styles.pickerOverlayIos]}>
+          <TouchableOpacity style={styles.pickerOverlayBgIos} onPress={() => setShowPicker(null)} />
+            <View style={styles.pickerContainerIos}>
+              <View style={styles.pickerHeaderIos}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (showPicker === "from") setDateFrom(tempPickerDate);
+                    else setDateTo(tempPickerDate);
+                    setShowPicker(null);
+                  }}
+                >
+                  <Text style={styles.pickerDoneTextIos}>Selesai</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ backgroundColor: "#FFFFFF" }}>
+                <DateTimePicker
+                  value={showPicker === "from" ? dateFrom : dateTo}
+                  mode="date"
+                  display="inline"
+                  themeVariant="light"
+                  onChange={(_e, d) => {
+                    if (d) setTempPickerDate(d);
+                  }}
+                />
+              </View>
+            </View>
+        </View>
+      ) : showPicker ? (
         <DateTimePicker
           value={showPicker === "from" ? dateFrom : dateTo}
           mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
+          display="default"
           onChange={handlePickerChange}
         />
-      )}
+      ) : null}
 
       {/* List */}
       <ScrollView
@@ -430,7 +459,10 @@ export default function LeaveAllocationsScreen() {
               <Text style={styles.fieldLabel}>Tanggal Mulai</Text>
               <TouchableOpacity
                 style={styles.formInput}
-                onPress={() => setShowCreatePicker("from")}
+                onPress={() => {
+                  setIsCreateModalVisible(false);
+                  setTimeout(() => setShowCreatePicker("from"), 300);
+                }}
               >
                 <Text
                   style={
@@ -446,7 +478,10 @@ export default function LeaveAllocationsScreen() {
               <Text style={styles.fieldLabel}>Tanggal Selesai</Text>
               <TouchableOpacity
                 style={styles.formInput}
-                onPress={() => setShowCreatePicker("to")}
+                onPress={() => {
+                  setIsCreateModalVisible(false);
+                  setTimeout(() => setShowCreatePicker("to"), 300);
+                }}
               >
                 <Text
                   style={
@@ -458,33 +493,6 @@ export default function LeaveAllocationsScreen() {
                   {createDateTo || "Pilih tanggal"}
                 </Text>
               </TouchableOpacity>
-
-              {showCreatePicker && (
-                <DateTimePicker
-                  value={
-                    showCreatePicker === "from"
-                      ? createDateFromDate
-                      : createDateToDate
-                  }
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={(_e, d) => {
-                    setShowCreatePicker(null);
-                    if (!d) return;
-                    const y = d.getFullYear();
-                    const m = String(d.getMonth() + 1).padStart(2, "0");
-                    const day = String(d.getDate()).padStart(2, "0");
-                    const formatted = `${y}-${m}-${day}`;
-                    if (showCreatePicker === "from") {
-                      setCreateDateFrom(formatted);
-                      setCreateDateFromDate(d);
-                    } else {
-                      setCreateDateTo(formatted);
-                      setCreateDateToDate(d);
-                    }
-                  }}
-                />
-              )}
 
               <Text style={styles.fieldLabel}>Alasan</Text>
               <TextInput
@@ -514,6 +522,67 @@ export default function LeaveAllocationsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Create Date Picker (iOS) ── */}
+      {showCreatePicker && Platform.OS === "ios" ? (
+        <View style={[StyleSheet.absoluteFill, styles.pickerOverlayIos]}>
+          <TouchableOpacity style={styles.pickerOverlayBgIos} onPress={() => { setShowCreatePicker(null); setIsCreateModalVisible(true); }} />
+          <View style={styles.pickerContainerIos}>
+            <View style={styles.pickerHeaderIos}>
+              <TouchableOpacity onPress={() => {
+                if (!showCreatePicker) return;
+                const d = showCreatePicker === "from" ? createDateFromDate : createDateToDate;
+                const y = d.getFullYear();
+                const m = String(d.getMonth()+1).padStart(2,"0");
+                const day = String(d.getDate()).padStart(2,"0");
+                const formatted = `${y}-${m}-${day}`;
+                if (showCreatePicker === "from") setCreateDateFrom(formatted);
+                else setCreateDateTo(formatted);
+                setShowCreatePicker(null);
+                setIsCreateModalVisible(true);
+              }}>
+                <Text style={styles.pickerDoneTextIos}>Selesai</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ backgroundColor: "#FFFFFF" }}>
+              <DateTimePicker
+                value={showCreatePicker === "from" ? createDateFromDate : createDateToDate}
+                mode="date"
+                display="inline"
+                themeVariant="light"
+                onChange={(_e, d) => { if (d) {
+                  if (showCreatePicker === "from") setCreateDateFromDate(d);
+                  else setCreateDateToDate(d);
+                }}}
+              />
+            </View>
+          </View>
+        </View>
+      ) : showCreatePicker ? (
+        <DateTimePicker
+          value={
+            showCreatePicker === "from" ? createDateFromDate : createDateToDate
+          }
+          mode="date"
+          display="default"
+          onChange={(_e, d) => {
+            setShowCreatePicker(null);
+            if (!d) return;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            const formatted = `${y}-${m}-${day}`;
+            if (showCreatePicker === "from") {
+              setCreateDateFrom(formatted);
+              setCreateDateFromDate(d);
+            } else {
+              setCreateDateTo(formatted);
+              setCreateDateToDate(d);
+            }
+            setIsCreateModalVisible(true);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -791,4 +860,36 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
   disabledBtn: { backgroundColor: "#93ACFF" },
+  // iOS Picker Modal
+  modalOverlayIos: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  pickerContainerIos: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  pickerHeaderIos: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  pickerDoneTextIos: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2E5BFF",
+  },
+  pickerOverlayIos: {
+    zIndex: 999,
+    justifyContent: "flex-end",
+  },
+  pickerOverlayBgIos: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
 });

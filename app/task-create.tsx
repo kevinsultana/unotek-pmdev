@@ -190,14 +190,34 @@ export default function TaskCreateScreen() {
             <Ionicons name="calendar-outline" size={18} color="#8F9BB3" />
           </TouchableOpacity>
 
-          {showDatePicker && (
+          {showDatePicker && Platform.OS === "ios" ? (
+            <View style={[StyleSheet.absoluteFill, styles.pickerOverlayIos]}>
+              <TouchableOpacity style={styles.pickerOverlayBgIos} onPress={() => setShowDatePicker(false)} />
+              <View style={styles.pickerContainerIos}>
+                <View style={styles.pickerHeaderIos}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.pickerDoneTextIos}>Selesai</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ backgroundColor: "#FFFFFF" }}>
+                  <DateTimePicker
+                    value={dateDeadline}
+                    mode="date"
+                    display="inline"
+                    themeVariant="light"
+                    onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : showDatePicker ? (
             <DateTimePicker
               value={dateDeadline}
               mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(_e, d) => { setShowDatePicker(false); if (d) setDateDeadline(d); }}
+              display="default"
+              onChange={(_e, d) => { if (d) setDateDeadline(d); }}
             />
-          )}
+          ) : null}
 
           {/* Planned Hours */}
           <Text style={styles.label}>Estimasi Jam</Text>
@@ -427,4 +447,31 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   doneBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  // iOS Picker
+  pickerOverlayIos: {
+    zIndex: 999,
+    justifyContent: "flex-end",
+  },
+  pickerOverlayBgIos: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  pickerContainerIos: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  pickerHeaderIos: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  pickerDoneTextIos: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#2E5BFF",
+  },
 });
