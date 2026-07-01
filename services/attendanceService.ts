@@ -26,7 +26,7 @@ export const attendanceService = {
   getHistory: (
     params: PaginationParams & { date_from?: string; date_to?: string },
   ) =>
-    api.get<ApiResponse<{ items: AttendanceRecord[]; total: number; page: number; per_page: number }>>(
+    api.get<{ success: boolean; data: AttendanceRecord[]; pagination: { page: number; per_page: number; total: number; total_pages: number } }>(
       "/attendance/history",
       { params },
     ),

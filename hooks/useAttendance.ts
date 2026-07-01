@@ -14,8 +14,15 @@ export function useAttendance() {
       const res = await attendanceService.getStatus();
       setStatus(res.data.data);
     } catch (err: any) {
+      console.log(
+        "GET /attendance/status error:",
+        err?.response?.status,
+        JSON.stringify(err?.response?.data, null, 2),
+      );
       const message =
-        err?.response?.data?.message || "Gagal memuat status presensi";
+        err?.response?.data?.message ||
+        err?.message ||
+        "Gagal memuat status presensi";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -39,6 +46,10 @@ export function useAttendance() {
         longitude: data.longitude,
         address: data.address,
       });
+      console.log(
+        "POST /attendance/check-in response:",
+        JSON.stringify(res.data, null, 2),
+      );
       await fetchStatus();
       return res.data;
     },

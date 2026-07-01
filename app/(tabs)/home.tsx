@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import { useCallback } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -11,11 +11,20 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../../hooks/useAuth";
 import { useProfile } from "../../hooks/useProfile";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const { profile, isLoading } = useProfile();
+
+  // Refresh profile setiap kali tab ini di-fokuskan
+  useFocusEffect(
+    useCallback(() => {
+      refreshUser();
+    }, [refreshUser]),
+  );
 
   const userName = profile?.employee?.name || "User";
   const userDept = profile?.employee?.department || "";

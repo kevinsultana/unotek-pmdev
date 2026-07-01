@@ -1,12 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   ScrollView,
@@ -16,11 +15,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useAttendance } from "../../hooks/useAttendance";
-import { useTimeOff } from "../../hooks/useTimeOff";
+import { showToast } from "../../utils/toast";
 
 export default function KehadiranScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const {
     status: attStatus,
@@ -29,13 +32,6 @@ export default function KehadiranScreen() {
     checkOut,
     refresh: refreshAttendance,
   } = useAttendance();
-  const {
-    balances,
-    types,
-    isLoading: toLoading,
-    createTimeOff,
-    refresh: refreshTimeOff,
-  } = useTimeOff();
 
   // Clock states
   const [currentTime, setCurrentTime] = useState("");
@@ -47,35 +43,67 @@ export default function KehadiranScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   // Attendance derived from API
-  const hasCheckedIn = attStatus?.checked_in ?? false;
-  const checkInTime = attStatus?.check_in_time ?? "";
-  const checkOutTime = attStatus?.check_out_time ?? "";
+  const hasCheckedIn = attStatus?.employee?.attendance_state === "checked_in";
+  const todayRecords = attStatus?.today ?? [];
+  const lastRecord = todayRecords[todayRecords.length - 1];
+  const hasCheckedOutToday = todayRecords.length > 0 && lastRecord?.check_out !== null;
+
+  const formatTime = (isoString: string | null | undefined) => {
+    if (!isoString) return "";
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZone: "Asia/Jakarta",
+      }).replace(/\./g, ".");
+    } catch {
+      return isoString;
+    }
+  };
+
+  // formatTime used inline in todayRecords.map() below
 
   // Camera & GPS simulation modals
-  const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
-  const [attendanceType, setAttendanceType] = useState<"checkin" | "checkout">("checkin");
+  const [isAttendanceModalVisible, setIsAttendanceModalVisible] =
+    useState(false);
+  const [attendanceType, setAttendanceType] = useState<"checkin" | "checkout">(
+    "checkin",
+  );
   const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsCoords, setGpsCoords] = useState<{ lat: string; lng: string } | null>(null);
+  const [gpsCoords, setGpsCoords] = useState<{
+    lat: string;
+    lng: string;
+  } | null>(null);
   const [gpsAddress, setGpsAddress] = useState<string | null>(null);
   const [photoCaptured, setPhotoCaptured] = useState(false);
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
 
-  // Leave / Cuti states
-  const [isLeaveModalVisible, setIsLeaveModalVisible] = useState(false);
-  const [leaveType, setLeaveType] = useState("Cuti Tahunan");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [reason, setReason] = useState("");
-  const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
+  // Refresh attendance setiap kali tab ini di-fokuskan
+  useFocusEffect(
+    useCallback(() => {
+      refreshAttendance();
+    }, [refreshAttendance]),
+  );
 
   useEffect(() => {
     const updateDateTime = () => {
       const now = new Date();
       setCurrentTime(
-        now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        now.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
       );
       setCurrentDate(
-        now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+        now.toLocaleDateString("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
       );
     };
 
@@ -95,7 +123,11 @@ export default function KehadiranScreen() {
     // Request Camera Permission
     const cameraPermissionResult = await requestCameraPermission();
     if (!cameraPermissionResult.granted) {
-      Alert.alert("Izin Kamera Diperlukan", "Aplikasi membutuhkan akses kamera untuk melakukan foto selfie presensi.");
+      showToast(
+        "error",
+        "Izin Kamera Diperlukan",
+        "Aplikasi membutuhkan akses kamera untuk melakukan foto selfie presensi.",
+      );
       setIsAttendanceModalVisible(false);
       return;
     }
@@ -106,7 +138,11 @@ export default function KehadiranScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Izin Lokasi Diperlukan", "Aplikasi membutuhkan akses GPS untuk memvalidasi lokasi Anda.");
+        showToast(
+          "error",
+          "Izin Lokasi Diperlukan",
+          "Aplikasi membutuhkan akses GPS untuk memvalidasi lokasi Anda.",
+        );
         setGpsLoading(false);
         setIsAttendanceModalVisible(false);
         return;
@@ -135,9 +171,13 @@ export default function KehadiranScreen() {
           const addressObj = reverseGeocode[0];
           const name = addressObj.name ? `${addressObj.name}, ` : "";
           const street = addressObj.street ? `${addressObj.street}, ` : "";
-          const district = addressObj.district ? `${addressObj.district}, ` : "";
+          const district = addressObj.district
+            ? `${addressObj.district}, `
+            : "";
           const city = addressObj.city || addressObj.subregion || "";
-          const niceAddress = `${name}${street}${district}${city}`.trim().replace(/,\s*$/, "");
+          const niceAddress = `${name}${street}${district}${city}`
+            .trim()
+            .replace(/,\s*$/, "");
           setGpsAddress(niceAddress || "Lokasi tidak dikenal");
         } else {
           setGpsAddress("Alamat tidak ditemukan");
@@ -148,7 +188,11 @@ export default function KehadiranScreen() {
       }
     } catch (error) {
       console.log(error);
-      Alert.alert("Error GPS", "Gagal mendapatkan koordinat lokasi GPS Anda.");
+      showToast(
+        "error",
+        "Error GPS",
+        "Gagal mendapatkan koordinat lokasi GPS Anda.",
+      );
     } finally {
       setGpsLoading(false);
     }
@@ -168,45 +212,26 @@ export default function KehadiranScreen() {
         }
       } catch (error) {
         console.log(error);
-        Alert.alert("Error Kamera", "Gagal menangkap gambar dari kamera.");
+        showToast(
+          "error",
+          "Error Kamera",
+          "Gagal menangkap gambar dari kamera.",
+        );
       }
     }
   };
 
   // Handle final submission (POST Checkin / POST Checkout API)
   const handleConfirmAttendance = async () => {
-    if (!photoCaptured) {
-      Alert.alert("Foto Diperlukan", "Harap ambil foto wajah Anda terlebih dahulu.");
-      return;
-    }
-    if (gpsLoading || !gpsCoords) {
-      Alert.alert("GPS Belum Terdeteksi", "Sedang mencari koordinat lokasi presisi...");
-      return;
-    }
-
     setIsSubmittingAttendance(true);
     try {
-      // Convert photo to base64
-      let photoBase64: string | undefined;
-      if (photoUri) {
-        photoBase64 = await FileSystem.readAsStringAsync(photoUri, {
-          encoding: "base64",
-        });
-      }
-
-      const payload = {
-        photo: photoBase64,
-        latitude: parseFloat(gpsCoords.lat),
-        longitude: parseFloat(gpsCoords.lng),
-        address: gpsAddress || undefined,
-      };
-
+      // Kirim body kosong — cek dulu error dari API
       if (attendanceType === "checkin") {
-        await checkIn(payload);
-        Alert.alert("Check In Sukses", "Anda berhasil absen masuk.");
+        await checkIn({} as any);
+        showToast("success", "Check In Sukses", "Anda berhasil absen masuk.");
       } else {
-        await checkOut(payload);
-        Alert.alert("Check Out Sukses", "Anda berhasil absen keluar.");
+        await checkOut({} as any);
+        showToast("success", "Check Out Sukses", "Anda berhasil absen keluar.");
       }
 
       setIsAttendanceModalVisible(false);
@@ -216,61 +241,29 @@ export default function KehadiranScreen() {
       setGpsAddress(null);
     } catch (error: any) {
       const message =
-        error?.response?.data?.message || "Gagal mengirim presensi. Silakan coba lagi.";
-      Alert.alert("Presensi Gagal", message);
+        error?.response?.data?.message ||
+        "Gagal mengirim presensi. Silakan coba lagi.";
+      showToast("error", "Presensi Gagal", message);
+      console.log(JSON.stringify(error, null, 2));
+      setIsSubmittingAttendance(false);
     } finally {
       setIsSubmittingAttendance(false);
-    }
-  };
-
-  // Submit Leave (POST Time-Off API)
-  const handleRequestLeave = async () => {
-    if (!startDate || !endDate || !reason) {
-      Alert.alert("Form Belum Lengkap", "Silakan isi semua kolom tanggal dan alasan cuti.");
-      return;
-    }
-
-    setIsSubmittingLeave(true);
-    try {
-      // Map selected leave type name to holiday_status_id from API types
-      const selectedType = types.find((t) => t.name === leaveType);
-      if (!selectedType) {
-        Alert.alert("Error", "Tipe cuti tidak ditemukan. Silakan pilih ulang.");
-        return;
-      }
-
-      await createTimeOff({
-        holiday_status_id: selectedType.id,
-        date_from: startDate,
-        date_to: endDate,
-        name: reason,
-      });
-
-      setIsLeaveModalVisible(false);
-      setStartDate("");
-      setEndDate("");
-      setReason("");
-      Alert.alert(
-        "Pengajuan Berhasil",
-        "Pengajuan cuti/izin Anda telah dikirim dan menunggu persetujuan HRD.",
-      );
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message || "Gagal mengajukan cuti. Silakan coba lagi.";
-      Alert.alert("Pengajuan Gagal", message);
-    } finally {
-      setIsSubmittingLeave(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header Title */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Presensi & Cuti</Text>
-          <Text style={styles.sectionSubtitle}>Kelola absensi harian dan pengajuan izin</Text>
+          <Text style={styles.sectionSubtitle}>
+            Kelola absensi harian dan pengajuan izin
+          </Text>
         </View>
 
         {/* Live Date/Time Card */}
@@ -284,73 +277,95 @@ export default function KehadiranScreen() {
         <View style={styles.attendanceCard}>
           <Text style={styles.cardHeading}>Presensi Hari Ini</Text>
           <Text style={styles.cardDesc}>
-            {hasCheckedIn
-              ? "Anda sedang aktif bekerja. Lakukan Check Out jika jam kerja sudah selesai."
-              : "Silakan lakukan Check In menggunakan kamera selfie & GPS untuk mulai bekerja."}
+            {hasCheckedOutToday
+              ? "Presensi hari ini sudah lengkap."
+              : hasCheckedIn
+                ? "Anda sedang aktif bekerja. Lakukan Check Out jika jam kerja sudah selesai."
+                : "Silakan lakukan Check In menggunakan kamera selfie & GPS untuk mulai bekerja."}
           </Text>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, hasCheckedIn ? styles.checkoutBtn : styles.checkinBtn]}
-            onPress={() => openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")}
-          >
-            <Ionicons name="finger-print" size={28} color="#FFFFFF" />
-            <Text style={styles.actionBtnText}>
-              {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
-            </Text>
-          </TouchableOpacity>
-
-          {checkInTime ? (
-            <View style={styles.historyRow}>
-              <View style={styles.historyCol}>
-                <Text style={styles.historyLabel}>Check In</Text>
-                <Text style={styles.historyVal}>{checkInTime}</Text>
-              </View>
-              <View style={styles.historyCol}>
-                <Text style={styles.historyLabel}>Check Out</Text>
-                <Text style={styles.historyVal}>{checkOutTime || "--:--"}</Text>
-              </View>
-            </View>
+          {!hasCheckedOutToday ? (
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                hasCheckedIn ? styles.checkoutBtn : styles.checkinBtn,
+              ]}
+              onPress={() =>
+                openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")
+              }
+            >
+              <Ionicons name="finger-print" size={28} color="#FFFFFF" />
+              <Text style={styles.actionBtnText}>
+                {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
+              </Text>
+            </TouchableOpacity>
           ) : null}
-        </View>
 
-        {/* Time-Off Allocation Header */}
-        <View style={styles.rowBetween}>
-          <Text style={styles.subHeading}>Alokasi Cuti (Time-Off)</Text>
-          <TouchableOpacity style={styles.requestBtn} onPress={() => setIsLeaveModalVisible(true)}>
-            <Text style={styles.requestBtnText}>Ajukan Cuti / Izin</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* List of allocations from API */}
-        <View style={styles.allocationsContainer}>
-          {toLoading ? (
-            <ActivityIndicator size="small" color="#2E5BFF" style={{ marginVertical: 20 }} />
-          ) : (
-            balances.map((bal) => (
-              <View key={bal.holiday_status_id} style={styles.allocCard}>
-                <View style={styles.allocInfo}>
-                  <Text style={styles.allocType}>{bal.name}</Text>
-                  <Text style={styles.allocDetail}>Terpakai: {bal.taken} hari</Text>
+          {/* Show all today records */}
+          {todayRecords.map((record, idx) => {
+            const inTime = formatTime(record.check_in);
+            const outTime = formatTime(record.check_out);
+            return (
+              <View key={record.id} style={[styles.historyRow, idx > 0 && { borderTopWidth: 0, paddingTop: 4 }]}>
+                <View style={styles.historyCol}>
+                  <Text style={styles.historyLabel}>Check In</Text>
+                  <Text style={styles.historyVal}>{inTime}</Text>
                 </View>
-                <View style={styles.allocValueWrapper}>
-                  <Text style={styles.allocValue}>{bal.remaining}</Text>
-                  <Text style={styles.allocSubVal}>/{bal.allocated} hari</Text>
+                <View style={styles.historyCol}>
+                  <Text style={styles.historyLabel}>Check Out</Text>
+                  <Text style={styles.historyVal}>{outTime || "--:--"}</Text>
                 </View>
               </View>
-            ))
-          )}
+            );
+          })}
         </View>
+
+        {/* Navigation Cards */}
+        <TouchableOpacity style={styles.navCard} onPress={() => router.push("/attendance-history")}>
+          <View style={[styles.navIcon, { backgroundColor: "#E0E7FF" }]}>
+            <Ionicons name="time-outline" size={24} color="#2E5BFF" />
+          </View>
+          <View style={styles.navTextContainer}>
+            <Text style={styles.navTitle}>Riwayat Presensi</Text>
+            <Text style={styles.navDesc}>Lihat riwayat absensi harian lengkap</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navCard} onPress={() => router.push("/leave-allocations")}>
+          <View style={[styles.navIcon, { backgroundColor: "#E6F4EA" }]}>
+            <Ionicons name="umbrella-outline" size={24} color="#10B981" />
+          </View>
+          <View style={styles.navTextContainer}>
+            <Text style={styles.navTitle}>Alokasi Cuti</Text>
+            <Text style={styles.navDesc}>Detail sisa cuti & tipe cuti tersedia</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
       </ScrollView>
 
       {/* ==================== ATTENDANCE MODAL (CAMERA + GPS) ==================== */}
-      <Modal visible={isAttendanceModalVisible} animationType="slide" transparent>
+      <Modal
+        visible={isAttendanceModalVisible}
+        animationType="slide"
+        transparent
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+          <View
+            style={[
+              styles.modalContent,
+              { paddingBottom: Math.max(insets.bottom, 24) },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {attendanceType === "checkin" ? "Check-In Presensi" : "Check-Out Presensi"}
+                {attendanceType === "checkin"
+                  ? "Check-In Presensi"
+                  : "Check-Out Presensi"}
               </Text>
-              <TouchableOpacity onPress={() => setIsAttendanceModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => setIsAttendanceModalVisible(false)}
+              >
                 <Ionicons name="close" size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
@@ -359,17 +374,35 @@ export default function KehadiranScreen() {
             <View style={styles.cameraViewfinder}>
               {photoCaptured && photoUri ? (
                 <View style={styles.capturedContainer}>
-                  <Image source={{ uri: photoUri }} style={styles.capturedPhoto} />
-                  <TouchableOpacity onPress={() => setPhotoCaptured(false)} style={styles.retakeBtn}>
-                    <Ionicons name="refresh-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={styles.capturedPhoto}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setPhotoCaptured(false)}
+                    style={styles.retakeBtn}
+                  >
+                    <Ionicons
+                      name="refresh-outline"
+                      size={16}
+                      color="#FFFFFF"
+                      style={{ marginRight: 4 }}
+                    />
                     <Text style={styles.retakeBtnText}>Ambil Ulang</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <>
-                  <CameraView style={styles.camera} facing="front" ref={cameraRef} />
+                  <CameraView
+                    style={styles.camera}
+                    facing="front"
+                    ref={cameraRef}
+                  />
                   <View style={styles.cameraOverlay}>
-                    <TouchableOpacity style={styles.captureTriggerCircle} onPress={handleCapturePhoto}>
+                    <TouchableOpacity
+                      style={styles.captureTriggerCircle}
+                      onPress={handleCapturePhoto}
+                    >
                       <View style={styles.captureInnerCircle} />
                     </TouchableOpacity>
                   </View>
@@ -380,8 +413,14 @@ export default function KehadiranScreen() {
             {/* GPS Location Tracker Info */}
             <View style={styles.gpsContainer}>
               <View style={styles.row}>
-                <Ionicons name="location" size={20} color={gpsCoords ? "#10B981" : "#FFB020"} />
-                <Text style={styles.gpsLabel}>Deteksi Koordinat GPS (Lokasi)</Text>
+                <Ionicons
+                  name="location"
+                  size={20}
+                  color={gpsCoords ? "#10B981" : "#FFB020"}
+                />
+                <Text style={styles.gpsLabel}>
+                  Deteksi Koordinat GPS (Lokasi)
+                </Text>
               </View>
 
               {gpsLoading ? (
@@ -397,7 +436,9 @@ export default function KehadiranScreen() {
                   <Text style={styles.gpsCoordsText}>
                     Lat: {gpsCoords.lat}, Lng: {gpsCoords.lng}
                   </Text>
-                  <Text style={styles.gpsAccuracy}>Akurasi: 6 meter (Lokasi Terdeteksi)</Text>
+                  <Text style={styles.gpsAccuracy}>
+                    Akurasi: 6 meter (Lokasi Terdeteksi)
+                  </Text>
                 </View>
               ) : (
                 <Text style={styles.gpsText}>GPS belum terdeteksi.</Text>
@@ -406,99 +447,25 @@ export default function KehadiranScreen() {
 
             {/* Action Buttons */}
             <TouchableOpacity
-              style={[styles.confirmBtn, isSubmittingAttendance ? styles.disabledBtn : null]}
+              style={[
+                styles.confirmBtn,
+                isSubmittingAttendance ? styles.disabledBtn : null,
+              ]}
               onPress={handleConfirmAttendance}
               disabled={isSubmittingAttendance}
             >
               {isSubmittingAttendance ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.confirmBtnText}>Kirim Presensi Sekarang</Text>
+                <Text style={styles.confirmBtnText}>
+                  Kirim Presensi Sekarang
+                </Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ==================== LEAVE/CUTI REQUEST FORM MODAL ==================== */}
-      <Modal visible={isLeaveModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pengajuan Cuti / Izin (POST Leave)</Text>
-              <TouchableOpacity onPress={() => setIsLeaveModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
-              {/* Type Select */}
-              <Text style={styles.fieldLabel}>Tipe Pengajuan</Text>
-              <View style={styles.typeRow}>
-                {["Cuti Tahunan", "Sakit", "Izin Khusus"].map((type) => {
-                  const isSel = leaveType === type;
-                  return (
-                    <TouchableOpacity
-                      key={type}
-                      style={[styles.typeSelectBtn, isSel ? styles.typeSelectActive : null]}
-                      onPress={() => setLeaveType(type)}
-                    >
-                      <Text style={[styles.typeSelectText, isSel ? styles.typeSelectActiveText : null]}>
-                        {type}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Start Date */}
-              <Text style={styles.fieldLabel}>Tanggal Mulai</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="Contoh: 12 Juli 2026"
-                placeholderTextColor="#A9B5C9"
-                value={startDate}
-                onChangeText={setStartDate}
-              />
-
-              {/* End Date */}
-              <Text style={styles.fieldLabel}>Tanggal Selesai</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="Contoh: 14 Juli 2026"
-                placeholderTextColor="#A9B5C9"
-                value={endDate}
-                onChangeText={setEndDate}
-              />
-
-              {/* Reason Description */}
-              <Text style={styles.fieldLabel}>Alasan / Keterangan</Text>
-              <TextInput
-                style={[styles.formInput, { height: 80, textAlignVertical: "top" }]}
-                placeholder="Tuliskan keterangan detail pengajuan Anda..."
-                placeholderTextColor="#A9B5C9"
-                multiline
-                numberOfLines={3}
-                value={reason}
-                onChangeText={setReason}
-              />
-            </ScrollView>
-
-            {/* Action Buttons */}
-            <TouchableOpacity
-              style={[styles.confirmBtn, isSubmittingLeave ? styles.disabledBtn : null]}
-              onPress={handleRequestLeave}
-              disabled={isSubmittingLeave}
-            >
-              {isSubmittingLeave ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.confirmBtnText}>Kirim Form Pengajuan</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -905,5 +872,41 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
+  },
+
+  // Navigation Cards
+  navCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  navIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  navTextContainer: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  navTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  navDesc: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 2,
   },
 });

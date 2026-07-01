@@ -1,11 +1,29 @@
+export interface TimeOffHolidayStatus {
+  id: number;
+  name: string;
+}
+
+export interface TimeOffEmployee {
+  id: number;
+  name: string;
+}
+
+export interface TimeOffDepartment {
+  id: number;
+  name: string;
+}
+
 export interface TimeOff {
   id: number;
-  holiday_status_id: number;
-  name?: string;
+  name: string | null;
+  state: string;
+  state_label: string;
+  holiday_status: TimeOffHolidayStatus;
+  employee: TimeOffEmployee;
   date_from: string;
   date_to: string;
-  state?: 'draft' | 'confirm' | 'validate1' | 'validate' | 'refuse';
-  user_id?: number;
+  number_of_days: number;
+  department?: TimeOffDepartment;
 }
 
 export interface TimeOffType {
@@ -14,12 +32,16 @@ export interface TimeOffType {
   description?: string;
 }
 
-export interface TimeOffBalance {
-  holiday_status_id: number;
-  name: string;
+export interface TimeOffBalanceItem {
+  leave_type: TimeOffHolidayStatus;
   allocated: number;
   taken: number;
   remaining: number;
+}
+
+export interface TimeOffBalanceResponse {
+  employee: TimeOffEmployee;
+  balances: TimeOffBalanceItem[];
 }
 
 export interface CreateTimeOffRequest {

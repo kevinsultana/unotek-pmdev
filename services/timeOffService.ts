@@ -3,7 +3,7 @@ import type { ApiResponse } from "../types/api";
 import type {
   TimeOff,
   TimeOffType,
-  TimeOffBalance,
+  TimeOffBalanceResponse,
   CreateTimeOffRequest,
   UpdateTimeOffRequest,
 } from "../types/timeOff";
@@ -16,7 +16,7 @@ export const timeOffService = {
     date_from?: string;
     date_to?: string;
     team?: boolean;
-  }) => api.get<ApiResponse<{ items: TimeOff[]; total: number; page: number; per_page: number }>>("/time-off", { params }),
+  }) => api.get<{ success: boolean; data: TimeOff[]; pagination: { page: number; per_page: number; total: number; total_pages: number } }>("/time-off", { params }),
 
   getById: (id: number) =>
     api.get<ApiResponse<TimeOff>>(`/time-off/${id}`),
@@ -38,5 +38,5 @@ export const timeOffService = {
 
   getTypes: () => api.get<ApiResponse<TimeOffType[]>>("/time-off/types"),
 
-  getBalance: () => api.get<ApiResponse<TimeOffBalance[]>>("/time-off/balance"),
+  getBalance: () => api.get<ApiResponse<TimeOffBalanceResponse>>("/time-off/balance"),
 };

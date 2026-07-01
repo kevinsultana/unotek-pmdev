@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -39,9 +39,12 @@ export default function PerusahaanScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  // Refresh projects setiap kali tab ini di-fokuskan
+  useFocusEffect(
+    useCallback(() => {
+      fetchProjects();
+    }, [fetchProjects]),
+  );
 
   const onRefresh = () => {
     setIsRefreshing(true);

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import { useCallback } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -13,7 +14,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTasks } from "../../hooks/useTasks";
 
 export default function TimelineScreen() {
-  const { tasks, isLoading, error, filter, setFilter, toggleStatus } = useTasks();
+  const { tasks, isLoading, error, filter, setFilter, toggleStatus, refresh } = useTasks();
+
+  // Refresh tasks setiap kali tab ini di-fokuskan
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   const filteredTasks = tasks.filter((task) => {
     if (filter === "all") return true;

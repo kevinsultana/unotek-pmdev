@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { timeOffService } from "../services/timeOffService";
 import type {
-  TimeOffBalance,
+  TimeOffBalanceItem,
   TimeOffType,
   CreateTimeOffRequest,
 } from "../types/timeOff";
 
 export function useTimeOff() {
-  const [balances, setBalances] = useState<TimeOffBalance[]>([]);
+  const [balances, setBalances] = useState<TimeOffBalanceItem[]>([]);
   const [types, setTypes] = useState<TimeOffType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
