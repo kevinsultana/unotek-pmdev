@@ -1,10 +1,20 @@
+import { useEffect } from "react";
+import { Platform } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import * as NavigationBar from "expo-navigation-bar";
 import { AuthProvider } from "../context/AuthContext";
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      NavigationBar.setBackgroundColorAsync("#111111");
+      NavigationBar.setButtonStyleAsync("light");
+    }
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />

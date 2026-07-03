@@ -21,6 +21,10 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
+      "navigationBar": {
+        "backgroundColor": "#111111",
+        "barStyle": "light-content"
+      },
       "package": "com.kevinsultana.unotekpm2"
     },
     "web": {
@@ -42,7 +46,8 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-navigation-bar"
     ],
     "experiments": {
       "typedRoutes": true,
