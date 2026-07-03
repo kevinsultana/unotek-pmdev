@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -58,73 +57,76 @@ export default function ProfileDetailScreen() {
   ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detail Data Diri</Text>
-        <View style={styles.headerBtn} />
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detail Data Diri</Text>
+          <View style={styles.backBtn} />
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Avatar */}
-        <View style={styles.hero}>
-          <Avatar initials={initials} size={72} />
-          <Text style={styles.fullName}>{emp?.name || user?.name}</Text>
-          {emp?.job_title ? <Text style={styles.jobTitle}>{emp.job_title}</Text> : null}
+        <View style={styles.floatingCard}>
+          {/* Avatar */}
+          <View style={styles.hero}>
+            <Avatar initials={initials} size={72} />
+            <Text style={styles.fullName}>{emp?.name || user?.name}</Text>
+            {emp?.job_title ? <Text style={styles.jobTitle}>{emp.job_title}</Text> : null}
+          </View>
+
+          {/* Sections */}
+          {sections.map((section) => (
+            <View key={section.title} style={styles.section}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              {section.items.map((item, i) => (
+                <View key={item.label}>
+                  <View style={styles.infoRow}>
+                    <View style={[styles.infoIcon, { backgroundColor: `${section.color}15` }]}>
+                      <Ionicons name={item.icon} size={18} color={section.color} />
+                    </View>
+                    <View style={styles.infoText}>
+                      <Text style={styles.infoLabel}>{item.label}</Text>
+                      <Text style={styles.infoValue}>{item.value || "—"}</Text>
+                    </View>
+                  </View>
+                  {i < section.items.length - 1 && <View style={styles.divider} />}
+                </View>
+              ))}
+            </View>
+          ))}
+
+          {/* Privileges */}
+          {priv ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Hak Akses</Text>
+              {(["project", "task", "attendance", "time_off"] as const).map((key) => {
+                const p = priv[key];
+                if (!p) return null;
+                return (
+                  <View key={key} style={styles.privRow}>
+                    <Text style={styles.privLabel}>{key === "time_off" ? "Cuti" : key.charAt(0).toUpperCase() + key.slice(1)}</Text>
+                    <View style={styles.privBadges}>
+                      {(["create", "read", "update", "delete"] as const).map((action) => (
+                        <View key={action} style={[styles.privBadge, { backgroundColor: p[action] ? "#D1FAE5" : "#FEE2E2" }]}>
+                          <Text style={[styles.privBadgeText, { color: p[action] ? "#059669" : colors.error }]}>
+                            {p[action] ? "✓" : "✗"}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
-
-        {/* Sections */}
-        {sections.map((section) => (
-          <View key={section.title} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {section.items.map((item, i) => (
-              <View key={item.label}>
-                <View style={styles.infoRow}>
-                  <View style={[styles.infoIcon, { backgroundColor: `${section.color}15` }]}>
-                    <Ionicons name={item.icon} size={18} color={section.color} />
-                  </View>
-                  <View style={styles.infoText}>
-                    <Text style={styles.infoLabel}>{item.label}</Text>
-                    <Text style={styles.infoValue}>{item.value || "—"}</Text>
-                  </View>
-                </View>
-                {i < section.items.length - 1 && <View style={styles.divider} />}
-              </View>
-            ))}
-          </View>
-        ))}
-
-        {/* Privileges */}
-        {priv ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Hak Akses</Text>
-            {(["project", "task", "attendance", "time_off"] as const).map((key) => {
-              const p = priv[key];
-              if (!p) return null;
-              return (
-                <View key={key} style={styles.privRow}>
-                  <Text style={styles.privLabel}>{key === "time_off" ? "Cuti" : key.charAt(0).toUpperCase() + key.slice(1)}</Text>
-                  <View style={styles.privBadges}>
-                    {(["create", "read", "update", "delete"] as const).map((action) => (
-                      <View key={action} style={[styles.privBadge, { backgroundColor: p[action] ? "#D1FAE5" : "#FEE2E2" }]}>
-                        <Text style={[styles.privBadgeText, { color: p[action] ? "#059669" : colors.error }]}>
-                          {p[action] ? "✓" : "✗"}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-
-        <View style={{ height: spacing["3xl"] }} />
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
     </View>
   );
@@ -134,16 +136,48 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing.lg, height: sizes.headerHeight, backgroundColor: colors.card,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
+  // Curved header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
   },
-  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
-  headerTitle: { ...textPresets.screenTitle, fontSize: 17, flex: 1, textAlign: "left", marginLeft: spacing.xs },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backBtn: {
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: spacing.sm,
+  },
 
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+  // Scroll
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
+  floatingCard: {
+    marginTop: -hpx(24),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+  },
+
   hero: { alignItems: "center", marginBottom: spacing["2xl"], marginTop: spacing.sm },
   fullName: { ...textPresets.screenTitle, marginTop: spacing.md },
   jobTitle: { ...textPresets.body, marginTop: spacing.xs },

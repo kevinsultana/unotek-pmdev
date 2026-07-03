@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
+import { colors, hpx, radius, rf, shadows, spacing, textPresets, wpx } from "../src/constants/theme";
 import { attendanceService } from "../services/attendanceService";
 import type { AttendanceRecord } from "../types/attendance";
 
@@ -38,7 +38,6 @@ function fmtTime(iso?: string) {
 }
 
 export default function AttendanceHistoryScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = new Date();
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -88,17 +87,14 @@ export default function AttendanceHistoryScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Riwayat Presensi</Text>
-        <View style={styles.headerBtn} />
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Riwayat Presensi</Text>
+        </View>
       </View>
 
       {/* Date filter */}
@@ -135,12 +131,6 @@ export default function AttendanceHistoryScreen() {
             />
           </View>
         </View>
-      ) : showPicker ? (
-        <DateTimePicker
-          value={showPicker === "from" ? dateFrom : dateTo}
-          mode="date" display="default"
-          onChange={handlePickerChange}
-        />
       ) : null}
 
       {/* List */}
@@ -152,100 +142,125 @@ export default function AttendanceHistoryScreen() {
           if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 40) handleLoadMore();
         }}
       >
-        {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
-        ) : error ? (
-          <View style={styles.center}>
-            <Ionicons name="alert-circle-outline" size={40} color={colors.error} />
-            <Text style={styles.emptyText}>{error}</Text>
-          </View>
-        ) : records.length === 0 ? (
-          <View style={styles.center}>
-            <Ionicons name="time-outline" size={40} color={colors.textMuted} />
-            <Text style={styles.emptyText}>Belum ada riwayat presensi.</Text>
-          </View>
-        ) : (
-          <>
-            <Text style={styles.countText}>{records.length} record</Text>
-            {records.map((rec) => (
-              <View key={rec.id} style={styles.recordCard}>
-                <View style={styles.recordHeader}>
-                  <Text style={styles.recordDate}>{fmtTime(rec.check_in)}</Text>
-                  <Text style={styles.recordHours}>
-                    {rec.worked_hours != null
-                      ? `${Math.floor(rec.worked_hours)}j ${Math.round((rec.worked_hours - Math.floor(rec.worked_hours)) * 60)}m`
-                      : "—"}
-                  </Text>
-                </View>
-                <View style={styles.recordBody}>
-                  <View style={styles.recordCol}>
-                    <Text style={styles.recordLabel}>Check In</Text>
-                    <Text style={styles.recordValue}>{fmtTime(rec.check_in)}</Text>
+        <View style={styles.floatingCard}>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
+          ) : error ? (
+            <View style={styles.center}>
+              <Ionicons name="alert-circle-outline" size={40} color={colors.error} />
+              <Text style={styles.emptyText}>{error}</Text>
+            </View>
+          ) : records.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="time-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.emptyText}>Belum ada riwayat presensi.</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.countText}>{records.length} record</Text>
+              {records.map((rec) => (
+                <View key={rec.id} style={styles.recordCard}>
+                  <View style={styles.recordHeader}>
+                    <Text style={styles.recordDate}>{fmtTime(rec.check_in)}</Text>
+                    <Text style={styles.recordHours}>
+                      {rec.worked_hours != null
+                        ? `${Math.floor(rec.worked_hours)}j ${Math.round((rec.worked_hours - Math.floor(rec.worked_hours)) * 60)}m`
+                        : "—"}
+                    </Text>
                   </View>
-                  <View style={styles.recordDivider} />
-                  <View style={styles.recordCol}>
-                    <Text style={styles.recordLabel}>Check Out</Text>
-                    <Text style={styles.recordValue}>{fmtTime(rec.check_out)}</Text>
+                  <View style={styles.recordBody}>
+                    <View style={styles.recordCol}>
+                      <Text style={styles.recordLabel}>Check In</Text>
+                      <Text style={styles.recordValue}>{fmtTime(rec.check_in)}</Text>
+                    </View>
+                    <View style={styles.recordDivider} />
+                    <View style={styles.recordCol}>
+                      <Text style={styles.recordLabel}>Check Out</Text>
+                      <Text style={styles.recordValue}>{fmtTime(rec.check_out)}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))}
-            {isLoadingMore && <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.lg }} />}
-            {page >= totalPages && records.length > 0 && (
-              <Text style={styles.endText}>Semua data telah dimuat</Text>
-            )}
-          </>
-        )}
-        <View style={{ height: spacing["2xl"] }} />
+              ))}
+              {isLoadingMore && <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.lg }} />}
+              {page >= totalPages && records.length > 0 && (
+                <Text style={styles.endText}>Semua data telah dimuat</Text>
+              )}
+            </>
+          )}
+        </View>
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
+
+      {/* Android date picker rendered outside ScrollView */}
+      {showPicker && Platform.OS !== "ios" ? (
+        <DateTimePicker
+          value={showPicker === "from" ? dateFrom : dateTo}
+          mode="date" display="default"
+          onChange={handlePickerChange}
+        />
+      ) : null}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { alignItems: "center", paddingVertical: spacing["4xl"] },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    height: sizes.headerHeight,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
+  // Curved header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
   },
-  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
-  headerTitle: { ...textPresets.screenTitle, fontSize: rf(17), flex: 1, textAlign: "left", marginLeft: spacing.xs },
+  headerContent: { alignItems: "center" },
+  headerTitle: {
+    fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
 
   // Filter
   filterRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing["2xl"],
     paddingVertical: spacing.md,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    marginTop: -hpx(24),
+    zIndex: 2,
   },
   dateBtn: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.border,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
+    ...shadows.card,
   },
   dateBtnLabel: { ...textPresets.label, marginBottom: hpx(2) },
   dateBtnValue: { ...textPresets.cardTitle, fontSize: rf(13) },
 
+  // Scroll
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
+  floatingCard: {
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+  },
+
   // List
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
   countText: { ...textPresets.caption, marginBottom: spacing.md },
   recordCard: {
     backgroundColor: colors.card,

@@ -16,12 +16,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { projectService } from "../../services/projectService";
 import {
   colors,
+  hpx,
   radius,
   rf,
   shadows,
   sizes,
   spacing,
   textPresets,
+  wpx,
 } from "../../src/constants/theme";
 import type { Project } from "../../types/project";
 
@@ -84,33 +86,18 @@ export default function PerusahaanScreen() {
   });
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-      {/* ── Heading ──────────────────────────────────────────────── */}
-      <View style={styles.heading}>
-        <Text style={styles.pageTitle}>Perusahaan</Text>
-        <Text style={styles.pageSub}>Daftar project & informasi internal</Text>
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Perusahaan</Text>
+          <Text style={styles.headerSub}>
+            Daftar project & informasi internal
+          </Text>
+        </View>
       </View>
 
-      {/* ── Search ────────────────────────────────────────────────── */}
-      <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={colors.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Cari project, klien, PIC..."
-          placeholderTextColor={colors.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery ? (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {/* ── List ──────────────────────────────────────────────────── */}
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -122,172 +109,211 @@ export default function PerusahaanScreen() {
           />
         }
       >
-        {isLoading ? (
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-            style={{ marginVertical: spacing["4xl"] }}
-          />
-        ) : error ? (
-          <View style={styles.center}>
+        {/* Floating Card */}
+        <View style={styles.floatingCard}>
+          {/* Search */}
+          <View style={styles.searchBox}>
             <Ionicons
-              name="alert-circle-outline"
-              size={40}
-              color={colors.error}
-            />
-            <Text style={styles.emptyText}>{error}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchProjects}>
-              <Text style={styles.retryText}>Coba Lagi</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredProjects.length === 0 ? (
-          <View style={styles.center}>
-            <Ionicons
-              name="folder-open-outline"
-              size={40}
+              name="search-outline"
+              size={18}
               color={colors.textMuted}
             />
-            <Text style={styles.emptyText}>
-              {searchQuery ? "Project tidak ditemukan." : "Belum ada project."}
-            </Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Cari project, klien, PIC..."
+              placeholderTextColor={colors.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={colors.textMuted}
+                />
+              </TouchableOpacity>
+            ) : null}
           </View>
-        ) : (
-          filteredProjects.map((project) => {
-            const st = stageStyle(project.stage_id?.name);
-            return (
-              <TouchableOpacity
-                key={project.id}
-                style={styles.projectCard}
-                activeOpacity={0.7}
-                onPress={() => router.push(`/project-detail?id=${project.id}`)}
-              >
-                {/* Top row */}
-                <View style={styles.cardTop}>
-                  <View style={styles.idBadge}>
-                    <Text style={styles.idText}>#{project.id}</Text>
+
+          {isLoading ? (
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+              style={{ marginVertical: hpx(40) }}
+            />
+          ) : error ? (
+            <View style={styles.center}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={40}
+                color={colors.error}
+              />
+              <Text style={styles.emptyText}>{error}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={fetchProjects}>
+                <Text style={styles.retryText}>Coba Lagi</Text>
+              </TouchableOpacity>
+            </View>
+          ) : filteredProjects.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons
+                name="folder-open-outline"
+                size={40}
+                color={colors.textMuted}
+              />
+              <Text style={styles.emptyText}>
+                {searchQuery
+                  ? "Project tidak ditemukan."
+                  : "Belum ada project."}
+              </Text>
+            </View>
+          ) : (
+            filteredProjects.map((project) => {
+              const st = stageStyle(project.stage_id?.name);
+              return (
+                <TouchableOpacity
+                  key={project.id}
+                  style={styles.projectCard}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    router.push(`/project-detail?id=${project.id}`)
+                  }
+                >
+                  <View style={styles.cardTop}>
+                    <View style={styles.idBadge}>
+                      <Text style={styles.idText}>#{project.id}</Text>
+                    </View>
+                    {project.stage_id && (
+                      <View
+                        style={[styles.stageBadge, { backgroundColor: st.b }]}
+                      >
+                        <Text style={[styles.stageBadgeText, { color: st.c }]}>
+                          {project.stage_id.name}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  {project.stage_id ? (
-                    <View
-                      style={[styles.stageBadge, { backgroundColor: st.b }]}
-                    >
-                      <Text style={[styles.stageBadgeText, { color: st.c }]}>
-                        {project.stage_id.name}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <Text style={styles.projectName}>{project.name}</Text>
-                {project.description ? (
-                  <Text style={styles.projectDesc} numberOfLines={2}>
-                    {project.description}
-                  </Text>
-                ) : null}
-
-                {/* Detail chips */}
-                <View style={styles.chips}>
-                  {project.partner && (
-                    <View style={styles.chip}>
-                      <Ionicons
-                        name="business-outline"
-                        size={12}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={styles.chipText}>
-                        {project.partner.name}
-                      </Text>
-                    </View>
-                  )}
-                  {project.user && (
-                    <View style={styles.chip}>
-                      <Ionicons
-                        name="person-outline"
-                        size={12}
-                        color={colors.textSecondary}
-                      />
-                      <Text style={styles.chipText}>{project.user.name}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Footer */}
-                <View style={styles.footer}>
-                  <View style={styles.footerItem}>
-                    <Ionicons
-                      name="checkbox-outline"
-                      size={14}
-                      color={colors.primary}
-                    />
-                    <Text style={styles.footerText}>
-                      {project.task_count} tugas
+                  <Text style={styles.projectName}>{project.name}</Text>
+                  {project.description ? (
+                    <Text style={styles.projectDesc} numberOfLines={2}>
+                      {project.description}
                     </Text>
+                  ) : null}
+                  <View style={styles.chips}>
+                    {project.partner && (
+                      <View style={styles.chip}>
+                        <Ionicons
+                          name="business-outline"
+                          size={12}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.chipText}>
+                          {project.partner.name}
+                        </Text>
+                      </View>
+                    )}
+                    {project.user && (
+                      <View style={styles.chip}>
+                        <Ionicons
+                          name="person-outline"
+                          size={12}
+                          color={colors.textSecondary}
+                        />
+                        <Text style={styles.chipText}>{project.user.name}</Text>
+                      </View>
+                    )}
                   </View>
-                  {(project.date_start || project.date) && (
+                  <View style={styles.footer}>
                     <View style={styles.footerItem}>
                       <Ionicons
-                        name="calendar-outline"
-                        size={13}
-                        color={colors.textMuted}
+                        name="checkbox-outline"
+                        size={14}
+                        color={colors.primary}
                       />
-                      <Text style={styles.footerDate}>
-                        {project.date_start || "—"} → {project.date || "—"}
+                      <Text style={styles.footerText}>
+                        {project.task_count} tugas
                       </Text>
                     </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-        <View style={{ height: spacing["3xl"] }} />
+                    {(project.date_start || project.date) && (
+                      <View style={styles.footerItem}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={13}
+                          color={colors.textMuted}
+                        />
+                        <Text style={styles.footerDate}>
+                          {project.date_start || "—"} → {project.date || "—"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface, paddingBottom: -30 },
-  scroll: {
-    paddingHorizontal: spacing["2xl"],
-    paddingTop: 0,
-    paddingBottom: spacing["4xl"],
-  },
-  center: { alignItems: "center", paddingVertical: spacing["4xl"] },
+  container: { flex: 1, backgroundColor: colors.surface },
+  center: { alignItems: "center", paddingVertical: hpx(40) },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
-  // Heading
-  heading: { paddingTop: spacing["2xl"], paddingBottom: spacing.sm },
-  pageTitle: { ...textPresets.display, paddingHorizontal: spacing["2xl"] },
-  pageSub: {
-    ...textPresets.body,
-    marginTop: spacing.xs,
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
     paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(16),
+    zIndex: 1,
+  },
+  headerContent: { alignItems: "center" },
+  headerTitle: { fontSize: rf(22), fontWeight: "800" as any, color: "#FFFFFF" },
+  headerSub: {
+    fontSize: rf(13),
+    color: "rgba(255,255,255,0.7)",
+    marginTop: hpx(4),
+  },
+  scroll: {
+    paddingHorizontal: spacing["2xl"],
+    paddingBottom: hpx(40),
+    paddingTop: hpx(45),
+  },
+  floatingCard: {
+    marginTop: -hpx(36),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
   },
 
-  // Search
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
-    marginHorizontal: rf(20),
     height: sizes.searchHeight,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     gap: spacing.sm,
   },
   searchInput: { flex: 1, color: colors.textPrimary, fontSize: rf(14) },
 
-  // Card
   projectCard: {
-    marginHorizontal: 0,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
-    ...shadows.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardTop: {
     flexDirection: "row",
@@ -319,8 +345,6 @@ const styles = StyleSheet.create({
     lineHeight: rf(18),
     marginBottom: spacing.md,
   },
-
-  // Chips
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -341,8 +365,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: "500" as any,
   },
-
-  // Footer
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -358,8 +380,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   footerDate: { fontSize: rf(10), color: colors.textMuted },
-
-  // Retry
   retryBtn: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,

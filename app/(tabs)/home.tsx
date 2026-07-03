@@ -127,7 +127,7 @@ export default function HomeScreen() {
       <StatusBar style="light" />
 
       {/* ── Curved Header Background ────────────────────────────────── */}
-      <View style={[styles.curvedHeader]}>
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
         <View style={styles.headerRow}>
           <View style={styles.headerTextCol}>
             <Text style={styles.greeting}>{greeting},</Text>

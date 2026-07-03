@@ -5,7 +5,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -94,8 +93,18 @@ export default function TimeOffDetailScreen() {
 
   if (error || !data) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Header router={router} />
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Detail Cuti</Text>
+            <View style={styles.backBtn} />
+          </View>
+        </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
           <Text style={styles.emptyText}>{error || "Data tidak ditemukan."}</Text>
@@ -108,65 +117,77 @@ export default function TimeOffDetailScreen() {
   const canCancel = ["draft", "confirm", "validate"].includes(data.state);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
-      <Header router={router} />
+
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detail Cuti</Text>
+          <View style={styles.backBtn} />
+        </View>
+      </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Status badge */}
-        <View style={styles.hero}>
-          <Badge label={data.state_label || data.state} />
+        <View style={styles.floatingCard}>
+          {/* Status badge */}
+          <View style={styles.hero}>
+            <Badge label={data.state_label || data.state} />
+          </View>
+
+          {/* Info */}
+          <Section>
+            <DetailRow icon="umbrella-outline" label="Tipe Cuti" value={data.holiday_status?.name} />
+            <View style={detailStyles.divider} />
+            <DetailRow icon="person-outline" label="Karyawan" value={data.employee?.name} iconColor="#059669" />
+            {data.department && (
+              <>
+                <View style={detailStyles.divider} />
+                <DetailRow icon="business-outline" label="Departemen" value={data.department.name} iconColor="#F59E0B" />
+              </>
+            )}
+          </Section>
+
+          {/* Dates */}
+          <Section>
+            <View style={styles.dateRow}>
+              <View style={styles.dateBox}>
+                <Ionicons name="calendar-outline" size={16} color={colors.amber} />
+                <Text style={styles.dateLabel}>Mulai</Text>
+                <Text style={styles.dateValue}>{fmtDateTime(data.date_from)}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={14} color={colors.border} />
+              <View style={styles.dateBox}>
+                <Ionicons name="calendar-outline" size={16} color={colors.success} />
+                <Text style={styles.dateLabel}>Selesai</Text>
+                <Text style={styles.dateValue}>{fmtDateTime(data.date_to)}</Text>
+              </View>
+            </View>
+          </Section>
+
+          {/* Duration */}
+          <Section>
+            <View style={styles.statRow}>
+              <Ionicons name="time-outline" size={24} color={colors.primary} />
+              <Text style={styles.statValue}>{data.number_of_days}</Text>
+              <Text style={styles.statLabel}>Hari</Text>
+            </View>
+          </Section>
+
+          {/* Notes */}
+          {data.name && (
+            <Section>
+              <Text style={styles.noteTitle}>Keterangan</Text>
+              <Text style={styles.noteText}>{data.name}</Text>
+            </Section>
+          )}
         </View>
 
-        {/* Info */}
-        <Section>
-          <DetailRow icon="umbrella-outline" label="Tipe Cuti" value={data.holiday_status?.name} />
-          <View style={detailStyles.divider} />
-          <DetailRow icon="person-outline" label="Karyawan" value={data.employee?.name} iconColor="#059669" />
-          {data.department && (
-            <>
-              <View style={detailStyles.divider} />
-              <DetailRow icon="business-outline" label="Departemen" value={data.department.name} iconColor="#F59E0B" />
-            </>
-          )}
-        </Section>
-
-        {/* Dates */}
-        <Section>
-          <View style={styles.dateRow}>
-            <View style={styles.dateBox}>
-              <Ionicons name="calendar-outline" size={16} color={colors.amber} />
-              <Text style={styles.dateLabel}>Mulai</Text>
-              <Text style={styles.dateValue}>{fmtDateTime(data.date_from)}</Text>
-            </View>
-            <Ionicons name="arrow-forward" size={14} color={colors.border} />
-            <View style={styles.dateBox}>
-              <Ionicons name="calendar-outline" size={16} color={colors.success} />
-              <Text style={styles.dateLabel}>Selesai</Text>
-              <Text style={styles.dateValue}>{fmtDateTime(data.date_to)}</Text>
-            </View>
-          </View>
-        </Section>
-
-        {/* Duration */}
-        <Section>
-          <View style={styles.statRow}>
-            <Ionicons name="time-outline" size={24} color={colors.primary} />
-            <Text style={styles.statValue}>{data.number_of_days}</Text>
-            <Text style={styles.statLabel}>Hari</Text>
-          </View>
-        </Section>
-
-        {/* Notes */}
-        {data.name && (
-          <Section>
-            <Text style={styles.noteTitle}>Keterangan</Text>
-            <Text style={styles.noteText}>{data.name}</Text>
-          </Section>
-        )}
-
         {canCancel && <View style={{ height: hpx(80) }} />}
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
 
       {canCancel && (
@@ -201,33 +222,52 @@ export default function TimeOffDetailScreen() {
   );
 }
 
-function Header({ router }: { router: any }) {
-  return (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
-        <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Detail Cuti</Text>
-      <View style={styles.headerBtn} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing.lg, height: sizes.headerHeight, backgroundColor: colors.card,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
+  // Curved header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
   },
-  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
-  headerTitle: { ...textPresets.screenTitle, fontSize: 17, flex: 1, textAlign: "left", marginLeft: spacing.xs },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backBtn: {
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: spacing.sm,
+  },
 
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+  // Scroll
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
+  floatingCard: {
+    marginTop: -hpx(24),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+  },
 
   hero: { alignItems: "center", marginBottom: spacing.xl, marginTop: spacing.sm },
 

@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -120,8 +119,18 @@ export default function TaskDetailScreen() {
 
   if (error || !task) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Header router={router} />
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Detail Tugas</Text>
+            <View style={styles.backBtn} />
+          </View>
+        </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
           <Text style={styles.emptyText}>{error || "Tugas tidak ditemukan."}</Text>
@@ -136,134 +145,131 @@ export default function TaskDetailScreen() {
   const cleanDesc = stripHtml(task.description);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
-      <Header router={router} />
+
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detail Tugas</Text>
+          <View style={styles.backBtn} />
+        </View>
+      </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* ── Hero ──────────────────────────────────────────────────── */}
-        <View style={styles.hero}>
-          <View style={styles.badgeRow}>
-            {st && sbg ? (
-              <View style={[styles.heroBadge, { backgroundColor: sbg }]}>
-                <Text style={[styles.heroBadgeText, { color: st }]}>{task.stage?.name}</Text>
-              </View>
-            ) : null}
-            <View style={[styles.heroBadge, { backgroundColor: pr.bg }]}>
-              <Text style={[styles.heroBadgeText, { color: pr.color }]}>{pr.label}</Text>
-            </View>
-          </View>
-          <Text style={styles.heroTitle}>{task.name}</Text>
-          <Text style={styles.heroId}>#{task.id}</Text>
-        </View>
-
-        {/* ── Relations ─────────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informasi</Text>
-
-          {task.project && (
-            <DetailRow icon="folder-outline" label="Project">
-              <Text style={detailStyles.valueText}>{task.project.name}</Text>
-            </DetailRow>
-          )}
-          {task.partner_id && (
-            <DetailRow icon="business-outline" label="Klien">
-              <Text style={detailStyles.valueText}>{task.partner_id.name}</Text>
-            </DetailRow>
-          )}
-          {task.parent_id && (
-            <DetailRow icon="git-branch-outline" label="Parent Task">
-              <Text style={detailStyles.valueText}>{task.parent_id.name}</Text>
-            </DetailRow>
-          )}
-        </View>
-
-        {/* ── Assignees ─────────────────────────────────────────────── */}
-        {task.user_ids?.length ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Assignee</Text>
-            {task.user_ids.map((u, i) => (
-              <View key={u.id} style={[detailStyles.row, i === (task.user_ids?.length ?? 0) - 1 && { borderBottomWidth: 0 }]}>
-                <View style={detailStyles.rowLeft}>
-                  <AvatarCircle name={u.name} />
-                  <Text style={detailStyles.assigneeName}>{u.name}</Text>
+        <View style={styles.floatingCard}>
+          {/* ── Hero ──────────────────────────────────────────────────── */}
+          <View style={styles.hero}>
+            <View style={styles.badgeRow}>
+              {st && sbg ? (
+                <View style={[styles.heroBadge, { backgroundColor: sbg }]}>
+                  <Text style={[styles.heroBadgeText, { color: st }]}>{task.stage?.name}</Text>
                 </View>
+              ) : null}
+              <View style={[styles.heroBadge, { backgroundColor: pr.bg }]}>
+                <Text style={[styles.heroBadgeText, { color: pr.color }]}>{pr.label}</Text>
               </View>
-            ))}
+            </View>
+            <Text style={styles.heroTitle}>{task.name}</Text>
+            <Text style={styles.heroId}>#{task.id}</Text>
           </View>
-        ) : null}
 
-        {/* ── Dates ─────────────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tanggal</Text>
-          <View style={styles.dateRow}>
-            <View style={styles.dateBox}>
-              <Ionicons name="calendar-outline" size={18} color={colors.amber} />
-              <Text style={styles.dateLabel}>Deadline</Text>
-              <Text style={styles.dateValue}>{fmtDate(task.date_deadline)}</Text>
-            </View>
-            <View style={styles.dateArrow}>
-              <Ionicons name="arrow-forward" size={16} color={colors.border} />
-            </View>
-            <View style={styles.dateBox}>
-              <Ionicons name="time-outline" size={18} color={colors.success} />
-              <Text style={styles.dateLabel}>Assign</Text>
-              <Text style={styles.dateValue}>{fmtDate(task.date_assign)}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Description ───────────────────────────────────────────── */}
-        {cleanDesc ? (
+          {/* ── Relations ─────────────────────────────────────────────── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Deskripsi</Text>
-            <Text style={styles.descText}>{cleanDesc}</Text>
-          </View>
-        ) : null}
+            <Text style={styles.sectionTitle}>Informasi</Text>
 
-        {/* ── Tags ──────────────────────────────────────────────────── */}
-        {task.tag_ids?.length ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tags</Text>
-            <View style={styles.tagsRow}>
-              {task.tag_ids.map((tag) => (
-                <View key={tag.id} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag.name}</Text>
+            {task.project && (
+              <DetailRow icon="folder-outline" label="Project">
+                <Text style={detailStyles.valueText}>{task.project.name}</Text>
+              </DetailRow>
+            )}
+            {task.partner_id && (
+              <DetailRow icon="business-outline" label="Klien">
+                <Text style={detailStyles.valueText}>{task.partner_id.name}</Text>
+              </DetailRow>
+            )}
+            {task.parent_id && (
+              <DetailRow icon="git-branch-outline" label="Parent Task">
+                <Text style={detailStyles.valueText}>{task.parent_id.name}</Text>
+              </DetailRow>
+            )}
+          </View>
+
+          {/* ── Assignees ─────────────────────────────────────────────── */}
+          {task.user_ids?.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Assignee</Text>
+              {task.user_ids.map((u, i) => (
+                <View key={u.id} style={[detailStyles.row, i === (task.user_ids?.length ?? 0) - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={detailStyles.rowLeft}>
+                    <AvatarCircle name={u.name} />
+                    <Text style={detailStyles.assigneeName}>{u.name}</Text>
+                  </View>
                 </View>
               ))}
             </View>
-          </View>
-        ) : null}
+          ) : null}
 
-        {/* ── Child Tasks ───────────────────────────────────────────── */}
-        {task.child_ids?.length ? (
+          {/* ── Dates ─────────────────────────────────────────────────── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sub Tugas ({task.child_ids.length})</Text>
-            {task.child_ids.map((child) => (
-              <View key={child.id} style={styles.childRow}>
-                <Ionicons name="git-commit-outline" size={16} color={colors.textMuted} />
-                <Text style={styles.childName}>{child.name}</Text>
+            <Text style={styles.sectionTitle}>Tanggal</Text>
+            <View style={styles.dateRow}>
+              <View style={styles.dateBox}>
+                <Ionicons name="calendar-outline" size={18} color={colors.amber} />
+                <Text style={styles.dateLabel}>Deadline</Text>
+                <Text style={styles.dateValue}>{fmtDate(task.date_deadline)}</Text>
               </View>
-            ))}
+              <View style={styles.dateArrow}>
+                <Ionicons name="arrow-forward" size={16} color={colors.border} />
+              </View>
+              <View style={styles.dateBox}>
+                <Ionicons name="time-outline" size={18} color={colors.success} />
+                <Text style={styles.dateLabel}>Assign</Text>
+                <Text style={styles.dateValue}>{fmtDate(task.date_assign)}</Text>
+              </View>
+            </View>
           </View>
-        ) : null}
 
-        <View style={{ height: spacing["4xl"] }} />
+          {/* ── Description ───────────────────────────────────────────── */}
+          {cleanDesc ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Deskripsi</Text>
+              <Text style={styles.descText}>{cleanDesc}</Text>
+            </View>
+          ) : null}
+
+          {/* ── Tags ──────────────────────────────────────────────────── */}
+          {task.tag_ids?.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tags</Text>
+              <View style={styles.tagsRow}>
+                {task.tag_ids.map((tag) => (
+                  <View key={tag.id} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── Child Tasks ───────────────────────────────────────────── */}
+          {task.child_ids?.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Sub Tugas ({task.child_ids.length})</Text>
+              {task.child_ids.map((child) => (
+                <View key={child.id} style={styles.childRow}>
+                  <Ionicons name="git-commit-outline" size={16} color={colors.textMuted} />
+                  <Text style={styles.childName}>{child.name}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
-    </View>
-  );
-}
-
-// ── Header ────────────────────────────────────────────────────────────────
-function Header({ router }: { router: any }) {
-  return (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
-        <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Detail Tugas</Text>
-      <View style={styles.headerBtn} />
     </View>
   );
 }
@@ -274,29 +280,47 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
-  // Header
-  header: {
+  // Curved header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    height: sizes.headerHeight,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
   },
-  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
+  backBtn: {
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerTitle: {
-    ...textPresets.screenTitle,
     fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
     flex: 1,
-    textAlign: "left",
-    marginLeft: spacing.xs,
+    textAlign: "center",
+    marginHorizontal: spacing.sm,
   },
 
   // Scroll
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["5xl"] },
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
+  floatingCard: {
+    marginTop: -hpx(24),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+  },
 
   // Hero
   hero: {

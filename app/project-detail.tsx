@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -79,8 +78,16 @@ export default function ProjectDetailScreen() {
 
   if (error || !project) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Header router={router} />
+      <View style={styles.container}>
+        <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Detail Project</Text>
+            <View style={styles.backBtn} />
+          </View>
+        </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
           <Text style={styles.emptyText}>{error || "Project tidak ditemukan."}</Text>
@@ -92,44 +99,53 @@ export default function ProjectDetailScreen() {
   const pStage = stageStyle(project.stage_id?.name);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
-      <Header router={router} />
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Hero Card ─────────────────────────────────────────────── */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <Badge label={project.stage_id?.name ?? "—"} />
-          </View>
-          <Text style={styles.heroTitle}>{project.name}</Text>
-          {project.description ? (
-            <Text style={styles.heroDesc}>{project.description}</Text>
-          ) : null}
-          <View style={styles.projectId}>
-            <Ionicons name="pricetag-outline" size={14} color={colors.textMuted} />
-            <Text style={styles.projectIdText}>ID: {project.id}</Text>
-          </View>
+      {/* Curved Header */}
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detail Project</Text>
+          <View style={styles.backBtn} />
         </View>
+      </View>
 
-        {/* ── Task Count ────────────────────────────────────────────── */}
-        <View style={styles.taskCountCard}>
-          <View style={[styles.taskCountIcon, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="checkbox-outline" size={24} color={colors.primary} />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Floating Card */}
+        <View style={styles.floatingCard}>
+          {/* Hero */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroTop}>
+              <Badge label={project.stage_id?.name ?? "—"} />
+            </View>
+            <Text style={styles.heroTitle}>{project.name}</Text>
+            {project.description ? (
+              <Text style={styles.heroDesc}>{project.description}</Text>
+            ) : null}
+            <View style={styles.projectId}>
+              <Ionicons name="pricetag-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.projectIdText}>ID: {project.id}</Text>
+            </View>
           </View>
-          <View style={styles.taskCountText}>
-            <Text style={styles.taskCountValue}>{project.task_count}</Text>
-            <Text style={styles.taskCountLabel}>Total Tugas</Text>
-          </View>
-        </View>
 
-        {/* ── Detail Sections ───────────────────────────────────────── */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Informasi Project</Text>
+          {/* ── Task Count ────────────────────────────────────────────── */}
+          <View style={styles.taskCountCard}>
+            <View style={[styles.taskCountIcon, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="checkbox-outline" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.taskCountText}>
+              <Text style={styles.taskCountValue}>{project.task_count}</Text>
+              <Text style={styles.taskCountLabel}>Total Tugas</Text>
+            </View>
+          </View>
+
+          {/* ── Detail Sections ───────────────────────────────────────── */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Informasi Project</Text>
 
           {project.partner && (
             <DetailRow icon="people-outline" label="Klien">
@@ -184,23 +200,12 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.statusValue}>{project.active ? "Aktif" : "Tidak Aktif"}</Text>
             </View>
           </DetailRow>
-        </View>
+          </View> {/* end sectionCard */}
+
+        </View> {/* end floatingCard */}
 
         <View style={{ height: spacing["4xl"] }} />
       </ScrollView>
-    </View>
-  );
-}
-
-// ── Header (reusable within this screen) ──────────────────────────────────
-function Header({ router }: { router: any }) {
-  return (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-        <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Detail Project</Text>
-      <View style={styles.backBtn} />
     </View>
   );
 }
@@ -211,17 +216,21 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
-  // Header
-  header: {
+  // Curved Header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    height: sizes.headerHeight,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
   },
   backBtn: {
     width: sizes.headerBtnWidth,
@@ -231,23 +240,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    ...textPresets.screenTitle,
     fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
     flex: 1,
-    textAlign: "left",
-    marginLeft: spacing.xs,
+    textAlign: "center",
+    marginHorizontal: spacing.sm,
   },
 
   // Scroll
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["5xl"] },
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: spacing["5xl"] },
 
-  // Hero card
-  heroCard: {
+  // Floating Card
+  floatingCard: {
+    marginTop: -hpx(24),
     backgroundColor: colors.card,
-    borderRadius: radius.xl,
+    borderRadius: wpx(20),
     padding: spacing["2xl"],
-    marginBottom: spacing.lg,
-    ...shadows.card,
+    ...shadows.elevated,
+  },
+
+  // Hero section (inside floating card)
+  heroSection: {
+    marginBottom: spacing.xl,
   },
   heroTop: {
     flexDirection: "row",
@@ -272,13 +287,9 @@ const styles = StyleSheet.create({
 
   // Task count
   taskCountCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: spacing.lg,
-    ...shadows.card,
+    marginBottom: spacing.xl,
   },
   taskCountIcon: {
     width: sizes.iconLg,
@@ -300,10 +311,9 @@ const styles = StyleSheet.create({
 
   // Section
   sectionCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.xl,
-    padding: spacing["2xl"],
-    ...shadows.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.xl,
   },
   sectionTitle: {
     ...textPresets.sectionHeader,

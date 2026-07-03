@@ -138,16 +138,14 @@ export default function LeaveAllocationsScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cuti / Izin</Text>
-        <View style={styles.headerBtn} />
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Cuti / Izin</Text>
+        </View>
       </View>
 
       <View style={styles.filterRow}>
@@ -174,8 +172,6 @@ export default function LeaveAllocationsScreen() {
             <DateTimePicker value={showPicker === "from" ? dateFrom : dateTo} mode="date" display="inline" themeVariant="light" onChange={(_e, d) => { if (d) setTempPickerDate(d); }} />
           </View>
         </View>
-      ) : showPicker ? (
-        <DateTimePicker value={showPicker === "from" ? dateFrom : dateTo} mode="date" display="default" onChange={handlePickerChange} />
       ) : null}
 
       <ScrollView
@@ -186,46 +182,52 @@ export default function LeaveAllocationsScreen() {
           if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 40) handleLoadMore();
         }}
       >
-        {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
-        ) : error ? (
-          <View style={styles.center}>
-            <Ionicons name="alert-circle-outline" size={40} color={colors.error} />
-            <Text style={styles.emptyText}>{error}</Text>
-          </View>
-        ) : records.length === 0 ? (
-          <View style={styles.center}>
-            <Ionicons name="umbrella-outline" size={40} color={colors.textMuted} />
-            <Text style={styles.emptyText}>Belum ada pengajuan cuti.</Text>
-          </View>
-        ) : (
-          records.map((rec) => {
-            const st = STATE_COLORS[rec.state] ?? STATE_COLORS.draft;
-            const fmt = (iso: string) => {
-              try { return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }); }
-              catch { return iso; }
-            };
-            return (
-              <TouchableOpacity key={rec.id} style={styles.recordCard} activeOpacity={0.7} onPress={() => router.push(`/time-off-detail?id=${rec.id}`)}>
-                <View style={styles.recordTop}>
-                  <Text style={styles.recordType}>{rec.holiday_status?.name || rec.name || "Cuti"}</Text>
-                  <View style={[styles.stateBadge, { backgroundColor: st.b }]}>
-                    <Text style={[styles.stateBadgeText, { color: st.c }]}>{rec.state_label || rec.state}</Text>
+        <View style={styles.floatingCard}>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
+          ) : error ? (
+            <View style={styles.center}>
+              <Ionicons name="alert-circle-outline" size={40} color={colors.error} />
+              <Text style={styles.emptyText}>{error}</Text>
+            </View>
+          ) : records.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="umbrella-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.emptyText}>Belum ada pengajuan cuti.</Text>
+            </View>
+          ) : (
+            records.map((rec) => {
+              const st = STATE_COLORS[rec.state] ?? STATE_COLORS.draft;
+              const fmt = (iso: string) => {
+                try { return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }); }
+                catch { return iso; }
+              };
+              return (
+                <TouchableOpacity key={rec.id} style={styles.recordCard} activeOpacity={0.7} onPress={() => router.push(`/time-off-detail?id=${rec.id}`)}>
+                  <View style={styles.recordTop}>
+                    <Text style={styles.recordType}>{rec.holiday_status?.name || rec.name || "Cuti"}</Text>
+                    <View style={[styles.stateBadge, { backgroundColor: st.b }]}>
+                      <Text style={[styles.stateBadgeText, { color: st.c }]}>{rec.state_label || rec.state}</Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.recordDateRow}>
-                  <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
-                  <Text style={styles.recordDates}>{fmt(rec.date_from)} → {fmt(rec.date_to)}</Text>
-                </View>
-                <Text style={styles.recordDays}>{rec.number_of_days} hari</Text>
-              </TouchableOpacity>
-            );
-          })
-        )}
-        {isLoadingMore && <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.lg }} />}
-        {page >= totalPages && records.length > 0 && <Text style={styles.endText}>Semua data telah dimuat</Text>}
-        <View style={{ height: hpx(80) }} />
+                  <View style={styles.recordDateRow}>
+                    <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
+                    <Text style={styles.recordDates}>{fmt(rec.date_from)} → {fmt(rec.date_to)}</Text>
+                  </View>
+                  <Text style={styles.recordDays}>{rec.number_of_days} hari</Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
+          {isLoadingMore && <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.lg }} />}
+          {page >= totalPages && records.length > 0 && <Text style={styles.endText}>Semua data telah dimuat</Text>}
+        </View>
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
+
+      {showPicker && Platform.OS !== "ios" ? (
+        <DateTimePicker value={showPicker === "from" ? dateFrom : dateTo} mode="date" display="default" onChange={handlePickerChange} />
+      ) : null}
 
       <TouchableOpacity style={styles.fab} onPress={() => setIsCreateModalVisible(true)} activeOpacity={0.85}>
         <Ionicons name="add" size={26} color="#FFFFFF" />
@@ -328,25 +330,42 @@ const styles = StyleSheet.create({
   center: { alignItems: "center", paddingVertical: spacing["4xl"] },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing.lg, height: sizes.headerHeight, backgroundColor: colors.card,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
+  // Curved header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
   },
-  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
-  headerTitle: { ...textPresets.screenTitle, fontSize: rf(17), flex: 1, textAlign: "left", marginLeft: spacing.xs },
+  headerContent: { alignItems: "center" },
+  headerTitle: {
+    fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
 
   filterRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.card,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingHorizontal: spacing["2xl"], paddingVertical: spacing.md,
+    marginTop: -hpx(24), zIndex: 2,
   },
-  dateBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingVertical: spacing.md, paddingHorizontal: spacing.md },
+  dateBtn: { flex: 1, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingVertical: spacing.md, paddingHorizontal: spacing.md, ...shadows.card },
   dateLabel: { ...textPresets.label, marginBottom: 2 },
   dateValue: { ...textPresets.cardTitle, fontSize: rf(13) },
 
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
+  floatingCard: {
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+  },
+
   recordCard: {
     backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg,
     marginBottom: spacing.md, ...shadows.card,

@@ -106,150 +106,150 @@ export default function TaskCreateScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Buat Tugas Baru</Text>
-        <View style={styles.headerBtn} />
+      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Buat Tugas Baru</Text>
+        </View>
       </View>
 
       {isLoadingRef ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Nama Tugas */}
-          <Text style={styles.label}>Nama Tugas <Text style={{ color: colors.error }}>*</Text></Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Masukkan nama tugas"
-            placeholderTextColor={colors.textMuted}
-            value={name}
-            onChangeText={setName}
-          />
-
-          {/* Deskripsi */}
-          <Text style={styles.label}>Deskripsi</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Deskripsi tugas..."
-            placeholderTextColor={colors.textMuted}
-            multiline
-            value={description}
-            onChangeText={setDescription}
-          />
-
-          {/* Project */}
-          <Text style={styles.label}>Project</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowProjectPicker(true)}>
-            <Text style={selectedProject ? styles.selectValue : styles.selectPlaceholder}>
-              {selectedProject?.name || "Pilih project"}
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          {/* Stage */}
-          <Text style={styles.label}>Stage</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowStagePicker(true)}>
-            <Text style={selectedStage ? styles.selectValue : styles.selectPlaceholder}>
-              {selectedStage?.name || "Pilih stage"}
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          {/* Priority */}
-          <Text style={styles.label}>Prioritas</Text>
-          <View style={styles.priorityRow}>
-            {[
-              { value: "0", label: "Normal" },
-              { value: "1", label: "Urgent" },
-            ].map((p) => (
-              <TouchableOpacity
-                key={p.value}
-                style={[styles.priorityBtn, priority === p.value && styles.priorityActive]}
-                onPress={() => setPriority(p.value)}
-              >
-                <Text style={[styles.priorityText, priority === p.value && styles.priorityTextActive]}>
-                  {p.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Deadline */}
-          <Text style={styles.label}>Deadline</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDatePicker(true)}>
-            <Text style={styles.selectValue}>
-              {dateDeadline.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
-            </Text>
-            <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          {showDatePicker && Platform.OS === "ios" ? (
-            <View style={StyleSheet.absoluteFill}>
-              <TouchableOpacity style={styles.pickerBg} onPress={() => setShowDatePicker(false)} />
-              <View style={styles.pickerContainer}>
-                <View style={styles.pickerHeader}>
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.pickerDone}>Selesai</Text>
-                  </TouchableOpacity>
-                </View>
-                <DateTimePicker
-                  value={dateDeadline}
-                  mode="date"
-                  display="inline"
-                  themeVariant="light"
-                  onChange={(_e, d) => { if (d) setDateDeadline(d); }}
-                />
-              </View>
-            </View>
-          ) : showDatePicker ? (
-            <DateTimePicker
-              value={dateDeadline}
-              mode="date"
-              display="default"
-              onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+          <View style={styles.floatingCard}>
+            {/* Nama Tugas */}
+            <Text style={styles.label}>Nama Tugas <Text style={{ color: colors.error }}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Masukkan nama tugas"
+              placeholderTextColor={colors.textMuted}
+              value={name}
+              onChangeText={setName}
             />
-          ) : null}
 
-          {/* Estimated Hours */}
-          <Text style={styles.label}>Estimasi Jam</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Contoh: 8"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="numeric"
-            value={plannedHours}
-            onChangeText={setPlannedHours}
-          />
+            {/* Deskripsi */}
+            <Text style={styles.label}>Deskripsi</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Deskripsi tugas..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              value={description}
+              onChangeText={setDescription}
+            />
 
-          {/* Tags */}
-          <Text style={styles.label}>Tags</Text>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setShowTagPicker(true)}>
-            <Text style={selectedTags.length ? styles.selectValue : styles.selectPlaceholder} numberOfLines={1}>
-              {selectedTags.length ? selectedTags.map((t) => t.name).join(", ") : "Pilih tags"}
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
+            {/* Project */}
+            <Text style={styles.label}>Project</Text>
+            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowProjectPicker(true)}>
+              <Text style={selectedProject ? styles.selectValue : styles.selectPlaceholder}>
+                {selectedProject?.name || "Pilih project"}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
 
-          {/* Submit */}
-          <TouchableOpacity
-            style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            activeOpacity={0.8}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.submitText}>Buat Tugas</Text>
-            )}
-          </TouchableOpacity>
+            {/* Stage */}
+            <Text style={styles.label}>Stage</Text>
+            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowStagePicker(true)}>
+              <Text style={selectedStage ? styles.selectValue : styles.selectPlaceholder}>
+                {selectedStage?.name || "Pilih stage"}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            {/* Priority */}
+            <Text style={styles.label}>Prioritas</Text>
+            <View style={styles.priorityRow}>
+              {[
+                { value: "0", label: "Normal" },
+                { value: "1", label: "Urgent" },
+              ].map((p) => (
+                <TouchableOpacity
+                  key={p.value}
+                  style={[styles.priorityBtn, priority === p.value && styles.priorityActive]}
+                  onPress={() => setPriority(p.value)}
+                >
+                  <Text style={[styles.priorityText, priority === p.value && styles.priorityTextActive]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Deadline */}
+            <Text style={styles.label}>Deadline</Text>
+            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDatePicker(true)}>
+              <Text style={styles.selectValue}>
+                {dateDeadline.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+              </Text>
+              <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            {showDatePicker && Platform.OS === "ios" ? (
+              <View style={StyleSheet.absoluteFill}>
+                <TouchableOpacity style={styles.pickerBg} onPress={() => setShowDatePicker(false)} />
+                <View style={styles.pickerContainer}>
+                  <View style={styles.pickerHeader}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Text style={styles.pickerDone}>Selesai</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={dateDeadline}
+                    mode="date"
+                    display="inline"
+                    themeVariant="light"
+                    onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+                  />
+                </View>
+              </View>
+            ) : showDatePicker ? (
+              <DateTimePicker
+                value={dateDeadline}
+                mode="date"
+                display="default"
+                onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+              />
+            ) : null}
+
+            {/* Estimated Hours */}
+            <Text style={styles.label}>Estimasi Jam</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Contoh: 8"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+              value={plannedHours}
+              onChangeText={setPlannedHours}
+            />
+
+            {/* Tags */}
+            <Text style={styles.label}>Tags</Text>
+            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowTagPicker(true)}>
+              <Text style={selectedTags.length ? styles.selectValue : styles.selectPlaceholder} numberOfLines={1}>
+                {selectedTags.length ? selectedTags.map((t) => t.name).join(", ") : "Pilih tags"}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            {/* Submit */}
+            <TouchableOpacity
+              style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitText}>Buat Tugas</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          <View style={{ height: hpx(24) }} />
         </ScrollView>
       )}
 
@@ -349,20 +349,35 @@ function renderTagModal(
 // ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    height: sizes.headerHeight,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginTop: Platform.OS === "android" ? spacing.sm : 0,
+
+  // Curved header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(12),
+    zIndex: 1,
   },
-  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
-  headerTitle: { ...textPresets.screenTitle, fontSize: rf(17), flex: 1, textAlign: "left", marginLeft: spacing.xs },
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+  headerContent: { alignItems: "center" },
+  headerTitle: {
+    fontSize: rf(17),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+
+  // Scroll
+  scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
+  floatingCard: {
+    marginTop: -hpx(24),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+  },
 
   // Form
   label: { ...textPresets.label, marginBottom: spacing.sm, marginTop: spacing.lg, fontWeight: "700" as any },

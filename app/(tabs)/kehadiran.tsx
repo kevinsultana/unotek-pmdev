@@ -15,13 +15,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../../src/constants/theme";
-import { Card } from "../../src/components/ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAttendance } from "../../hooks/useAttendance";
+import {
+  colors,
+  hpx,
+  radius,
+  rf,
+  shadows,
+  sizes,
+  spacing,
+  textPresets,
+  wpx,
+} from "../../src/constants/theme";
 import { showToast } from "../../utils/toast";
 
 export default function KehadiranScreen() {
@@ -35,11 +41,9 @@ export default function KehadiranScreen() {
     refresh: refreshAttendance,
   } = useAttendance();
 
-  // Clock
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
 
-  // Camera & GPS
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -67,11 +71,16 @@ export default function KehadiranScreen() {
     }
   };
 
-  // Modal states
-  const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
-  const [attendanceType, setAttendanceType] = useState<"checkin" | "checkout">("checkin");
+  const [isAttendanceModalVisible, setIsAttendanceModalVisible] =
+    useState(false);
+  const [attendanceType, setAttendanceType] = useState<"checkin" | "checkout">(
+    "checkin",
+  );
   const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsCoords, setGpsCoords] = useState<{ lat: string; lng: string } | null>(null);
+  const [gpsCoords, setGpsCoords] = useState<{
+    lat: string;
+    lng: string;
+  } | null>(null);
   const [gpsAddress, setGpsAddress] = useState<string | null>(null);
   const [photoCaptured, setPhotoCaptured] = useState(false);
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
@@ -115,39 +124,43 @@ export default function KehadiranScreen() {
 
     const cameraPermissionResult = await requestCameraPermission();
     if (!cameraPermissionResult.granted) {
-      showToast("error", "Izin Kamera", "Akses kamera diperlukan untuk foto selfie presensi.");
+      showToast("error", "Izin Kamera", "Akses kamera diperlukan.");
       setIsAttendanceModalVisible(false);
       return;
     }
-
     setGpsLoading(true);
     setGpsAddress(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        showToast("error", "Izin Lokasi", "Akses GPS diperlukan untuk validasi lokasi.");
+        showToast("error", "Izin Lokasi", "Akses GPS diperlukan.");
         setGpsLoading(false);
         setIsAttendanceModalVisible(false);
         return;
       }
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const lat = location.coords.latitude;
-      const lng = location.coords.longitude;
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude: lat, longitude: lng } = location.coords;
       setGpsCoords({ lat: lat.toFixed(6), lng: lng.toFixed(6) });
       try {
-        const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        const reverseGeocode = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lng,
+        });
         if (reverseGeocode?.length) {
           const a = reverseGeocode[0];
-          const parts = [a.name, a.street, a.district, a.city || a.subregion].filter(Boolean);
-          setGpsAddress(parts.join(", ") || "Lokasi tidak dikenal");
-        } else {
-          setGpsAddress("Alamat tidak ditemukan");
-        }
+          setGpsAddress(
+            [a.name, a.street, a.district, a.city || a.subregion]
+              .filter(Boolean)
+              .join(", ") || "Lokasi tidak dikenal",
+          );
+        } else setGpsAddress("Alamat tidak ditemukan");
       } catch {
         setGpsAddress("Lokasi terdeteksi");
       }
     } catch {
-      showToast("error", "Error GPS", "Gagal mendapatkan koordinat GPS.");
+      showToast("error", "Error GPS", "Gagal mendapatkan koordinat.");
     } finally {
       setGpsLoading(false);
     }
@@ -156,7 +169,10 @@ export default function KehadiranScreen() {
   const handleCapturePhoto = async () => {
     if (cameraRef.current) {
       try {
-        const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, skipProcessing: true });
+        const photo = await cameraRef.current.takePictureAsync({
+          quality: 0.5,
+          skipProcessing: true,
+        });
         if (photo) {
           setPhotoUri(photo.uri);
           setPhotoCaptured(true);
@@ -183,62 +199,77 @@ export default function KehadiranScreen() {
       setGpsCoords(null);
       setGpsAddress(null);
     } catch (error: any) {
-      const message = error?.response?.data?.message || "Gagal mengirim presensi. Coba lagi.";
-      showToast("error", "Presensi Gagal", message);
+      showToast(
+        "error",
+        "Presensi Gagal",
+        error?.response?.data?.message || "Coba lagi.",
+      );
     } finally {
       setIsSubmittingAttendance(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* ── Page Heading ──────────────────────────────────────────── */}
-        <View style={styles.heading}>
-          <Text style={styles.pageTitle}>Presensi</Text>
-          <Text style={styles.pageSub}>Absensi harian & pengajuan izin</Text>
-        </View>
+    <View style={styles.container}>
+      <StatusBar style="light" />
 
-        {/* ── Live Clock Card ────────────────────────────────────────── */}
-        <Card style={styles.clockCard}>
+      {/* Curved Header */}
+      <View style={[styles.curvedHeader]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Presensi</Text>
+          <Text style={styles.headerSub}>Absensi harian & pengajuan izin</Text>
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Floating Clock Card */}
+        <View style={styles.floatingCard}>
           <Text style={styles.clockDate}>{currentDate}</Text>
           <Text style={styles.clockTime}>{currentTime}</Text>
-          <View style={styles.clockBadge}>
-            <View style={styles.clockPulse} />
-            <Text style={styles.clockLabel}>Waktu Kerja Aktif</Text>
+          <View style={styles.pulseRow}>
+            <View style={styles.pulseDot} />
+            <Text style={styles.pulseLabel}>Waktu Kerja Aktif</Text>
           </View>
-        </Card>
+        </View>
 
-        {/* ── Attendance Action Card ─────────────────────────────────── */}
-        <Card style={styles.attCard}>
-          <Text style={styles.attTitle}>Presensi Hari Ini</Text>
-          <Text style={styles.attDesc}>
+        {/* Attendance action */}
+        <View style={styles.actionCard}>
+          <Text style={styles.actionTitle}>Presensi Hari Ini</Text>
+          <Text style={styles.actionDesc}>
             {hasCheckedOutToday
               ? "Presensi hari ini sudah lengkap."
               : hasCheckedIn
                 ? "Anda sedang aktif bekerja. Lakukan Check Out jika jam kerja selesai."
                 : "Lakukan Check In dengan selfie & GPS untuk mulai bekerja."}
           </Text>
-
-          {!hasCheckedOutToday ? (
+          {!hasCheckedOutToday && (
             <TouchableOpacity
-              style={[styles.attBtn, hasCheckedIn ? styles.attBtnOut : styles.attBtnIn]}
-              onPress={() => openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")}
+              style={[
+                styles.attBtn,
+                hasCheckedIn ? styles.attBtnOut : styles.attBtnIn,
+              ]}
+              onPress={() =>
+                openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")
+              }
               activeOpacity={0.85}
             >
-              <Ionicons name="finger-print" size={24} color="#FFFFFF" />
+              <Ionicons name="finger-print" size={wpx(22)} color="#FFFFFF" />
               <Text style={styles.attBtnText}>
                 {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
               </Text>
             </TouchableOpacity>
-          ) : null}
-
+          )}
           {todayRecords.map((record, idx) => {
             const inTime = formatTime(record.check_in);
             const outTime = formatTime(record.check_out);
             return (
-              <View key={record.id} style={[styles.recordRow, idx === 0 && { borderTopWidth: 0 }]}>
+              <View
+                key={record.id}
+                style={[styles.recordRow, idx === 0 && { borderTopWidth: 0 }]}
+              >
                 <View style={styles.recordCol}>
                   <Text style={styles.recordLabel}>Check In</Text>
                   <Text style={styles.recordVal}>{inTime}</Text>
@@ -251,93 +282,158 @@ export default function KehadiranScreen() {
               </View>
             );
           })}
-        </Card>
+        </View>
 
-        {/* ── Navigation Links ──────────────────────────────────────── */}
-        <TouchableOpacity style={styles.navCard} onPress={() => router.push("/attendance-history")} activeOpacity={0.7}>
-          <View style={[styles.navIcon, { backgroundColor: colors.primaryLight }]}>
-            <Ionicons name="time-outline" size={22} color={colors.primary} />
+        {/* Nav links */}
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push("/attendance-history")}
+          activeOpacity={0.7}
+        >
+          <View
+            style={[styles.navIcon, { backgroundColor: colors.primaryLight }]}
+          >
+            <Ionicons
+              name="time-outline"
+              size={wpx(20)}
+              color={colors.primary}
+            />
           </View>
           <View style={styles.navText}>
             <Text style={styles.navTitle}>Riwayat Presensi</Text>
-            <Text style={styles.navDesc}>Lihat riwayat absensi harian lengkap</Text>
+            <Text style={styles.navDesc}>
+              Lihat riwayat absensi harian lengkap
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          <Ionicons
+            name="chevron-forward"
+            size={wpx(16)}
+            color={colors.textMuted}
+          />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navCard} onPress={() => router.push("/leave-allocations")} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push("/leave-allocations")}
+          activeOpacity={0.7}
+        >
           <View style={[styles.navIcon, { backgroundColor: "#D1FAE5" }]}>
-            <Ionicons name="umbrella-outline" size={22} color="#059669" />
+            <Ionicons name="umbrella-outline" size={wpx(20)} color="#059669" />
           </View>
           <View style={styles.navText}>
             <Text style={styles.navTitle}>Alokasi Cuti</Text>
-            <Text style={styles.navDesc}>Detail sisa cuti & tipe cuti tersedia</Text>
+            <Text style={styles.navDesc}>
+              Detail sisa cuti & tipe cuti tersedia
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          <Ionicons
+            name="chevron-forward"
+            size={wpx(16)}
+            color={colors.textMuted}
+          />
         </TouchableOpacity>
 
-        <View style={{ height: spacing["2xl"] }} />
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
 
-      {/* ── Attendance Modal ─────────────────────────────────────────── */}
-      <Modal visible={isAttendanceModalVisible} animationType="slide" transparent>
+      {/* ── Attendance Modal ── */}
+      <Modal
+        visible={isAttendanceModalVisible}
+        animationType="slide"
+        transparent
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+          <View
+            style={[
+              styles.modalContent,
+              { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {attendanceType === "checkin" ? "Check-In Presensi" : "Check-Out Presensi"}
+                {attendanceType === "checkin"
+                  ? "Check-In Presensi"
+                  : "Check-Out Presensi"}
               </Text>
-              <TouchableOpacity onPress={() => setIsAttendanceModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              <TouchableOpacity
+                onPress={() => setIsAttendanceModalVisible(false)}
+              >
+                <Ionicons
+                  name="close"
+                  size={wpx(22)}
+                  color={colors.textPrimary}
+                />
               </TouchableOpacity>
             </View>
-
-            {/* Camera */}
             <View style={styles.cameraView}>
               {photoCaptured && photoUri ? (
                 <View style={styles.capturedContainer}>
-                  <Image source={{ uri: photoUri }} style={styles.capturedPhoto} />
-                  <TouchableOpacity onPress={() => setPhotoCaptured(false)} style={styles.retakeBtn}>
-                    <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={styles.capturedPhoto}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setPhotoCaptured(false)}
+                    style={styles.retakeBtn}
+                  >
+                    <Ionicons
+                      name="refresh-outline"
+                      size={12}
+                      color="#FFFFFF"
+                    />
                     <Text style={styles.retakeText}>Ambil Ulang</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <>
-                  <CameraView style={styles.camera} facing="front" ref={cameraRef} />
-                  <View style={styles.camOverlay}>
-                    <TouchableOpacity style={styles.captureBtn} onPress={handleCapturePhoto}>
+                  <CameraView
+                    style={styles.camera}
+                    facing="front"
+                    ref={cameraRef}
+                  />
+                  <View style={styles.cameraOverlay}>
+                    <TouchableOpacity
+                      style={styles.captureBtn}
+                      onPress={handleCapturePhoto}
+                    >
                       <View style={styles.captureInner} />
                     </TouchableOpacity>
                   </View>
                 </>
               )}
             </View>
-
-            {/* GPS Info */}
             <View style={styles.gpsBox}>
-              <View style={styles.gpsHeader}>
-                <Ionicons name="location" size={18} color={gpsCoords ? colors.success : colors.amber} />
+              <View style={styles.gpsRow}>
+                <Ionicons
+                  name="location"
+                  size={16}
+                  color={gpsCoords ? colors.success : colors.amber}
+                />
                 <Text style={styles.gpsLabel}>Lokasi GPS</Text>
               </View>
               {gpsLoading ? (
                 <View style={styles.gpsBody}>
                   <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.gpsText}>Mendeteksi lokasi…</Text>
+                  <Text style={styles.gpsHint}>Mendeteksi lokasi…</Text>
                 </View>
               ) : gpsCoords ? (
                 <View style={styles.gpsBody}>
-                  {gpsAddress ? <Text style={styles.gpsAddress}>{gpsAddress}</Text> : null}
-                  <Text style={styles.gpsCoords}>Lat: {gpsCoords.lat}, Lng: {gpsCoords.lng}</Text>
+                  {gpsAddress ? (
+                    <Text style={styles.gpsAddress}>{gpsAddress}</Text>
+                  ) : null}
+                  <Text style={styles.gpsCoords}>
+                    Lat: {gpsCoords.lat}, Lng: {gpsCoords.lng}
+                  </Text>
                 </View>
               ) : (
-                <Text style={styles.gpsText}>GPS belum terdeteksi.</Text>
+                <Text style={styles.gpsHint}>GPS belum terdeteksi.</Text>
               )}
             </View>
-
-            {/* Submit */}
             <TouchableOpacity
-              style={[styles.submitBtn, isSubmittingAttendance && styles.submitBtnDisabled]}
+              style={[
+                styles.submitBtn,
+                isSubmittingAttendance && { opacity: 0.6 },
+              ]}
               onPress={handleConfirmAttendance}
               disabled={isSubmittingAttendance}
               activeOpacity={0.85}
@@ -351,53 +447,91 @@ export default function KehadiranScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface, paddingBottom: -30 },
-  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+  container: { flex: 1, backgroundColor: colors.surface },
 
-  // Heading
-  heading: { marginBottom: spacing["2xl"], marginTop: spacing.md },
-  pageTitle: { ...textPresets.display },
-  pageSub: { ...textPresets.body, marginTop: spacing.xs },
-
-  // Clock
-  clockCard: {
-    alignItems: "center",
-    padding: spacing["3xl"],
-    marginBottom: spacing.lg,
+  // Curved Header
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(16),
+    zIndex: 1,
   },
-  clockDate: { ...textPresets.body, marginBottom: spacing.md },
+  headerContent: { alignItems: "center" },
+  headerTitle: { fontSize: rf(22), fontWeight: "800" as any, color: "#FFFFFF" },
+  headerSub: {
+    fontSize: rf(13),
+    color: "rgba(255,255,255,0.7)",
+    marginTop: hpx(4),
+  },
+
+  scroll: {
+    paddingHorizontal: spacing["2xl"],
+    paddingBottom: hpx(40),
+    paddingTop: hpx(45),
+  },
+
+  // Floating Clock Card
+  floatingCard: {
+    marginTop: -hpx(36),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    alignItems: "center",
+    ...shadows.elevated,
+    marginBottom: hpx(16),
+    zIndex: 10,
+  },
+  clockDate: {
+    fontSize: rf(13),
+    fontWeight: "500" as any,
+    color: colors.textSecondary,
+    marginBottom: hpx(8),
+  },
   clockTime: {
     fontSize: rf(40),
     fontWeight: "800" as TextStyle["fontWeight"],
     color: colors.textPrimary,
-    letterSpacing: 1,
-    marginBottom: spacing.md,
+    letterSpacing: wpx(1),
+    marginBottom: hpx(8),
   },
-  clockBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  clockPulse: {
-    width: 8,
-    height: 8,
+  pulseRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  pulseDot: {
+    width: wpx(8),
+    height: wpx(8),
     borderRadius: radius.full,
     backgroundColor: colors.success,
   },
-  clockLabel: { ...textPresets.caption },
+  pulseLabel: { ...textPresets.caption },
 
-  // Attendance card
-  attCard: {
+  // Action Card
+  actionCard: {
+    backgroundColor: colors.card,
+    borderRadius: wpx(16),
     padding: spacing["2xl"],
-    marginBottom: spacing.lg,
+    marginBottom: hpx(16),
+    ...shadows.card,
   },
-  attTitle: { ...textPresets.cardTitle, fontSize: rf(16), marginBottom: spacing.sm },
-  attDesc: { ...textPresets.body, fontSize: rf(13), marginBottom: spacing.xl, lineHeight: rf(18) },
+  actionTitle: {
+    fontSize: rf(16),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  actionDesc: {
+    fontSize: rf(13),
+    color: colors.textSecondary,
+    lineHeight: rf(18),
+    marginBottom: spacing.xl,
+  },
   attBtn: {
     height: sizes.buttonMd,
     borderRadius: radius.md,
@@ -409,9 +543,9 @@ const styles = StyleSheet.create({
   },
   attBtnIn: { backgroundColor: colors.primary, shadowColor: colors.primary },
   attBtnOut: { backgroundColor: colors.error, shadowColor: colors.error },
-  attBtnText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
+  attBtnText: { color: "#FFFFFF", fontSize: rf(15), fontWeight: "700" as any },
 
-  // Today records
+  // Records
   recordRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -421,18 +555,23 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   recordCol: { flex: 1, alignItems: "center" },
-  recordDivider: { width: 1, height: hpx(32), backgroundColor: colors.border, marginHorizontal: spacing.lg },
+  recordDivider: {
+    width: 1,
+    height: hpx(32),
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.lg,
+  },
   recordLabel: { ...textPresets.label, marginBottom: spacing.xs },
   recordVal: { ...textPresets.cardTitle, fontSize: rf(16) },
 
-  // Navigation cards
+  // Nav Cards
   navCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    marginTop: spacing.md,
+    marginBottom: hpx(12),
     ...shadows.card,
   },
   navIcon: {
@@ -474,7 +613,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   camera: { flex: 1, width: "100%", height: "100%" },
-  camOverlay: {
+  cameraOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
@@ -497,7 +636,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: "#FFFFFF",
   },
-  capturedContainer: { width: "100%", height: "100%", justifyContent: "center", alignItems: "center" },
+  capturedContainer: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   capturedPhoto: { width: "100%", height: "100%", resizeMode: "cover" },
   retakeBtn: {
     position: "absolute",
@@ -512,8 +656,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   retakeText: { color: "#FFFFFF", fontSize: rf(11), fontWeight: "700" as any },
-
-  // GPS
   gpsBox: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -522,14 +664,16 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: spacing.xl,
   },
-  gpsHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  gpsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   gpsLabel: { ...textPresets.cardTitle, fontSize: rf(14) },
   gpsBody: { marginTop: spacing.sm, gap: spacing.xs },
-  gpsText: { ...textPresets.caption, marginTop: spacing.sm },
-  gpsAddress: { ...textPresets.body, color: colors.textPrimary, fontWeight: "600" as any },
+  gpsHint: { ...textPresets.caption, marginTop: spacing.sm },
+  gpsAddress: {
+    ...textPresets.body,
+    color: colors.textPrimary,
+    fontWeight: "600" as any,
+  },
   gpsCoords: { ...textPresets.label },
-
-  // Submit
   submitBtn: {
     height: sizes.buttonMd,
     backgroundColor: colors.primary,
@@ -537,6 +681,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  submitBtnDisabled: { opacity: 0.6 },
   submitText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
 });
