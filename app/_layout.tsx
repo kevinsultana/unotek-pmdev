@@ -1,18 +1,22 @@
-import { useEffect } from "react";
-import { Platform } from "react-native";
+import * as NavigationBar from "expo-navigation-bar";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { Appearance, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import * as NavigationBar from "expo-navigation-bar";
 import { AuthProvider } from "../context/AuthContext";
 
 export default function RootLayout() {
   useEffect(() => {
-    if (Platform.OS === "android") {
-      NavigationBar.setBackgroundColorAsync("#111111");
-      NavigationBar.setButtonStyleAsync("light");
-    }
+    if (Platform.OS !== "android") return;
+    const apply = () => {
+      NavigationBar.setBackgroundColorAsync("#ffffff");
+      NavigationBar.setButtonStyleAsync("dark");
+    };
+    apply();
+    const sub = Appearance.addChangeListener(apply);
+    return () => sub.remove();
   }, []);
 
   return (
