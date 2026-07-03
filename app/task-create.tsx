@@ -15,7 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import { projectService } from "../services/projectService";
 import { taskService } from "../services/taskService";
 import type { Project } from "../types/project";
@@ -26,7 +27,7 @@ export default function TaskCreateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // ── Form fields ──
+  // Form fields
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -37,14 +38,14 @@ export default function TaskCreateScreen() {
   const [dateDeadline, setDateDeadline] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // ── Reference data ──
+  // Reference data
   const [projects, setProjects] = useState<Project[]>([]);
   const [stages, setStages] = useState<TaskStageItem[]>([]);
   const [tags, setTags] = useState<TaskTagItem[]>([]);
   const [isLoadingRef, setIsLoadingRef] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ── Dropdown modals ──
+  // Dropdown modals
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showStagePicker, setShowStagePicker] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
@@ -73,7 +74,6 @@ export default function TaskCreateScreen() {
       showToast("info", "Form Belum Lengkap", "Nama tugas wajib diisi.");
       return;
     }
-
     setIsSubmitting(true);
     try {
       await taskService.create({
@@ -106,39 +106,39 @@ export default function TaskCreateScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Custom Header */}
-      <View style={styles.customHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBackBtn}>
-          <Ionicons name="arrow-back" size={22} color="#2E5BFF" />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Buat Tugas Baru</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerBtn} />
       </View>
 
       {isLoadingRef ? (
-        <ActivityIndicator size="large" color="#2E5BFF" style={{ marginVertical: 40 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          {/* Name */}
-          <Text style={styles.label}>Nama Tugas <Text style={{ color: "#EF4444" }}>*</Text></Text>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Nama Tugas */}
+          <Text style={styles.label}>Nama Tugas <Text style={{ color: colors.error }}>*</Text></Text>
           <TextInput
             style={styles.input}
             placeholder="Masukkan nama tugas"
-            placeholderTextColor="#A9B5C9"
+            placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
           />
 
-          {/* Description */}
+          {/* Deskripsi */}
           <Text style={styles.label}>Deskripsi</Text>
           <TextInput
-            style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+            style={[styles.input, styles.textArea]}
             placeholder="Deskripsi tugas..."
-            placeholderTextColor="#A9B5C9"
+            placeholderTextColor={colors.textMuted}
             multiline
             value={description}
             onChangeText={setDescription}
@@ -150,7 +150,7 @@ export default function TaskCreateScreen() {
             <Text style={selectedProject ? styles.selectValue : styles.selectPlaceholder}>
               {selectedProject?.name || "Pilih project"}
             </Text>
-            <Ionicons name="chevron-down" size={18} color="#8F9BB3" />
+            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
           {/* Stage */}
@@ -159,7 +159,7 @@ export default function TaskCreateScreen() {
             <Text style={selectedStage ? styles.selectValue : styles.selectPlaceholder}>
               {selectedStage?.name || "Pilih stage"}
             </Text>
-            <Ionicons name="chevron-down" size={18} color="#8F9BB3" />
+            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
           {/* Priority */}
@@ -171,10 +171,10 @@ export default function TaskCreateScreen() {
             ].map((p) => (
               <TouchableOpacity
                 key={p.value}
-                style={[styles.priorityBtn, priority === p.value && styles.priorityBtnActive]}
+                style={[styles.priorityBtn, priority === p.value && styles.priorityActive]}
                 onPress={() => setPriority(p.value)}
               >
-                <Text style={[styles.priorityBtnText, priority === p.value && styles.priorityBtnTextActive]}>
+                <Text style={[styles.priorityText, priority === p.value && styles.priorityTextActive]}>
                   {p.label}
                 </Text>
               </TouchableOpacity>
@@ -187,27 +187,25 @@ export default function TaskCreateScreen() {
             <Text style={styles.selectValue}>
               {dateDeadline.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
             </Text>
-            <Ionicons name="calendar-outline" size={18} color="#8F9BB3" />
+            <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
           {showDatePicker && Platform.OS === "ios" ? (
-            <View style={[StyleSheet.absoluteFill, styles.pickerOverlayIos]}>
-              <TouchableOpacity style={styles.pickerOverlayBgIos} onPress={() => setShowDatePicker(false)} />
-              <View style={styles.pickerContainerIos}>
-                <View style={styles.pickerHeaderIos}>
+            <View style={StyleSheet.absoluteFill}>
+              <TouchableOpacity style={styles.pickerBg} onPress={() => setShowDatePicker(false)} />
+              <View style={styles.pickerContainer}>
+                <View style={styles.pickerHeader}>
                   <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.pickerDoneTextIos}>Selesai</Text>
+                    <Text style={styles.pickerDone}>Selesai</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={{ backgroundColor: "#FFFFFF" }}>
-                  <DateTimePicker
-                    value={dateDeadline}
-                    mode="date"
-                    display="inline"
-                    themeVariant="light"
-                    onChange={(_e, d) => { if (d) setDateDeadline(d); }}
-                  />
-                </View>
+                <DateTimePicker
+                  value={dateDeadline}
+                  mode="date"
+                  display="inline"
+                  themeVariant="light"
+                  onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+                />
               </View>
             </View>
           ) : showDatePicker ? (
@@ -219,12 +217,12 @@ export default function TaskCreateScreen() {
             />
           ) : null}
 
-          {/* Planned Hours */}
+          {/* Estimated Hours */}
           <Text style={styles.label}>Estimasi Jam</Text>
           <TextInput
             style={styles.input}
             placeholder="Contoh: 8"
-            placeholderTextColor="#A9B5C9"
+            placeholderTextColor={colors.textMuted}
             keyboardType="numeric"
             value={plannedHours}
             onChangeText={setPlannedHours}
@@ -233,10 +231,10 @@ export default function TaskCreateScreen() {
           {/* Tags */}
           <Text style={styles.label}>Tags</Text>
           <TouchableOpacity style={styles.selectBtn} onPress={() => setShowTagPicker(true)}>
-            <Text style={selectedTags.length ? styles.selectValue : styles.selectPlaceholder}>
+            <Text style={selectedTags.length ? styles.selectValue : styles.selectPlaceholder} numberOfLines={1}>
               {selectedTags.length ? selectedTags.map((t) => t.name).join(", ") : "Pilih tags"}
             </Text>
-            <Ionicons name="chevron-down" size={18} color="#8F9BB3" />
+            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
           {/* Submit */}
@@ -244,234 +242,236 @@ export default function TaskCreateScreen() {
             style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
             onPress={handleSubmit}
             disabled={isSubmitting}
+            activeOpacity={0.8}
           >
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.submitBtnText}>Buat Tugas</Text>
+              <Text style={styles.submitText}>Buat Tugas</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
       )}
 
-      {/* ── Project Picker Modal ── */}
-      <Modal visible={showProjectPicker} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pilih Project</Text>
-              <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
-                <Ionicons name="close" size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {projects.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.pickerItem, selectedProject?.id === p.id && styles.pickerItemActive]}
-                  onPress={() => { setSelectedProject(p); setShowProjectPicker(false); }}
-                >
-                  <Text style={[styles.pickerItemText, selectedProject?.id === p.id && styles.pickerItemTextActive]}>
-                    {p.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Stage Picker Modal ── */}
-      <Modal visible={showStagePicker} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pilih Stage</Text>
-              <TouchableOpacity onPress={() => setShowStagePicker(false)}>
-                <Ionicons name="close" size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {stages.map((s) => (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[styles.pickerItem, selectedStage?.id === s.id && styles.pickerItemActive]}
-                  onPress={() => { setSelectedStage(s); setShowStagePicker(false); }}
-                >
-                  <Text style={[styles.pickerItemText, selectedStage?.id === s.id && styles.pickerItemTextActive]}>
-                    {s.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Tag Picker Modal ── */}
-      <Modal visible={showTagPicker} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pilih Tags</Text>
-              <TouchableOpacity onPress={() => setShowTagPicker(false)}>
-                <Ionicons name="close" size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {tags.map((t) => {
-                const isSel = !!selectedTags.find((st) => st.id === t.id);
-                return (
-                  <TouchableOpacity
-                    key={t.id}
-                    style={[styles.pickerItem, isSel && styles.pickerItemActive]}
-                    onPress={() => toggleTag(t)}
-                  >
-                    <View style={[styles.checkbox, isSel && styles.checkboxActive]}>
-                      {isSel && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-                    </View>
-                    <Text style={[styles.pickerItemText, isSel && styles.pickerItemTextActive]}>
-                      {t.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <TouchableOpacity style={styles.doneBtn} onPress={() => setShowTagPicker(false)}>
-              <Text style={styles.doneBtnText}>Selesai</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+      {/* ── Modals ── */}
+      {renderPickerModal(showProjectPicker, setShowProjectPicker, "Pilih Project", projects, (p) => p.name, (p) => { setSelectedProject(p as Project); setShowProjectPicker(false); }, selectedProject?.id)}
+      {renderPickerModal(showStagePicker, setShowStagePicker, "Pilih Stage", stages, (s) => s.name, (s) => { setSelectedStage(s as TaskStageItem); setShowStagePicker(false); }, selectedStage?.id)}
+      {renderTagModal(showTagPicker, setShowTagPicker, tags, selectedTags, toggleTag)}
+    </View>
   );
 }
 
+// ── Picker Modal (generic) ─────────────────────────────────────────────────
+function renderPickerModal<T extends { id: number }>(
+  visible: boolean,
+  close: (v: boolean) => void,
+  title: string,
+  items: T[],
+  getName: (item: T) => string,
+  onSelect: (item: T) => void,
+  selectedId?: number,
+) {
+  return (
+    <Modal key={title} visible={visible} animationType="slide" transparent>
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.content}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>{title}</Text>
+            <TouchableOpacity onPress={() => close(false)}>
+              <Ionicons name="close" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 400 }}>
+            {items.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[modalStyles.item, selectedId === item.id && modalStyles.itemActive]}
+                onPress={() => onSelect(item)}
+              >
+                <Text style={[modalStyles.itemText, selectedId === item.id && modalStyles.itemTextActive]}>
+                  {getName(item)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Tag Picker Modal ───────────────────────────────────────────────────────
+function renderTagModal(
+  visible: boolean,
+  close: (v: boolean) => void,
+  tags: TaskTagItem[],
+  selected: TaskTagItem[],
+  toggle: (t: TaskTagItem) => void,
+) {
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.content}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>Pilih Tags</Text>
+            <TouchableOpacity onPress={() => close(false)}>
+              <Ionicons name="close" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 400 }}>
+            {tags.map((t) => {
+              const isSel = !!selected.find((st) => st.id === t.id);
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[modalStyles.item, isSel && modalStyles.itemActive]}
+                  onPress={() => toggle(t)}
+                >
+                  <View style={[modalStyles.checkbox, isSel && modalStyles.checkboxActive]}>
+                    {isSel && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                  </View>
+                  <Text style={[modalStyles.itemText, isSel && modalStyles.itemTextActive]}>
+                    {t.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <TouchableOpacity style={modalStyles.doneBtn} onPress={() => close(false)}>
+            <Text style={modalStyles.doneBtnText}>Selesai</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#eeeeefff" },
-  customHeader: {
+  container: { flex: 1, backgroundColor: colors.surface },
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    height: 56,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.lg,
+    height: sizes.headerHeight,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: colors.border,
+    marginTop: Platform.OS === "android" ? spacing.sm : 0,
   },
-  headerBackBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#1F2937", flex: 1, textAlign: "center", marginRight: 40 },
-  headerSpacer: { width: 40 },
-  scrollContainer: { padding: 24, paddingBottom: 40 },
+  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
+  headerTitle: { ...textPresets.screenTitle, fontSize: rf(17), flex: 1, textAlign: "left", marginLeft: spacing.xs },
+  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+
   // Form
-  label: { fontSize: 13, fontWeight: "700", color: "#4B5563", marginBottom: 8, marginTop: 16 },
+  label: { ...textPresets.label, marginBottom: spacing.sm, marginTop: spacing.lg, fontWeight: "700" as any },
   input: {
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
-    height: 48,
-    color: "#1F2937",
-    fontSize: 14,
-    fontWeight: "500",
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    paddingHorizontal: spacing.lg,
+    height: sizes.selectHeight,
+    color: colors.textPrimary,
+    fontSize: rf(14),
   },
+  textArea: { height: hpx(80), textAlignVertical: "top", paddingTop: spacing.md },
+
+  // Select
   selectBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
-    height: 48,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    paddingHorizontal: spacing.lg,
+    height: sizes.selectHeight,
   },
-  selectValue: { color: "#1F2937", fontSize: 14, fontWeight: "500", flex: 1 },
-  selectPlaceholder: { color: "#A9B5C9", fontSize: 14, fontWeight: "500", flex: 1 },
-  priorityRow: { flexDirection: "row", gap: 12 },
+  selectValue: { color: colors.textPrimary, fontSize: rf(14), flex: 1 },
+  selectPlaceholder: { color: colors.textMuted, fontSize: rf(14), flex: 1 },
+
+  // Priority
+  priorityRow: { flexDirection: "row", gap: spacing.md },
   priorityBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.border,
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     alignItems: "center",
   },
-  priorityBtnActive: { backgroundColor: "#2E5BFF", borderColor: "#2E5BFF" },
-  priorityBtnText: { fontSize: 14, fontWeight: "700", color: "#4B5563" },
-  priorityBtnTextActive: { color: "#FFFFFF" },
+  priorityActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  priorityText: { fontSize: rf(14), fontWeight: "700" as any, color: colors.textSecondary },
+  priorityTextActive: { color: "#FFFFFF" },
+
+  // Submit
   submitBtn: {
-    height: 52,
-    backgroundColor: "#2E5BFF",
-    borderRadius: 14,
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 32,
+    marginTop: spacing["3xl"],
   },
-  submitBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalContent: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: "#1F2937" },
-  pickerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  pickerItemActive: { backgroundColor: "#EEF2FF" },
-  pickerItemText: { fontSize: 14, fontWeight: "600", color: "#374151" },
-  pickerItemTextActive: { color: "#2E5BFF" },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  checkboxActive: { backgroundColor: "#2E5BFF", borderColor: "#2E5BFF" },
-  doneBtn: {
-    height: 48,
-    backgroundColor: "#2E5BFF",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  doneBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  submitText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
+
   // iOS Picker
-  pickerOverlayIos: {
-    zIndex: 999,
-    justifyContent: "flex-end",
+  pickerBg: { flex: 1, backgroundColor: colors.overlay },
+  pickerContainer: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingBottom: hpx(34),
   },
-  pickerOverlayBgIos: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  pickerContainerIos: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 34,
-  },
-  pickerHeaderIos: {
+  pickerHeader: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
   },
-  pickerDoneTextIos: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2E5BFF",
+  pickerDone: { fontSize: rf(16), fontWeight: "700" as any, color: colors.primary },
+});
+
+// ── Modal sub-styles ──────────────────────────────────────────────────────
+const modalStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+  content: { backgroundColor: colors.card, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing["2xl"] },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xl },
+  title: { ...textPresets.screenTitle },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    marginBottom: spacing.xs,
   },
+  itemActive: { backgroundColor: colors.primaryLight },
+  itemText: { fontSize: rf(14), fontWeight: "600" as any, color: colors.textSecondary },
+  itemTextActive: { color: colors.primary },
+  checkbox: {
+    width: wpx(20),
+    height: hpx(20),
+    borderRadius: radius.xs + 2,
+    borderWidth: 2,
+    borderColor: colors.border,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: spacing.md,
+  },
+  checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  doneBtn: {
+    height: sizes.selectHeight,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.lg,
+  },
+  doneBtnText: { color: "#FFFFFF", fontSize: rf(15), fontWeight: "700" as any },
 });

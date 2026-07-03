@@ -5,27 +5,27 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
+import { Badge } from "../src/components/ui";
 import { timeOffService } from "../services/timeOffService";
 import type { TimeOff } from "../types/timeOff";
 
-const stateStyleMap: Record<
-  string,
-  { color: string; bg: string; label: string }
-> = {
-  draft: { color: "#FFB020", bg: "#FFF4E5", label: "Draft" },
-  confirm: { color: "#2E5BFF", bg: "#E0E7FF", label: "Menunggu" },
-  validate1: { color: "#8B5CF6", bg: "#EDE9FE", label: "Approval 1" },
-  validate: { color: "#10B981", bg: "#E6F4EA", label: "Disetujui" },
-  refuse: { color: "#EF4444", bg: "#FEE2E2", label: "Ditolak" },
-  cancel: { color: "#9CA3AF", bg: "#F3F4F6", label: "Dibatalkan" },
-  approved: { color: "#10B981", bg: "#E6F4EA", label: "Disetujui" },
+const STATE_COLORS: Record<string, { c: string; b: string }> = {
+  draft: { c: "#F59E0B", b: "#FEF3C7" },
+  confirm: { c: colors.primary, b: colors.primaryLight },
+  validate1: { c: "#7C3AED", b: "#EDE9FE" },
+  validate: { c: "#059669", b: "#D1FAE5" },
+  refuse: { c: colors.error, b: "#FEE2E2" },
+  cancel: { c: colors.textMuted, b: "#F1F5F9" },
+  approved: { c: "#059669", b: "#D1FAE5" },
 };
 
 const tz = "Asia/Jakarta";
@@ -33,40 +33,36 @@ const tz = "Asia/Jakarta";
 function fmtDateTime(iso: string) {
   try {
     const d = new Date(iso);
-    const date = d.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: tz,
-    });
-    const time = d.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: tz,
-    });
+    const date = d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: tz });
+    const time = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: tz });
     return `${date} ${time}`;
-  } catch {
-    return iso;
-  }
+  } catch { return iso; }
 }
 
-function fmtDateOnly(iso: string) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: tz,
-    });
-  } catch {
-    return iso;
-  }
+// ── Detail Row ────────────────────────────────────────────────────────────
+function DetailRow({ icon, label, value, iconColor }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string; iconColor?: string }) {
+  const c = iconColor ?? colors.primary;
+  return (
+    <View style={detailStyles.row}>
+      <View style={[detailStyles.iconBox, { backgroundColor: `${c}15` }]}>
+        <Ionicons name={icon} size={18} color={c} />
+      </View>
+      <View style={detailStyles.text}>
+        <Text style={detailStyles.label}>{label}</Text>
+        <Text style={detailStyles.value}>{value || "—"}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Section({ children }: { children: React.ReactNode }) {
+  return <View style={detailStyles.section}>{children}</View>;
 }
 
 export default function TimeOffDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<TimeOff | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,372 +86,192 @@ export default function TimeOffDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <ActivityIndicator size="large" color="#2E5BFF" />
-      </SafeAreaView>
+      <View style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
   }
 
   if (error || !data) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Header router={router} />
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
+          <Text style={styles.emptyText}>{error || "Data tidak ditemukan."}</Text>
         </View>
-        <View
-          style={[
-            styles.container,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
-          <Text style={styles.emptyText}>
-            {error || "Data tidak ditemukan."}
-          </Text>
-        </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const st = stateStyleMap[data.state] || stateStyleMap.draft;
-  const canCancel =
-    data.state === "draft" ||
-    data.state === "confirm" ||
-    data.state === "validate";
-
-  const handleCancel = () => {
-    Alert.alert(
-      "Batalkan Cuti",
-      "Apakah Anda yakin ingin membatalkan pengajuan cuti ini?",
-      [
-        { text: "Tidak", style: "cancel" },
-        {
-          text: "Ya, Batalkan",
-          style: "destructive",
-          onPress: async () => {
-            setIsCancelling(true);
-            try {
-              await timeOffService.cancel(data.id);
-              // Refresh data
-              const res = await timeOffService.getById(data.id);
-              setData(res.data.data);
-            } catch (err: any) {
-              Alert.alert(
-                "Gagal",
-                err?.response?.data?.message ||
-                  "Terjadi kesalahan saat membatalkan cuti.",
-              );
-            } finally {
-              setIsCancelling(false);
-            }
-          },
-        },
-      ],
-    );
-  };
+  const st = STATE_COLORS[data.state] ?? STATE_COLORS.draft;
+  const canCancel = ["draft", "confirm", "validate"].includes(data.state);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
+      <Header router={router} />
 
-      {/* Custom Header */}
-      <View style={styles.customHeader}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerBackBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color="#2E5BFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detail Cuti</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Status Card */}
-        <View style={styles.statusCard}>
-          <View style={[styles.stateBadge, { backgroundColor: st.bg }]}>
-            <Text style={[styles.stateBadgeText, { color: st.color }]}>
-              {data.state_label || st.label}
-            </Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Status badge */}
+        <View style={styles.hero}>
+          <Badge label={data.state_label || data.state} />
         </View>
 
-        {/* Leave Type & Employee */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Ionicons name="umbrella-outline" size={20} color="#2E5BFF" />
-            <View style={styles.infoTextWrapper}>
-              <Text style={styles.infoLabel}>Tipe Cuti</Text>
-              <Text style={styles.infoValue}>
-                {data.holiday_status?.name || "—"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <Ionicons name="person-outline" size={20} color="#10B981" />
-            <View style={styles.infoTextWrapper}>
-              <Text style={styles.infoLabel}>Karyawan</Text>
-              <Text style={styles.infoValue}>{data.employee?.name || "—"}</Text>
-            </View>
-          </View>
-          {data.department ? (
+        {/* Info */}
+        <Section>
+          <DetailRow icon="umbrella-outline" label="Tipe Cuti" value={data.holiday_status?.name} />
+          <View style={detailStyles.divider} />
+          <DetailRow icon="person-outline" label="Karyawan" value={data.employee?.name} iconColor="#059669" />
+          {data.department && (
             <>
-              <View style={styles.divider} />
-              <View style={styles.infoRow}>
-                <Ionicons name="business-outline" size={20} color="#FFB020" />
-                <View style={styles.infoTextWrapper}>
-                  <Text style={styles.infoLabel}>Departemen</Text>
-                  <Text style={styles.infoValue}>{data.department.name}</Text>
-                </View>
-              </View>
+              <View style={detailStyles.divider} />
+              <DetailRow icon="business-outline" label="Departemen" value={data.department.name} iconColor="#F59E0B" />
             </>
-          ) : null}
-        </View>
+          )}
+        </Section>
 
-        {/* Date Range */}
-        <View style={styles.detailCard}>
-          <Text style={styles.detailCardTitle}>Periode</Text>
+        {/* Dates */}
+        <Section>
           <View style={styles.dateRow}>
             <View style={styles.dateBox}>
-              <Ionicons name="calendar-outline" size={20} color="#2E5BFF" />
+              <Ionicons name="calendar-outline" size={16} color={colors.amber} />
               <Text style={styles.dateLabel}>Mulai</Text>
-              <Text style={styles.dateValue}>
-                {fmtDateTime(data.date_from)}
-              </Text>
+              <Text style={styles.dateValue}>{fmtDateTime(data.date_from)}</Text>
             </View>
-            <Ionicons name="arrow-forward" size={20} color="#D1D5DB" />
+            <Ionicons name="arrow-forward" size={14} color={colors.border} />
             <View style={styles.dateBox}>
-              <Ionicons name="calendar-outline" size={20} color="#2E5BFF" />
+              <Ionicons name="calendar-outline" size={16} color={colors.success} />
               <Text style={styles.dateLabel}>Selesai</Text>
               <Text style={styles.dateValue}>{fmtDateTime(data.date_to)}</Text>
             </View>
           </View>
-        </View>
+        </Section>
 
         {/* Duration */}
-        <View style={styles.statCard}>
-          <Ionicons name="time-outline" size={28} color="#2E5BFF" />
-          <Text style={styles.statValue}>{data.number_of_days}</Text>
-          <Text style={styles.statLabel}>Hari</Text>
-        </View>
+        <Section>
+          <View style={styles.statRow}>
+            <Ionicons name="time-outline" size={24} color={colors.primary} />
+            <Text style={styles.statValue}>{data.number_of_days}</Text>
+            <Text style={styles.statLabel}>Hari</Text>
+          </View>
+        </Section>
 
         {/* Notes */}
-        {data.name ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Keterangan</Text>
+        {data.name && (
+          <Section>
+            <Text style={styles.noteTitle}>Keterangan</Text>
             <Text style={styles.noteText}>{data.name}</Text>
-          </View>
-        ) : null}
+          </Section>
+        )}
 
-        {canCancel && <View style={{ height: 80 }} />}
+        {canCancel && <View style={{ height: hpx(80) }} />}
       </ScrollView>
 
       {canCancel && (
         <View style={styles.bottomBar}>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={handleCancel}
-            disabled={isCancelling}
-          >
+          <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+            Alert.alert("Batalkan Cuti", "Yakin ingin membatalkan pengajuan ini?", [
+              { text: "Tidak", style: "cancel" },
+              { text: "Ya, Batalkan", style: "destructive", onPress: async () => {
+                setIsCancelling(true);
+                try {
+                  await timeOffService.cancel(data.id);
+                  const res = await timeOffService.getById(data.id);
+                  setData(res.data.data);
+                } catch (err: any) {
+                  Alert.alert("Gagal", err?.response?.data?.message || "Terjadi kesalahan.");
+                } finally { setIsCancelling(false); }
+              }},
+            ]);
+          }} disabled={isCancelling} activeOpacity={0.7}>
             {isCancelling ? (
-              <ActivityIndicator color="#EF4444" size="small" />
+              <ActivityIndicator size="small" color={colors.error} />
             ) : (
               <>
-                <Ionicons
-                  name="close-circle-outline"
-                  size={20}
-                  color="#EF4444"
-                />
+                <Ionicons name="close-circle-outline" size={18} color={colors.error} />
                 <Text style={styles.cancelBtnText}>Batalkan Pengajuan</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+    </View>
+  );
+}
+
+function Header({ router }: { router: any }) {
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
+        <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Detail Cuti</Text>
+      <View style={styles.headerBtn} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#eeeeefff" },
-  customHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    height: 56,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+  container: { flex: 1, backgroundColor: colors.surface },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyText: { ...textPresets.body, marginTop: spacing.md },
+
+  header: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: spacing.lg, height: sizes.headerHeight, backgroundColor: colors.card,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    marginTop: Platform.OS === "android" ? spacing.sm : 0,
   },
-  headerBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1F2937",
-    flex: 1,
-    textAlign: "center",
-    marginRight: 40,
-  },
-  headerSpacer: { width: 40 },
-  header: { paddingHorizontal: 24, paddingTop: 16 },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  scrollContainer: { padding: 24, paddingBottom: 40 },
-  // Status
-  statusCard: { alignItems: "center", marginBottom: 20, marginTop: 8 },
-  stateBadge: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 12 },
-  stateBadgeText: { fontSize: 14, fontWeight: "800" },
-  // Info card
-  infoCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  infoRow: { flexDirection: "row", alignItems: "center" },
-  infoTextWrapper: { marginLeft: 14, flex: 1 },
-  infoLabel: { fontSize: 12, fontWeight: "600", color: "#9CA3AF" },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F3F4F6",
-    marginVertical: 14,
-    marginLeft: 34,
-  },
-  // Detail card
-  detailCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  detailCardTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#9CA3AF",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  dateRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  dateBox: { alignItems: "center", width: "45%" },
-  dateLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 8,
-    fontWeight: "600",
-  },
-  dateValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginTop: 2,
-    textAlign: "center",
-  },
+  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
+  headerTitle: { ...textPresets.screenTitle, fontSize: 17, flex: 1, textAlign: "left", marginLeft: spacing.xs },
+
+  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+
+  hero: { alignItems: "center", marginBottom: spacing.xl, marginTop: spacing.sm },
+
+  // Dates
+  dateRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  dateBox: { flex: 1, alignItems: "center", gap: spacing.sm },
+  dateLabel: { ...textPresets.label, marginTop: spacing.xs },
+  dateValue: { ...textPresets.cardTitle, fontSize: 13, textAlign: "center" },
+
   // Stat
-  statCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  statValue: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#1F2937",
-    marginTop: 8,
-  },
-  statLabel: { fontSize: 13, color: "#6B7280", marginTop: 4 },
+  statRow: { alignItems: "center", gap: spacing.sm },
+  statValue: { ...textPresets.display, fontSize: 28 },
+  statLabel: { ...textPresets.body },
+
   // Note
-  noteText: { fontSize: 14, color: "#4B5563", lineHeight: 20 },
-  // Empty
-  emptyText: { fontSize: 14, color: "#9CA3AF", marginTop: 12 },
-  // Bottom Bar
+  noteTitle: { ...textPresets.sectionHeader, marginBottom: spacing.md },
+  noteText: { ...textPresets.body, lineHeight: 20 },
+
+  // Bottom bar
   bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 6,
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: colors.card, paddingHorizontal: spacing["2xl"],
+    paddingVertical: spacing.lg, paddingBottom: spacing["3xl"],
+    borderTopWidth: 1, borderTopColor: colors.border,
+    ...shadows.elevated,
   },
   cancelBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#EF4444",
-    backgroundColor: "#FFFFFF",
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    height: sizes.buttonMd, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.error,
+    backgroundColor: colors.card, gap: spacing.sm,
   },
-  cancelBtnText: {
-    color: "#EF4444",
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
+  cancelBtnText: { color: colors.error, fontSize: 15, fontWeight: "700" as any },
+});
+
+// ── DetailRow sub-styles ──────────────────────────────────────────────────
+const detailStyles = StyleSheet.create({
+  section: {
+    backgroundColor: colors.card, borderRadius: radius.xl, padding: spacing["2xl"],
+    marginBottom: spacing.lg, ...shadows.card,
   },
+  row: { flexDirection: "row", alignItems: "center" },
+  iconBox: { width: 36, height: 36, borderRadius: radius.md, justifyContent: "center", alignItems: "center", marginRight: spacing.md },
+  text: { flex: 1 },
+  label: { ...textPresets.label },
+  value: { ...textPresets.cardTitle, marginTop: 2 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md, marginLeft: 52 },
 });

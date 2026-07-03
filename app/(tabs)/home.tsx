@@ -10,16 +10,52 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
 import { useProfile } from "../../hooks/useProfile";
+import { Avatar, Card, SectionHeader } from "../../src/components/ui";
+import {
+  colors,
+  hpx,
+  radius,
+  rf,
+  shadows,
+  sizes,
+  spacing,
+  textPresets,
+  wpx,
+} from "../../src/constants/theme";
+
+const QUICK_ACTIONS = [
+  {
+    route: "/timeline",
+    icon: "list-outline",
+    label: "Daftar Tugas",
+    color: "#F59E0B",
+    bg: "#FEF3C7",
+  },
+  {
+    route: "/kehadiran",
+    icon: "finger-print",
+    label: "Absensi",
+    color: colors.primary,
+    bg: colors.primaryLight,
+  },
+  {
+    route: "/perusahaan",
+    icon: "business-outline",
+    label: "Perusahaan",
+    color: "#059669",
+    bg: "#D1FAE5",
+  },
+] as const;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { refreshUser } = useAuth();
   const { profile, isLoading } = useProfile();
 
-  // Refresh profile setiap kali tab ini di-fokuskan
   useFocusEffect(
     useCallback(() => {
       refreshUser();
@@ -29,277 +65,194 @@ export default function HomeScreen() {
   const userName = profile?.employee?.name || "User";
   const userDept = profile?.employee?.department || "";
   const avatarInitials = userName.charAt(0).toUpperCase();
-  const sisaCuti = 12; // placeholder — will come from time-off API later
-  const tasksCount = 5; // placeholder — will come from tasks API later
 
   if (isLoading) {
     return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
+      <View
+        style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}
       >
-        <ActivityIndicator size="large" color="#2E5BFF" />
-      </SafeAreaView>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <ScrollView
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Profile Header */}
-        <View style={styles.header}>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{avatarInitials}</Text>
-            </View>
-            <View style={styles.profileTextContainer}>
-              <Text style={styles.welcomeText}>Selamat Datang,</Text>
-              <Text style={styles.userName}>{userName}</Text>
-              <Text style={styles.userDept}>{userDept}</Text>
-            </View>
-            <View style={styles.badgeContainer}>
-              <Text style={styles.badgeText}>Aktif</Text>
-            </View>
+        {/* ── Profile Header ────────────────────────────────────────── */}
+        <View style={styles.profileSection}>
+          <Avatar initials={avatarInitials} size={56} />
+          <View style={styles.profileInfo}>
+            <Text style={styles.greeting}>Selamat Datang</Text>
+            <Text style={styles.name}>{userName}</Text>
+            {userDept ? <Text style={styles.dept}>{userDept}</Text> : null}
           </View>
+          <View style={styles.statusDot} />
         </View>
 
-        {/* Dashboard Cards Grid */}
-        <View style={styles.gridContainer}>
-          <View style={styles.statCard}>
-            <View style={[styles.iconWrapper, { backgroundColor: "#E0E7FF" }]}>
-              <Ionicons name="checkbox-outline" size={24} color="#2E5BFF" />
+        {/* ── Stats Grid ────────────────────────────────────────────── */}
+        <View style={styles.statsGrid}>
+          <Card style={styles.statCard}>
+            <View
+              style={[
+                styles.statIcon,
+                { backgroundColor: colors.primaryLight },
+              ]}
+            >
+              <Ionicons
+                name="checkbox-outline"
+                size={22}
+                color={colors.primary}
+              />
             </View>
-            <Text style={styles.statValue}>{tasksCount}</Text>
+            <Text style={styles.statValue}>5</Text>
             <Text style={styles.statLabel}>Tugas Aktif</Text>
-          </View>
+          </Card>
 
-          <View style={styles.statCard}>
-            <View style={[styles.iconWrapper, { backgroundColor: "#E6F4EA" }]}>
-              <Ionicons name="calendar-outline" size={24} color="#10B981" />
+          <Card style={styles.statCard}>
+            <View style={[styles.statIcon, { backgroundColor: "#D1FAE5" }]}>
+              <Ionicons name="calendar-outline" size={22} color="#059669" />
             </View>
-            <Text style={styles.statValue}>{sisaCuti}</Text>
+            <Text style={styles.statValue}>12</Text>
             <Text style={styles.statLabel}>Sisa Cuti</Text>
-          </View>
+          </Card>
         </View>
 
-        {/* Info Banner / Quick Guide */}
-        <View style={styles.infoBanner}>
-          <Ionicons
-            name="information-circle"
-            size={24}
-            color="#2E5BFF"
-            style={styles.infoIcon}
-          />
-          <View style={styles.infoTextWrapper}>
-            <Text style={styles.infoTitle}>Aksi Cepat Absensi</Text>
-            <Text style={styles.infoDesc}>
-              Sekarang tombol absensi Check-in & Check-out berada langsung di
-              tab **Kehadiran** di bagian tengah bawah.
-            </Text>
-          </View>
+        {/* ── Quick Actions ─────────────────────────────────────────── */}
+        <SectionHeader title="Menu Cepat" />
+        <View style={styles.actionsGrid}>
+          {QUICK_ACTIONS.map((action) => (
+            <TouchableOpacity
+              key={action.route}
+              style={styles.actionCard}
+              onPress={() => router.push(action.route)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
+                <Ionicons
+                  name={action.icon as any}
+                  size={22}
+                  color={action.color}
+                />
+              </View>
+              <Text style={styles.actionLabel}>{action.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Shortcut menu to other tabs */}
-        <Text style={styles.sectionHeading}>Akses Menu Utama</Text>
-        <View style={styles.shortcutGrid}>
-          <TouchableOpacity
-            style={styles.shortcutItem}
-            onPress={() => router.push("/timeline")}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: "#FFF4E5" }]}>
-              <Ionicons name="list-outline" size={20} color="#FFB020" />
-            </View>
-            <Text style={styles.shortcutLabel}>Daftar Tugas</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.shortcutItem}
-            onPress={() => router.push("/kehadiran")}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: "#E0E7FF" }]}>
-              <Ionicons name="finger-print" size={20} color="#2E5BFF" />
-            </View>
-            <Text style={styles.shortcutLabel}>Absen & Cuti</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.shortcutItem}
-            onPress={() => router.push("/perusahaan")}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: "#E6F4EA" }]}>
-              <Ionicons name="business" size={20} color="#10B981" />
-            </View>
-            <Text style={styles.shortcutLabel}>Info Kantor</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── Bottom spacer ─────────────────────────────────────────── */}
+        <View style={{ height: spacing["3xl"] }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#eeeeefff",
-    paddingBottom: -30,
+    backgroundColor: colors.surface,
   },
-  scrollContainer: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 24,
-    marginTop: 12,
-  },
-  profileRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#E0E7FF",
+  center: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#2E5BFF",
   },
-  avatarText: {
-    color: "#2E5BFF",
-    fontSize: 18,
-    fontWeight: "800",
+  scroll: {
+    padding: spacing["2xl"],
+    paddingBottom: spacing["4xl"],
   },
-  profileTextContainer: {
-    marginLeft: 14,
-    flex: 1,
-  },
-  welcomeText: {
-    fontSize: 12,
-    color: "#8F9BB3",
-    fontWeight: "600",
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1F2937",
-  },
-  userDept: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  badgeContainer: {
-    backgroundColor: "#E6F4EA",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  badgeText: {
-    fontSize: 11,
-    color: "#10B981",
-    fontWeight: "800",
-  },
-  gridContainer: {
+
+  // Profile
+  profileSection: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
+    alignItems: "center",
+    marginBottom: spacing["3xl"],
+    paddingTop: spacing.md,
+  },
+  profileInfo: {
+    flex: 1,
+    marginLeft: spacing.lg,
+  },
+  greeting: {
+    ...textPresets.label,
+    marginBottom: hpx(2),
+  },
+  name: {
+    ...textPresets.display,
+    fontSize: rf(20), // slightly smaller than full display
+    marginBottom: hpx(2),
+  },
+  dept: {
+    ...textPresets.body,
+    fontSize: rf(13),
+  },
+  statusDot: {
+    width: wpx(10),
+    height: hpx(10),
+    borderRadius: radius.full,
+    backgroundColor: colors.success,
+    borderWidth: 2,
+    borderColor: "#D1FAE5",
+  },
+
+  // Stats
+  statsGrid: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing["3xl"],
   },
   statCard: {
-    width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
+    flex: 1,
     alignItems: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
+    padding: spacing.xl,
+    // ponytail: no row-gap on RN < 0.71, using gap above works for 0.81
   },
-  iconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  statIcon: {
+    width: sizes.iconMd,
+    height: sizes.iconMd,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   statValue: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1F2937",
+    ...textPresets.display,
+    marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 4,
+    ...textPresets.caption,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  infoBanner: {
+
+  // Quick Actions
+  actionsGrid: {
     flexDirection: "row",
-    backgroundColor: "#E0E7FF",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 28,
+    gap: spacing.md,
   },
-  infoIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  infoTextWrapper: {
+  actionCard: {
     flex: 1,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#2E5BFF",
-  },
-  infoDesc: {
-    fontSize: 12,
-    color: "#4B5563",
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  sectionHeading: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginBottom: 16,
-  },
-  shortcutGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  shortcutItem: {
-    width: "30%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     alignItems: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 1,
+    ...shadows.card,
   },
-  shortcutIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  actionIcon: {
+    width: sizes.iconMd,
+    height: sizes.iconMd,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: hpx(10),
   },
-  shortcutLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4B5563",
+  actionLabel: {
+    ...textPresets.cardTitle,
+    fontSize: rf(12),
     textAlign: "center",
   },
 });

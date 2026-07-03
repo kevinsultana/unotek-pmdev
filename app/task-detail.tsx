@@ -4,28 +4,40 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
+import { Badge } from "../src/components/ui";
 import { taskService } from "../services/taskService";
 import type { Task } from "../types/task";
 
-const stageColorMap: Record<string, { color: string; bg: string }> = {
-  Open: { color: "#FFB020", bg: "#FFF4E5" },
-  "In Progress": { color: "#2E5BFF", bg: "#E0E7FF" },
-  "Ready to Test": { color: "#8B5CF6", bg: "#EDE9FE" },
-  Passed: { color: "#10B981", bg: "#E6F4EA" },
-  Failed: { color: "#EF4444", bg: "#FEE2E2" },
-  Done: { color: "#10B981", bg: "#E6F4EA" },
+// ponytail: single stage colour map, also used in timeline.tsx
+export const STAGE_COLORS: Record<string, string> = {
+  Open: "#F59E0B",
+  "In Progress": colors.primary,
+  "Ready to Test": "#7C3AED",
+  Passed: "#059669",
+  Failed: colors.error,
+  Done: "#059669",
+};
+const STAGE_BG: Record<string, string> = {
+  Open: "#FEF3C7",
+  "In Progress": colors.primaryLight,
+  "Ready to Test": "#EDE9FE",
+  Passed: "#D1FAE5",
+  Failed: "#FEE2E2",
+  Done: "#D1FAE5",
 };
 
-const priorityMap: Record<string, { label: string; color: string; bg: string }> = {
-  "0": { label: "Normal", color: "#6B7280", bg: "#F3F4F6" },
-  "1": { label: "Urgent", color: "#EF4444", bg: "#FEE2E2" },
+const PRIORITY_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  "0": { label: "Normal", color: colors.textMuted, bg: "#F1F5F9" },
+  "1": { label: "Urgent", color: colors.error, bg: "#FEE2E2" },
 };
 
 const tz = "Asia/Jakarta";
@@ -33,8 +45,12 @@ const tz = "Asia/Jakarta";
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: tz });
-  } catch { return iso; }
+    return new Date(iso).toLocaleDateString("id-ID", {
+      day: "numeric", month: "long", year: "numeric", timeZone: tz,
+    });
+  } catch {
+    return iso;
+  }
 }
 
 function stripHtml(html?: string | null) {
@@ -48,9 +64,32 @@ function stripHtml(html?: string | null) {
     .trim();
 }
 
+// ── Shared sub-components ──────────────────────────────────────────────────
+function DetailRow({ icon, label, children }: { icon: keyof typeof Ionicons.glyphMap; label: string; children: React.ReactNode }) {
+  return (
+    <View style={detailStyles.row}>
+      <View style={detailStyles.rowLeft}>
+        <Ionicons name={icon} size={18} color={colors.textMuted} />
+        <Text style={detailStyles.rowLabel}>{label}</Text>
+      </View>
+      <View style={detailStyles.rowRight}>{children}</View>
+    </View>
+  );
+}
+
+function AvatarCircle({ name, bg }: { name: string; bg?: string }) {
+  return (
+    <View style={[detailStyles.avatar, bg ? { backgroundColor: bg } : undefined]}>
+      <Text style={detailStyles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
+    </View>
+  );
+}
+
+// ── Screen ─────────────────────────────────────────────────────────────────
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,254 +112,278 @@ export default function TaskDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#2E5BFF" />
-      </SafeAreaView>
+      <View style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
   }
 
   if (error || !task) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
-        </View>
-        <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Header router={router} />
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
           <Text style={styles.emptyText}>{error || "Tugas tidak ditemukan."}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const st = stageColorMap[task.stage?.name || ""] || { color: "#9CA3AF", bg: "#F3F4F6" };
-  const pr = priorityMap[task.priority] || priorityMap["0"];
+  const st = STAGE_COLORS[task.stage?.name ?? ""];
+  const sbg = STAGE_BG[task.stage?.name ?? ""];
+  const pr = PRIORITY_MAP[task.priority] ?? PRIORITY_MAP["0"];
   const cleanDesc = stripHtml(task.description);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
+      <Header router={router} />
 
-      {/* Custom Header */}
-      <View style={styles.customHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBackBtn}>
-          <Ionicons name="arrow-back" size={22} color="#2E5BFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detail Tugas</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* Main Info Card */}
-        <View style={styles.mainCard}>
-          {/* Stage + Priority */}
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* ── Hero ──────────────────────────────────────────────────── */}
+        <View style={styles.hero}>
           <View style={styles.badgeRow}>
-            <View style={[styles.stageBadge, { backgroundColor: st.bg }]}>
-              <Text style={[styles.stageBadgeText, { color: st.color }]}>{task.stage?.name || "—"}</Text>
-            </View>
-            <View style={[styles.priorityBadge, { backgroundColor: pr.bg }]}>
-              <Text style={[styles.priorityBadgeText, { color: pr.color }]}>{pr.label}</Text>
+            {st && sbg ? (
+              <View style={[styles.heroBadge, { backgroundColor: sbg }]}>
+                <Text style={[styles.heroBadgeText, { color: st }]}>{task.stage?.name}</Text>
+              </View>
+            ) : null}
+            <View style={[styles.heroBadge, { backgroundColor: pr.bg }]}>
+              <Text style={[styles.heroBadgeText, { color: pr.color }]}>{pr.label}</Text>
             </View>
           </View>
-
-          {/* Task Name */}
-          <Text style={styles.taskName}>{task.name}</Text>
-
-          {/* ID */}
-          <Text style={styles.taskId}>#{task.id}</Text>
+          <Text style={styles.heroTitle}>{task.name}</Text>
+          <Text style={styles.heroId}>#{task.id}</Text>
         </View>
 
-        {/* Project & Partner */}
-        <View style={styles.detailCard}>
-          <Text style={styles.detailCardTitle}>Informasi</Text>
+        {/* ── Relations ─────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informasi</Text>
 
-          {task.project ? (
-            <View style={styles.detailRow}>
-              <Ionicons name="folder-outline" size={18} color="#2E5BFF" />
-              <View style={styles.detailTextWrapper}>
-                <Text style={styles.detailLabel}>Project</Text>
-                <Text style={styles.detailValue}>{task.project.name}</Text>
-              </View>
-            </View>
-          ) : null}
-
-          {task.partner_id ? (
-            <View style={[styles.detailRow, { marginTop: 12 }]}>
-              <Ionicons name="business-outline" size={18} color="#10B981" />
-              <View style={styles.detailTextWrapper}>
-                <Text style={styles.detailLabel}>Klien</Text>
-                <Text style={styles.detailValue}>{task.partner_id.name}</Text>
-              </View>
-            </View>
-          ) : null}
-
-          {task.parent_id ? (
-            <View style={[styles.detailRow, { marginTop: 12 }]}>
-              <Ionicons name="git-branch-outline" size={18} color="#FFB020" />
-              <View style={styles.detailTextWrapper}>
-                <Text style={styles.detailLabel}>Parent Task</Text>
-                <Text style={styles.detailValue}>{task.parent_id.name}</Text>
-              </View>
-            </View>
-          ) : null}
+          {task.project && (
+            <DetailRow icon="folder-outline" label="Project">
+              <Text style={detailStyles.valueText}>{task.project.name}</Text>
+            </DetailRow>
+          )}
+          {task.partner_id && (
+            <DetailRow icon="business-outline" label="Klien">
+              <Text style={detailStyles.valueText}>{task.partner_id.name}</Text>
+            </DetailRow>
+          )}
+          {task.parent_id && (
+            <DetailRow icon="git-branch-outline" label="Parent Task">
+              <Text style={detailStyles.valueText}>{task.parent_id.name}</Text>
+            </DetailRow>
+          )}
         </View>
 
-        {/* Assignees */}
-        {task.user_ids && task.user_ids.length > 0 && (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Assignee</Text>
-            {task.user_ids.map((u) => (
-              <View key={u.id} style={styles.assigneeRow}>
-                <View style={styles.assigneeAvatar}>
-                  <Text style={styles.assigneeAvatarText}>{u.name.charAt(0).toUpperCase()}</Text>
+        {/* ── Assignees ─────────────────────────────────────────────── */}
+        {task.user_ids?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Assignee</Text>
+            {task.user_ids.map((u, i) => (
+              <View key={u.id} style={[detailStyles.row, i === (task.user_ids?.length ?? 0) - 1 && { borderBottomWidth: 0 }]}>
+                <View style={detailStyles.rowLeft}>
+                  <AvatarCircle name={u.name} />
+                  <Text style={detailStyles.assigneeName}>{u.name}</Text>
                 </View>
-                <Text style={styles.assigneeName}>{u.name}</Text>
               </View>
             ))}
           </View>
-        )}
+        ) : null}
 
-        {/* Dates */}
-        <View style={styles.detailCard}>
-          <Text style={styles.detailCardTitle}>Tanggal</Text>
+        {/* ── Dates ─────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tanggal</Text>
           <View style={styles.dateRow}>
             <View style={styles.dateBox}>
-              <Ionicons name="calendar-outline" size={20} color="#2E5BFF" />
+              <Ionicons name="calendar-outline" size={18} color={colors.amber} />
               <Text style={styles.dateLabel}>Deadline</Text>
               <Text style={styles.dateValue}>{fmtDate(task.date_deadline)}</Text>
             </View>
-            <Ionicons name="arrow-forward" size={16} color="#D1D5DB" />
+            <View style={styles.dateArrow}>
+              <Ionicons name="arrow-forward" size={16} color={colors.border} />
+            </View>
             <View style={styles.dateBox}>
-              <Ionicons name="time-outline" size={20} color="#10B981" />
+              <Ionicons name="time-outline" size={18} color={colors.success} />
               <Text style={styles.dateLabel}>Assign</Text>
               <Text style={styles.dateValue}>{fmtDate(task.date_assign)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Description */}
+        {/* ── Description ───────────────────────────────────────────── */}
         {cleanDesc ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Deskripsi</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Deskripsi</Text>
             <Text style={styles.descText}>{cleanDesc}</Text>
           </View>
         ) : null}
 
-        {/* Tags */}
-        {task.tag_ids && task.tag_ids.length > 0 && (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Tags</Text>
+        {/* ── Tags ──────────────────────────────────────────────────── */}
+        {task.tag_ids?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tags</Text>
             <View style={styles.tagsRow}>
               {task.tag_ids.map((tag) => (
-                <View key={tag.id} style={styles.tagBadge}>
+                <View key={tag.id} style={styles.tag}>
                   <Text style={styles.tagText}>{tag.name}</Text>
                 </View>
               ))}
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Child Tasks */}
-        {task.child_ids && task.child_ids.length > 0 && (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Sub Tugas ({task.child_ids.length})</Text>
+        {/* ── Child Tasks ───────────────────────────────────────────── */}
+        {task.child_ids?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sub Tugas ({task.child_ids.length})</Text>
             {task.child_ids.map((child) => (
               <View key={child.id} style={styles.childRow}>
-                <Ionicons name="git-commit-outline" size={16} color="#9CA3AF" />
+                <Ionicons name="git-commit-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.childName}>{child.name}</Text>
               </View>
             ))}
           </View>
-        )}
+        ) : null}
+
+        <View style={{ height: spacing["4xl"] }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
+// ── Header ────────────────────────────────────────────────────────────────
+function Header({ router }: { router: any }) {
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} activeOpacity={0.7}>
+        <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Detail Tugas</Text>
+      <View style={styles.headerBtn} />
+    </View>
+  );
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#eeeeefff" },
-  customHeader: {
+  container: { flex: 1, backgroundColor: colors.surface },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyText: { ...textPresets.body, marginTop: spacing.md },
+
+  // Header
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    height: 56,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.lg,
+    height: sizes.headerHeight,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: colors.border,
+    marginTop: Platform.OS === "android" ? spacing.sm : 0,
   },
-  headerBackBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center" },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#1F2937", flex: 1, textAlign: "center", marginRight: 40 },
-  headerSpacer: { width: 40 },
-  headerRow: { paddingHorizontal: 24, paddingTop: 16 },
-  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" },
-  scrollContainer: { padding: 24, paddingBottom: 40 },
-  // Main card
-  mainCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
+  headerBtn: { width: sizes.headerBtnWidth, height: sizes.headerBtn, borderRadius: radius.md, justifyContent: "center", alignItems: "center" },
+  headerTitle: {
+    ...textPresets.screenTitle,
+    fontSize: rf(17),
+    flex: 1,
+    textAlign: "left",
+    marginLeft: spacing.xs,
   },
-  badgeRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  stageBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
-  stageBadgeText: { fontSize: 11, fontWeight: "700" },
-  priorityBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  priorityBadgeText: { fontSize: 11, fontWeight: "700" },
-  taskName: { fontSize: 20, fontWeight: "800", color: "#1F2937", marginBottom: 6 },
-  taskId: { fontSize: 13, color: "#9CA3AF", fontWeight: "600" },
-  // Detail card
-  detailCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 1,
+
+  // Scroll
+  scroll: { padding: spacing["2xl"], paddingBottom: spacing["5xl"] },
+
+  // Hero
+  hero: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    marginBottom: spacing.lg,
+    ...shadows.card,
   },
-  detailCardTitle: { fontSize: 13, fontWeight: "700", color: "#9CA3AF", marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  detailRow: { flexDirection: "row", alignItems: "flex-start" },
-  detailTextWrapper: { marginLeft: 12, flex: 1 },
-  detailLabel: { fontSize: 11, fontWeight: "600", color: "#9CA3AF" },
-  detailValue: { fontSize: 15, fontWeight: "700", color: "#1F2937", marginTop: 2 },
-  // Assignee
-  assigneeRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  assigneeAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#E0E7FF",
+  badgeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  heroBadge: { paddingHorizontal: spacing.sm + 2, paddingVertical: spacing.xs, borderRadius: radius.sm },
+  heroBadgeText: { fontSize: rf(11), fontWeight: "700" as any },
+  heroTitle: { ...textPresets.display, marginBottom: spacing.xs },
+  heroId: { ...textPresets.label, fontWeight: "600" as any },
+
+  // Section
+  section: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    marginBottom: spacing.lg,
+    ...shadows.card,
+  },
+  sectionTitle: {
+    ...textPresets.sectionHeader,
+    marginBottom: spacing.lg + spacing.xs,
+  },
+
+  // Dates
+  dateRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dateBox: {
+    flex: 1,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  dateArrow: {
+    width: wpx(32),
+    alignItems: "center",
+  },
+  dateLabel: { ...textPresets.label, marginTop: spacing.xs },
+  dateValue: {
+    ...textPresets.cardTitle,
+    fontSize: rf(13),
+    textAlign: "center",
+  },
+
+  // Description
+  descText: { ...textPresets.body, lineHeight: rf(22) },
+
+  // Tags
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  tag: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 1, borderRadius: radius.sm },
+  tagText: { fontSize: rf(12), fontWeight: "600" as any, color: colors.primary },
+
+  // Child tasks
+  childRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
+  childName: { ...textPresets.body, fontSize: rf(13), color: colors.textPrimary },
+});
+
+// ── DetailRow sub-styles ───────────────────────────────────────────────────
+const detailStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rowLeft: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  rowLabel: { ...textPresets.body, color: colors.textSecondary },
+  rowRight: { flex: 1, alignItems: "flex-end" },
+  valueText: { ...textPresets.cardTitle, fontSize: rf(14) },
+
+  // Avatar
+  avatar: {
+    width: wpx(32),
+    height: hpx(32),
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
-  assigneeAvatarText: { fontSize: 14, fontWeight: "800", color: "#2E5BFF" },
-  assigneeName: { fontSize: 14, fontWeight: "700", color: "#1F2937" },
-  // Dates
-  dateRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 8 },
-  dateBox: { alignItems: "center", width: "45%" },
-  dateLabel: { fontSize: 12, color: "#6B7280", marginTop: 6, fontWeight: "600" },
-  dateValue: { fontSize: 13, fontWeight: "700", color: "#1F2937", marginTop: 2, textAlign: "center" },
-  // Description
-  descText: { fontSize: 14, color: "#4B5563", lineHeight: 22 },
-  // Tags
-  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tagBadge: { backgroundColor: "#F0F4FF", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
-  tagText: { fontSize: 11, fontWeight: "600", color: "#2E5BFF" },
-  // Child tasks
-  childRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  childName: { fontSize: 13, fontWeight: "600", color: "#4B5563", marginLeft: 8, flex: 1 },
-  // Empty
-  emptyText: { fontSize: 14, color: "#9CA3AF", marginTop: 12 },
+  avatarText: { fontSize: rf(13), fontWeight: "800" as any, color: colors.primary },
+  assigneeName: { ...textPresets.body, color: colors.textPrimary, fontWeight: "600" as any },
 });

@@ -1,22 +1,24 @@
 import React, { useState } from "react";
 import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,26 +26,16 @@ export default function ForgotPasswordScreen() {
 
   const validateEmail = (text: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!text) {
-      return "Email tidak boleh kosong";
-    } else if (!emailRegex.test(text)) {
-      return "Format email tidak valid";
-    }
+    if (!text) return "Email tidak boleh kosong";
+    if (!emailRegex.test(text)) return "Format email tidak valid";
     return "";
   };
 
   const handleResetPassword = () => {
     setEmailError("");
     const emailErr = validateEmail(email);
-
-    if (emailErr) {
-      setEmailError(emailErr);
-      return;
-    }
-
+    if (emailErr) { setEmailError(emailErr); return; }
     setIsLoading(true);
-
-    // Simulate sending recovery email API call
     setTimeout(() => {
       setIsLoading(false);
       setIsSubmitted(true);
@@ -51,290 +43,171 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-          {/* Back Button */}
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
-
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <View style={styles.iconBadge}>
-            <Ionicons name="key-outline" size={40} color="#2E5BFF" />
-          </View>
-          <Text style={styles.title}>Lupa Kata Sandi?</Text>
-          <Text style={styles.subtitle}>
-            Jangan khawatir! Masukkan email terdaftar Anda untuk menerima tautan pemulihan kata sandi.
-          </Text>
-        </View>
-
-        {/* Main Content Card */}
-        <View style={styles.formCard}>
-          {!isSubmitted ? (
-            <>
-              {/* Email Input */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Alamat Email Karyawan</Text>
-                <View style={[styles.inputWrapper, emailError ? styles.inputErrorBorder : null]}>
-                  <Ionicons name="mail-outline" size={20} color="#8F9BB3" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="nama@unotek.com"
-                    placeholderTextColor="#A9B5C9"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      if (emailError) setEmailError(validateEmail(text));
-                    }}
-                  />
-                </View>
-                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-              </View>
-
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={handleResetPassword}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Kirim Link Reset</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          ) : (
-            /* Success State */
-            <View style={styles.successContainer}>
-              <View style={styles.successIconBadge}>
-                <Ionicons name="checkmark-circle" size={48} color="#10B981" />
-              </View>
-              <Text style={styles.successTitle}>Email Terkirim!</Text>
-              <Text style={styles.successSubtitle}>
-                Tautan pemulihan kata sandi telah dikirim ke:{"\n"}
-                <Text style={styles.highlightEmail}>{email}</Text>
-              </Text>
-              <Text style={styles.successInstructions}>
-                Silakan periksa kotak masuk atau folder spam email Anda untuk instruksi selanjutnya.
-              </Text>
-
-              <TouchableOpacity
-                style={styles.backToLoginButton}
-                onPress={() => router.replace("/")}
-              >
-                <Text style={styles.backToLoginButtonText}>Kembali ke Login</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Back Link bottom if not submitted */}
-        {!isSubmitted && (
-          <TouchableOpacity style={styles.bottomBackLink} onPress={() => router.back()}>
-            <Text style={styles.bottomBackLinkText}>Batal dan Kembali</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {/* Back */}
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-        )}
-      </ScrollView>
+
+          {/* Icon + Heading */}
+          <View style={styles.brand}>
+            <View style={styles.iconBox}>
+              <Ionicons name="key-outline" size={36} color={colors.primary} />
+            </View>
+            <Text style={styles.title}>Lupa Kata Sandi?</Text>
+            <Text style={styles.subtitle}>
+              Masukkan email terdaftar untuk menerima tautan pemulihan.
+            </Text>
+          </View>
+
+          {/* Card */}
+          <View style={styles.card}>
+            {!isSubmitted ? (
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Alamat Email Karyawan</Text>
+                  <View style={[styles.inputBox, emailError && styles.inputError]}>
+                    <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={{ marginRight: spacing.md }} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="nama@unotek.com"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={email}
+                      onChangeText={(text) => {
+                        setEmail(text);
+                        if (emailError) setEmailError(validateEmail(text));
+                      }}
+                    />
+                  </View>
+                  {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+                </View>
+
+                <TouchableOpacity style={styles.submitBtn} onPress={handleResetPassword} disabled={isLoading} activeOpacity={0.85}>
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Kirim Link Reset</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.success}>
+                <View style={styles.successIcon}>
+                  <Ionicons name="checkmark-circle" size={44} color={colors.success} />
+                </View>
+                <Text style={styles.successTitle}>Email Terkirim!</Text>
+                <Text style={styles.successSub}>
+                  Tautan pemulihan telah dikirim ke:
+                </Text>
+                <Text style={styles.successEmail}>{email}</Text>
+                <Text style={styles.successHint}>
+                  Periksa kotak masuk atau folder spam untuk instruksi selanjutnya.
+                </Text>
+                <TouchableOpacity style={styles.backLoginBtn} onPress={() => router.replace("/")}>
+                  <Text style={styles.backLoginText}>Kembali ke Login</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {!isSubmitted && (
+            <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+              <Text style={styles.backLinkText}>Batal dan Kembali</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F7F9FC",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  backButton: {
-    position: "absolute",
-    top: 10,
-    left: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+  container: { flex: 1, backgroundColor: colors.surface },
+  scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing["2xl"], paddingVertical: spacing["4xl"] },
+  backBtn: {
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 10,
+    ...shadows.card,
+    marginBottom: spacing["2xl"],
   },
-  headerSection: {
-    alignItems: "center",
-    marginBottom: 32,
-    marginTop: 40,
-  },
-  iconBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
+
+  // Brand
+  brand: { alignItems: "center", marginBottom: spacing["3xl"] },
+  iconBox: {
+    width: wpx(72),
+    height: hpx(72),
+    borderRadius: radius.xl,
+    backgroundColor: colors.card,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#2E5BFF",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-    marginBottom: 16,
+    ...shadows.elevated,
+    shadowColor: colors.primary,
+    marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1F2937",
-    letterSpacing: 0.5,
+  title: { ...textPresets.display, marginBottom: spacing.sm },
+  subtitle: { ...textPresets.body, textAlign: "center", lineHeight: rf(20) },
+
+  // Card
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    ...shadows.card,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 8,
-    textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: 16,
-  },
-  formCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.04,
-    shadowRadius: 20,
-    elevation: 3,
-  },
-  inputContainer: {
-    marginBottom: 24,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-    marginBottom: 8,
-  },
-  inputWrapper: {
+  field: { marginBottom: spacing["2xl"] },
+  label: { ...textPresets.label, marginBottom: spacing.sm, color: colors.textSecondary },
+  inputBox: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 14,
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
-    height: 52,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    height: sizes.inputHeight,
   },
-  inputErrorBorder: {
-    borderColor: "#FF3B30",
-    backgroundColor: "#FFF5F5",
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  textInput: {
-    flex: 1,
-    color: "#1F2937",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  errorText: {
-    color: "#FF3B30",
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: "500",
-  },
-  submitButton: {
-    height: 52,
-    backgroundColor: "#2E5BFF",
-    borderRadius: 14,
+  inputError: { borderColor: colors.error, backgroundColor: "#FEF2F2" },
+  input: { flex: 1, color: colors.textPrimary, fontSize: rf(15) },
+  errorText: { color: colors.error, fontSize: rf(12), marginTop: spacing.xs },
+  submitBtn: {
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#2E5BFF",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
+    ...shadows.elevated,
+    shadowColor: colors.primary,
   },
-  submitButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  bottomBackLink: {
-    alignItems: "center",
-    marginTop: 24,
-  },
-  bottomBackLinkText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  successContainer: {
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  successIconBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#E6F4EA",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  successTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#10B981",
-    marginBottom: 12,
-  },
-  successSubtitle: {
-    fontSize: 14,
-    color: "#4B5563",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  highlightEmail: {
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  successInstructions: {
-    fontSize: 13,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  backToLoginButton: {
+  submitBtnText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
+
+  // Success
+  success: { alignItems: "center", paddingVertical: spacing.sm },
+  successIcon: { marginBottom: spacing.lg },
+  successTitle: { ...textPresets.screenTitle, color: colors.success, marginBottom: spacing.sm },
+  successSub: { ...textPresets.body, textAlign: "center" },
+  successEmail: { ...textPresets.cardTitle, textAlign: "center", marginTop: spacing.xs, marginBottom: spacing.sm },
+  successHint: { ...textPresets.body, fontSize: rf(13), textAlign: "center", marginBottom: spacing["2xl"] },
+  backLoginBtn: {
     width: "100%",
-    height: 50,
+    height: sizes.selectHeight,
     borderWidth: 1.5,
-    borderColor: "#2E5BFF",
-    borderRadius: 14,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
   },
-  backToLoginButtonText: {
-    color: "#2E5BFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
+  backLoginText: { color: colors.primary, fontSize: rf(15), fontWeight: "700" as any },
+
+  // Bottom link
+  backLink: { alignItems: "center", marginTop: spacing["2xl"] },
+  backLinkText: { ...textPresets.body, color: colors.textSecondary },
 });

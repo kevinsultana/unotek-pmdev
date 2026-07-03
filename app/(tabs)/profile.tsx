@@ -11,187 +11,167 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../../src/constants/theme";
+import { Avatar, Card } from "../../src/components/ui";
 import { useAuth } from "../../hooks/useAuth";
 import { useProfile } from "../../hooks/useProfile";
 
+const MENU_ITEMS = [
+  { route: "/profile-detail", icon: "person-outline", label: "Detail Data Diri", color: colors.primary },
+  { route: null, icon: "shield-checkmark-outline", label: "Keamanan & Sandi", color: "#7C3AED" },
+  { route: null, icon: "help-circle-outline", label: "Pusat Bantuan", color: colors.amber },
+] as const;
+
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { logout } = useAuth();
   const { profile, isLoading } = useProfile();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Konfirmasi",
-      "Apakah Anda yakin ingin keluar dari aplikasi?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Keluar",
-          style: "destructive",
-          onPress: async () => {
-            setIsLoggingOut(true);
-            try {
-              await logout();
-            } catch {
-              // Logout failed locally — still redirect
-            }
-            router.replace("/");
-          },
+    Alert.alert("Konfirmasi", "Apakah Anda yakin ingin keluar dari aplikasi?", [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Keluar",
+        style: "destructive",
+        onPress: async () => {
+          setIsLoggingOut(true);
+          try { await logout(); } catch { /* ignore */ }
+          router.replace("/");
         },
-      ],
-    );
+      },
+    ]);
   };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#2E5BFF" />
-      </SafeAreaView>
+      <View style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
   }
 
-  // Data from API response → data.employee (field employee)
   const emp = profile?.employee;
   const userName = emp?.name || profile?.user?.name || "User";
   const userRole = emp?.job_title || "";
-  const userDept = emp?.department || "";
   const userCompany = emp?.company || "";
-  const userEmail = profile?.user?.email || "";
-  const avatarInitials = userName.charAt(0).toUpperCase();
+  const initials = userName.charAt(0).toUpperCase();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileCardBig}>
-          <View style={styles.avatarBig}>
-            <Text style={styles.avatarBigText}>{avatarInitials}</Text>
-          </View>
-          <Text style={styles.profileNameBig}>{userName}</Text>
-          <Text style={styles.profileRoleBig}>{userRole}</Text>
-          {userCompany ? (
-            <Text style={styles.profileIdBig}>{userCompany}</Text>
-          ) : null}
-        </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* ── Profile Hero ───────────────────────────────────────────── */}
+        <Card style={styles.profileCard}>
+          <Avatar initials={initials} size={80} />
+          <Text style={styles.name}>{userName}</Text>
+          {userRole ? <Text style={styles.role}>{userRole}</Text> : null}
+          {userCompany ? <Text style={styles.company}>{userCompany}</Text> : null}
+        </Card>
 
+        {/* ── Menu Group ─────────────────────────────────────────────── */}
         <View style={styles.menuGroup}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/profile-detail")}>
-            <Ionicons name="person-outline" size={22} color="#4B5563" />
-            <Text style={styles.menuText}>Detail Data Diri</Text>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="shield-checkmark-outline" size={22} color="#4B5563" />
-            <Text style={styles.menuText}>Keamanan & Sandi</Text>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="help-circle-outline" size={22} color="#4B5563" />
-            <Text style={styles.menuText}>Pusat Bantuan (HRD)</Text>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
-            onPress={handleLogout}
-            disabled={isLoggingOut}
-          >
-            {isLoggingOut ? (
-              <ActivityIndicator size="small" color="#EF4444" />
-            ) : (
-              <Ionicons name="log-out-outline" size={22} color="#EF4444" />
-            )}
-            <Text style={[styles.menuText, { color: "#EF4444" }]}>
-              {isLoggingOut ? "Keluar..." : "Keluar dari Aplikasi"}
-            </Text>
-            <Ionicons name="chevron-forward" size={18} color="#EF4444" />
-          </TouchableOpacity>
+          {MENU_ITEMS.map((item, i) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[styles.menuItem, i === MENU_ITEMS.length - 1 && { borderBottomWidth: 0 }]}
+              onPress={() => item.route ? router.push(item.route) : null}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: `${item.color}15` }]}>
+                <Ionicons name={item.icon as any} size={20} color={item.color} />
+              </View>
+              <Text style={styles.menuLabel}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          ))}
         </View>
+
+        {/* ── Logout ─────────────────────────────────────────────────── */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={handleLogout}
+          disabled={isLoggingOut}
+          activeOpacity={0.7}
+        >
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color={colors.error} />
+          ) : (
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
+          )}
+          <Text style={styles.logoutText}>
+            {isLoggingOut ? "Keluar…" : "Keluar dari Aplikasi"}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={{ height: spacing["4xl"] }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#eeeeefff",
-    paddingBottom: -30,
-  },
-  scrollContainer: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  profileCardBig: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
+  container: { flex: 1, backgroundColor: colors.surface, paddingBottom: -30 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  scroll: { padding: spacing["2xl"], paddingBottom: spacing["4xl"] },
+
+  // Profile card
+  profileCard: {
     alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
-    marginTop: 12,
+    padding: spacing["3xl"],
+    marginBottom: spacing["2xl"],
+    marginTop: spacing.md,
   },
-  avatarBig: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#E0E7FF",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#2E5BFF",
-    marginBottom: 12,
-  },
-  avatarBigText: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#2E5BFF",
-  },
-  profileNameBig: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1F2937",
-  },
-  profileRoleBig: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  profileIdBig: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    marginTop: 6,
-  },
+  name: { ...textPresets.screenTitle, marginTop: spacing.lg, marginBottom: spacing.xs },
+  role: { ...textPresets.body, marginBottom: spacing.xs },
+  company: { ...textPresets.caption },
+
+  // Menu group
   menuGroup: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    ...shadows.card,
+    marginBottom: spacing["2xl"],
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: colors.border,
   },
-  menuText: {
+  menuIcon: {
+    width: sizes.iconSm,
+    height: sizes.iconSm,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: spacing.md,
+  },
+  menuLabel: {
+    ...textPresets.body,
+    color: colors.textPrimary,
+    fontWeight: "600" as any,
     flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginLeft: 12,
+  },
+
+  // Logout
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.card,
+  },
+  logoutText: {
+    ...textPresets.body,
+    color: colors.error,
+    fontWeight: "600" as any,
   },
 });

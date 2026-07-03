@@ -14,24 +14,23 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import { useAuth } from "../hooks/useAuth";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-
-  // Validation and UI states
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [generalError, setGeneralError] = useState("");
 
-  // ── Auto-redirect if already authenticated (session restored from storage) ──
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       router.replace("/(tabs)/home");
@@ -40,120 +39,78 @@ export default function LoginScreen() {
 
   const validateEmail = (text: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!text) {
-      return "Email tidak boleh kosong";
-    } else if (!emailRegex.test(text)) {
-      return "Format email tidak valid";
-    }
+    if (!text) return "Email tidak boleh kosong";
+    if (!emailRegex.test(text)) return "Format email tidak valid";
     return "";
   };
 
   const handleLogin = async () => {
-    // Reset errors
     setEmailError("");
     setPasswordError("");
     setGeneralError("");
-
     const emailErr = validateEmail(email);
-
-    if (emailErr) {
-      setEmailError(emailErr);
-      return;
-    }
-
+    if (emailErr) { setEmailError(emailErr); return; }
     setIsLoading(true);
-
     try {
-      // Remember Me controls whether tokens persist after app close
       await login(email, password, rememberMe);
       router.replace("/(tabs)/home");
     } catch (error: any) {
-      const message =
+      setGeneralError(
         error?.response?.data?.message ||
         error?.response?.data?.error ||
-        "Email atau password salah. Silakan coba lagi.";
-      setGeneralError(message);
+        "Email atau password salah.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Show a loading splash while AuthContext checks stored tokens on app start
   if (authLoading) {
     return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <View style={{ alignItems: "center" }}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="finger-print" size={40} color="#2E5BFF" />
-          </View>
-          <Text style={styles.title}>UNOTEK PMDEV</Text>
-          <ActivityIndicator
-            size="large"
-            color="#2E5BFF"
-            style={{ marginTop: 24 }}
-          />
+      <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
+        <View style={styles.appIcon}>
+          <Ionicons name="finger-print" size={36} color={colors.primary} />
         </View>
-      </SafeAreaView>
+        <Text style={styles.appName}>UNOTEK PMDEV</Text>
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: spacing["2xl"] }} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header Branding */}
-          <View style={styles.headerSection}>
-            <View style={styles.logoBadge}>
-              <Ionicons name="finger-print" size={40} color="#2E5BFF" />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {/* Branding */}
+          <View style={styles.brand}>
+            <View style={styles.appIcon}>
+              <Ionicons name="finger-print" size={36} color={colors.primary} />
             </View>
-            <Text style={styles.title}>UNOTEK PMDEV</Text>
-            <Text style={styles.subtitle}>
-              Sistem Presensi & Kelola Karyawan
-            </Text>
+            <Text style={styles.appName}>UNOTEK PMDEV</Text>
+            <Text style={styles.appSub}>Sistem Presensi & Kelola Karyawan</Text>
           </View>
 
-          {/* Login Form Card */}
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Masuk ke Akun Anda</Text>
+          {/* Form Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Masuk ke Akun Anda</Text>
 
             {generalError ? (
               <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle" size={20} color="#FF3B30" />
+                <Ionicons name="alert-circle" size={18} color={colors.error} />
                 <Text style={styles.errorBannerText}>{generalError}</Text>
               </View>
             ) : null}
 
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Alamat Email</Text>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  emailError ? styles.inputErrorBorder : null,
-                ]}
-              >
-                <Ionicons
-                  name="mail-outline"
-                  size={20}
-                  color="#8F9BB3"
-                  style={styles.inputIcon}
-                />
+            {/* Email */}
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Alamat Email</Text>
+              <View style={[styles.inputBox, emailError ? styles.inputError : null]}>
+                <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.textInput}
+                  style={styles.input}
                   placeholder="nama@unotek.com"
-                  placeholderTextColor="#A9B5C9"
+                  placeholderTextColor={colors.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
@@ -163,263 +120,148 @@ export default function LoginScreen() {
                   }}
                 />
               </View>
-              {emailError ? (
-                <Text style={styles.errorText}>{emailError}</Text>
-              ) : null}
+              {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
             </View>
 
-            {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Kata Sandi</Text>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  passwordError ? styles.inputErrorBorder : null,
-                ]}
-              >
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={20}
-                  color="#8F9BB3"
-                  style={styles.inputIcon}
-                />
+            {/* Password */}
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Kata Sandi</Text>
+              <View style={[styles.inputBox, passwordError ? styles.inputError : null]}>
+                <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.textInput}
+                  style={styles.input}
                   placeholder="Masukkan kata sandi"
-                  placeholderTextColor="#A9B5C9"
+                  placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
-                    if (passwordError)
-                      setPasswordError(
-                        text.length < 6 ? "Password minimal 6 karakter" : "",
-                      );
+                    if (passwordError) setPasswordError(text.length < 6 ? "Password minimal 6 karakter" : "");
                   }}
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-off-outline" : "eye-outline"}
-                    size={20}
-                    color="#8F9BB3"
-                  />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
-              {passwordError ? (
-                <Text style={styles.errorText}>{passwordError}</Text>
-              ) : null}
             </View>
 
-            {/* Remember Me & Forgot Password Row */}
-            <View style={styles.rowContainer}>
-              <View style={styles.rememberMeContainer}>
+            {/* Remember & Forgot */}
+            <View style={styles.row}>
+              <View style={styles.rememberRow}>
                 <Switch
                   value={rememberMe}
                   onValueChange={setRememberMe}
-                  trackColor={{ false: "#D1D5DB", true: "#93ACFF" }}
-                  thumbColor={rememberMe ? "#2E5BFF" : "#F4F3F4"}
+                  trackColor={{ false: colors.border, true: colors.primaryLight }}
+                  thumbColor={rememberMe ? colors.primary : "#F4F3F4"}
                   style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                 />
-                <Text style={styles.rememberMeText}>Ingat Saya</Text>
+                <Text style={styles.rememberText}>Ingat Saya</Text>
               </View>
               <TouchableOpacity onPress={() => router.push("/forgot-password")}>
-                <Text style={styles.forgotPasswordText}>Lupa Password?</Text>
+                <Text style={styles.forgotText}>Lupa Password?</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
+            {/* Submit */}
+            <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={isLoading} activeOpacity={0.85}>
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.loginButtonText}>Masuk Sekarang</Text>
+                <Text style={styles.loginBtnText}>Masuk Sekarang</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Footer Notes */}
+          {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Butuh bantuan login? Hubungi HRD
-            </Text>
+            <Text style={styles.footerText}>Butuh bantuan login? Hubungi HRD</Text>
             <Text style={styles.versionText}>unotek-pmdev v1.0.0</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F7F9FC",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  headerSection: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
+  container: { flex: 1, backgroundColor: colors.surface },
+  center: { justifyContent: "center", alignItems: "center" },
+  scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing["2xl"], paddingVertical: spacing["4xl"] },
+
+  // Brand
+  brand: { alignItems: "center", marginBottom: spacing["3xl"] },
+  appIcon: {
+    width: wpx(72),
+    height: hpx(72),
+    borderRadius: radius.xl,
+    backgroundColor: colors.card,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#2E5BFF",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-    marginBottom: 16,
+    ...shadows.elevated,
+    shadowColor: colors.primary,
+    marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1F2937",
-    letterSpacing: 0.5,
+  appName: { ...textPresets.display, marginBottom: spacing.xs },
+  appSub: { ...textPresets.body, textAlign: "center" },
+
+  // Card
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    ...shadows.card,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  formCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.04,
-    shadowRadius: 20,
-    elevation: 3,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 20,
-  },
+  cardTitle: { ...textPresets.screenTitle, marginBottom: spacing.xl },
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFEBEE",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
+    backgroundColor: "#FEF2F2",
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
-  errorBannerText: {
-    color: "#FF3B30",
-    fontSize: 13,
-    fontWeight: "500",
-    marginLeft: 8,
-    flex: 1,
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-    marginBottom: 8,
-  },
-  inputWrapper: {
+  errorBannerText: { color: colors.error, fontSize: rf(13), flex: 1 },
+
+  // Field
+  field: { marginBottom: spacing.xl },
+  fieldLabel: { ...textPresets.label, marginBottom: spacing.sm, color: colors.textSecondary },
+  inputBox: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 14,
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
-    height: 52,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    height: sizes.inputHeight,
   },
-  inputErrorBorder: {
-    borderColor: "#FF3B30",
-    backgroundColor: "#FFF5F5",
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  textInput: {
-    flex: 1,
-    color: "#1F2937",
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  eyeIcon: {
-    padding: 4,
-  },
-  errorText: {
-    color: "#FF3B30",
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: "500",
-  },
-  rowContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  rememberMeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  rememberMeText: {
-    fontSize: 13,
-    color: "#4B5563",
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  forgotPasswordText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#2E5BFF",
-  },
-  loginButton: {
-    height: 52,
-    backgroundColor: "#2E5BFF",
-    borderRadius: 14,
+  inputError: { borderColor: colors.error, backgroundColor: "#FEF2F2" },
+  inputIcon: { marginRight: spacing.md },
+  input: { flex: 1, color: colors.textPrimary, fontSize: rf(15) },
+  errorText: { color: colors.error, fontSize: rf(12), marginTop: spacing.xs },
+
+  // Row
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing["2xl"] },
+  rememberRow: { flexDirection: "row", alignItems: "center" },
+  rememberText: { fontSize: rf(13), color: colors.textSecondary, marginLeft: spacing.xs },
+  forgotText: { fontSize: rf(13), fontWeight: "600" as any, color: colors.primary },
+
+  // Button
+  loginBtn: {
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#2E5BFF",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
+    ...shadows.elevated,
+    shadowColor: colors.primary,
   },
-  loginButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  footer: {
-    alignItems: "center",
-    marginTop: 32,
-  },
-  footerText: {
-    fontSize: 13,
-    color: "#9CA3AF",
-  },
-  versionText: {
-    fontSize: 11,
-    color: "#D1D5DB",
-    marginTop: 8,
-  },
+  loginBtnText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
+
+  // Footer
+  footer: { alignItems: "center", marginTop: spacing["3xl"] },
+  footerText: { ...textPresets.body, fontSize: rf(13) },
+  versionText: { ...textPresets.label, marginTop: spacing.sm },
 });

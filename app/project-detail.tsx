@@ -11,13 +11,44 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
+import { Badge } from "../src/components/ui";
 import { projectService } from "../services/projectService";
 import type { Project } from "../types/project";
+
+// ponytail: shared status colour map — single source instead of switch-case per screen
+const STAGE_STYLES: Record<string, { color: string; bg: string }> = {
+  Initiation: { color: "#F59E0B", bg: "#FEF3C7" },
+  "Requirement Gathering": { color: "#F59E0B", bg: "#FEF3C7" },
+  Implementation: { color: colors.primary, bg: colors.primaryLight },
+  "Blueprint Approval": { color: colors.primary, bg: colors.primaryLight },
+  UAT: { color: "#7C3AED", bg: "#EDE9FE" },
+  "Go-Live Preparation": { color: "#059669", bg: "#D1FAE5" },
+  "Hypercare Support": { color: "#059669", bg: "#D1FAE5" },
+};
+
+function stageStyle(name?: string) {
+  return STAGE_STYLES[name ?? ""] ?? { color: colors.textMuted, bg: "#F1F5F9" };
+}
+
+// ── Detail Row component ───────────────────────────────────────────────────
+function DetailRow({ icon, label, children }: { icon: keyof typeof Ionicons.glyphMap; label: string; children: React.ReactNode }) {
+  return (
+    <View style={detailStyles.row}>
+      <View style={detailStyles.rowLeft}>
+        <Ionicons name={icon} size={18} color={colors.textMuted} />
+        <Text style={detailStyles.rowLabel}>{label}</Text>
+      </View>
+      <View style={detailStyles.rowRight}>{children}</View>
+    </View>
+  );
+}
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,9 +62,7 @@ export default function ProjectDetailScreen() {
         const res = await projectService.getById(Number(id));
         setProject(res.data.data);
       } catch (err: any) {
-        const message =
-          err?.response?.data?.message || "Gagal memuat detail project";
-        setError(message);
+        setError(err?.response?.data?.message || "Gagal memuat detail project");
       } finally {
         setIsLoading(false);
       }
@@ -42,468 +71,305 @@ export default function ProjectDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <ActivityIndicator size="large" color="#2E5BFF" />
-      </SafeAreaView>
+      <View style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
   }
 
   if (error || !project) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
-          </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Header router={router} />
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
+          <Text style={styles.emptyText}>{error || "Project tidak ditemukan."}</Text>
         </View>
-        <View
-          style={[
-            styles.container,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
-          <Text style={styles.emptyText}>
-            {error || "Project tidak ditemukan."}
-          </Text>
-        </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
-      <Stack.Screen
-        options={{
-          headerShown: false,
-        }}
-      />
+  const pStage = stageStyle(project.stage_id?.name);
 
-      {/* Custom Header */}
-      <View style={styles.customHeader}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerBackBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color="#2E5BFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detail Project</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar style="dark" />
+      <Stack.Screen options={{ headerShown: false }} />
+      <Header router={router} />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Info Card */}
-        <View style={styles.infoCard}>
-          <View style={styles.headerRow}>
-            <Text style={styles.projectName}>{project.name}</Text>
-            {project.stage_id ? (
-              <View
-                style={[
-                  styles.stageBadge,
-                  { backgroundColor: getStageBg(project.stage_id.name) },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.stageBadgeText,
-                    { color: getStageColor(project.stage_id.name) },
-                  ]}
-                >
-                  {project.stage_id.name}
-                </Text>
-              </View>
-            ) : null}
+        {/* ── Hero Card ─────────────────────────────────────────────── */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <Badge label={project.stage_id?.name ?? "—"} />
           </View>
-
+          <Text style={styles.heroTitle}>{project.name}</Text>
           {project.description ? (
-            <Text style={styles.description}>{project.description}</Text>
+            <Text style={styles.heroDesc}>{project.description}</Text>
           ) : null}
-
-          <View style={styles.idRow}>
-            <Ionicons name="pricetag-outline" size={16} color="#9CA3AF" />
-            <Text style={styles.idText}>Project ID: {project.id}</Text>
+          <View style={styles.projectId}>
+            <Ionicons name="pricetag-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.projectIdText}>ID: {project.id}</Text>
           </View>
         </View>
 
-        {/* Task Count Card */}
-        <View style={styles.statCard}>
-          <View style={styles.statIconWrapper}>
-            <Ionicons name="checkbox-outline" size={28} color="#2E5BFF" />
+        {/* ── Task Count ────────────────────────────────────────────── */}
+        <View style={styles.taskCountCard}>
+          <View style={[styles.taskCountIcon, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="checkbox-outline" size={24} color={colors.primary} />
           </View>
-          <Text style={styles.statValue}>{project.task_count}</Text>
-          <Text style={styles.statLabel}>Total Tugas</Text>
-        </View>
-
-        {/* Client / Partner Info */}
-        {project.partner ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Klien</Text>
-            <View style={styles.detailContent}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>
-                  {project.partner.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.detailTextContainer}>
-                <Text style={styles.detailName}>{project.partner.name}</Text>
-                <Text style={styles.detailLabel}>Perusahaan Klien</Text>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* PIC Info */}
-        {project.user ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Person In Charge (PIC)</Text>
-            <View style={styles.detailContent}>
-              <View
-                style={[styles.avatarCircle, { backgroundColor: "#E6F4EA" }]}
-              >
-                <Text style={[styles.avatarText, { color: "#10B981" }]}>
-                  {project.user.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.detailTextContainer}>
-                <Text style={styles.detailName}>{project.user.name}</Text>
-                <Text style={styles.detailLabel}>PIC Project</Text>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Company Info */}
-        {project.company ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Perusahaan</Text>
-            <View style={styles.detailContent}>
-              <View
-                style={[styles.avatarCircle, { backgroundColor: "#FFF4E5" }]}
-              >
-                <Text style={[styles.avatarText, { color: "#FFB020" }]}>
-                  {project.company.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.detailTextContainer}>
-                <Text style={styles.detailName}>{project.company.name}</Text>
-                <Text style={styles.detailLabel}>Entitas</Text>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Date Range */}
-        {project.date_start || project.date ? (
-          <View style={styles.detailCard}>
-            <Text style={styles.detailCardTitle}>Periode Project</Text>
-            <View style={styles.dateRow}>
-              <View style={styles.dateBox}>
-                <Ionicons name="calendar-outline" size={20} color="#2E5BFF" />
-                <Text style={styles.dateLabel}>Mulai</Text>
-                <Text style={styles.dateValue}>
-                  {project.date_start || "—"}
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={20} color="#D1D5DB" />
-              <View style={styles.dateBox}>
-                <Ionicons name="calendar-outline" size={20} color="#2E5BFF" />
-                <Text style={styles.dateLabel}>Selesai</Text>
-                <Text style={styles.dateValue}>{project.date || "—"}</Text>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Status Card */}
-        <View style={styles.detailCard}>
-          <Text style={styles.detailCardTitle}>Status</Text>
-          <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: project.active ? "#10B981" : "#EF4444" },
-              ]}
-            />
-            <Text style={styles.statusText}>
-              {project.active ? "Aktif" : "Tidak Aktif"}
-            </Text>
+          <View style={styles.taskCountText}>
+            <Text style={styles.taskCountValue}>{project.task_count}</Text>
+            <Text style={styles.taskCountLabel}>Total Tugas</Text>
           </View>
         </View>
+
+        {/* ── Detail Sections ───────────────────────────────────────── */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Informasi Project</Text>
+
+          {project.partner && (
+            <DetailRow icon="people-outline" label="Klien">
+              <View style={detailStyles.person}>
+                <View style={detailStyles.avatar}>
+                  <Text style={detailStyles.avatarText}>
+                    {project.partner.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={detailStyles.personName}>{project.partner.name}</Text>
+              </View>
+            </DetailRow>
+          )}
+
+          {project.user && (
+            <DetailRow icon="person-outline" label="PIC">
+              <View style={detailStyles.person}>
+                <View style={[detailStyles.avatar, { backgroundColor: "#D1FAE5" }]}>
+                  <Text style={[detailStyles.avatarText, { color: "#059669" }]}>
+                    {project.user.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={detailStyles.personName}>{project.user.name}</Text>
+              </View>
+            </DetailRow>
+          )}
+
+          {project.company && (
+            <DetailRow icon="business-outline" label="Perusahaan">
+              <View style={detailStyles.person}>
+                <View style={[detailStyles.avatar, { backgroundColor: "#FEF3C7" }]}>
+                  <Text style={[detailStyles.avatarText, { color: "#F59E0B" }]}>
+                    {project.company.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={detailStyles.personName}>{project.company.name}</Text>
+              </View>
+            </DetailRow>
+          )}
+
+          {(project.date_start || project.date) && (
+            <DetailRow icon="calendar-outline" label="Periode">
+              <Text style={detailStyles.dateText}>
+                {project.date_start ?? "—"} → {project.date ?? "—"}
+              </Text>
+            </DetailRow>
+          )}
+
+          <DetailRow icon="radio-button-on" label="Status">
+            <View style={detailStyles.statusRow}>
+              <View style={[detailStyles.statusDot, { backgroundColor: project.active ? colors.success : colors.error }]} />
+              <Text style={detailStyles.statusValue}>{project.active ? "Aktif" : "Tidak Aktif"}</Text>
+            </View>
+          </DetailRow>
+        </View>
+
+        <View style={{ height: spacing["4xl"] }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ── Helper functions ──
-const getStageColor = (stageName?: string) => {
-  switch (stageName) {
-    case "Initiation":
-    case "Requirement Gathering":
-      return "#FFB020";
-    case "Implementation":
-    case "Blueprint Approval":
-      return "#2E5BFF";
-    case "UAT":
-      return "#8B5CF6";
-    case "Go-Live Preparation":
-    case "Hypercare Support":
-      return "#10B981";
-    default:
-      return "#8F9BB3";
-  }
-};
+// ── Header (reusable within this screen) ──────────────────────────────────
+function Header({ router }: { router: any }) {
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Detail Project</Text>
+      <View style={styles.backBtn} />
+    </View>
+  );
+}
 
-const getStageBg = (stageName?: string) => {
-  switch (stageName) {
-    case "Initiation":
-    case "Requirement Gathering":
-      return "#FFF4E5";
-    case "Implementation":
-    case "Blueprint Approval":
-      return "#E0E7FF";
-    case "UAT":
-      return "#EDE9FE";
-    case "Go-Live Preparation":
-    case "Hypercare Support":
-      return "#E6F4EA";
-    default:
-      return "#F3F4F6";
-  }
-};
-
+// ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#eeeeefff",
-  },
-  customHeader: {
+  container: { flex: 1, backgroundColor: colors.surface },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyText: { ...textPresets.body, marginTop: spacing.md },
+
+  // Header
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    height: 56,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.lg,
+    height: sizes.headerHeight,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    marginTop: Platform.OS === "android" ? 8 : 0,
+    borderBottomColor: colors.border,
+    marginTop: Platform.OS === "android" ? spacing.sm : 0,
   },
-  headerBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  backBtn: {
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1F2937",
+    ...textPresets.screenTitle,
+    fontSize: rf(17),
     flex: 1,
     textAlign: "left",
-    marginRight: 40,
+    marginLeft: spacing.xs,
   },
-  headerSpacer: {
-    width: 40,
+
+  // Scroll
+  scroll: { padding: spacing["2xl"], paddingBottom: spacing["5xl"] },
+
+  // Hero card
+  heroCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    marginBottom: spacing.lg,
+    ...shadows.card,
   },
-  scrollContainer: {
-    padding: 24,
-    paddingBottom: 40,
+  heroTop: {
+    flexDirection: "row",
+    marginBottom: spacing.md,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
+  heroTitle: {
+    ...textPresets.display,
+    marginBottom: spacing.sm,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+  heroDesc: {
+    ...textPresets.body,
+    marginBottom: spacing.md,
+  },
+  projectId: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  projectIdText: {
+    ...textPresets.label,
+  },
+
+  // Task count
+  taskCountCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    ...shadows.card,
+  },
+  taskCountIcon: {
+    width: sizes.iconLg,
+    height: sizes.iconLg,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: spacing.lg,
   },
-  infoCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
+  taskCountText: { flex: 1 },
+  taskCountValue: {
+    ...textPresets.display,
+    fontSize: rf(22),
   },
-  headerRow: {
+  taskCountLabel: {
+    ...textPresets.caption,
+    marginTop: hpx(2),
+  },
+
+  // Section
+  sectionCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    ...shadows.card,
+  },
+  sectionTitle: {
+    ...textPresets.sectionHeader,
+    marginBottom: spacing.lg + spacing.xs,
+  },
+});
+
+// ── DetailRow sub-styles ───────────────────────────────────────────────────
+const detailStyles = StyleSheet.create({
+  row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  projectName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1F2937",
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  rowLabel: {
+    ...textPresets.body,
+    color: colors.textSecondary,
+  },
+  rowRight: {
     flex: 1,
-    marginRight: 12,
+    alignItems: "flex-end",
   },
-  stageBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  stageBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  description: {
-    fontSize: 14,
-    color: "#4B5563",
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  idRow: {
+
+  // Person sub-component
+  person: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
+    gap: spacing.sm,
   },
-  idText: {
-    fontSize: 13,
-    color: "#9CA3AF",
-    fontWeight: "600",
-    marginLeft: 6,
-  },
-  statCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  statIconWrapper: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    backgroundColor: "#E0E7FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1F2937",
-  },
-  statLabel: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 4,
-  },
-  detailCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  detailCardTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#9CA3AF",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  detailContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#E0E7FF",
+  avatar: {
+    width: wpx(32),
+    height: hpx(32),
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#2E5BFF",
+    fontSize: rf(13),
+    fontWeight: "800" as any,
+    color: colors.primary,
   },
-  detailTextContainer: {
-    marginLeft: 14,
-    flex: 1,
+  personName: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
   },
-  detailName: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#1F2937",
+
+  // Date
+  dateText: {
+    ...textPresets.body,
+    color: colors.textPrimary,
   },
-  detailLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  dateRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  dateBox: {
-    alignItems: "center",
-    width: "45%",
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 8,
-    fontWeight: "600",
-  },
-  dateValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginTop: 2,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 12,
+
+  // Status
+  statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  statusDot: { width: 8, height: 8, borderRadius: radius.full },
+  statusValue: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
   },
 });

@@ -3,6 +3,16 @@ import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  colors,
+  radius,
+  rf,
+  shadows,
+  sizes,
+  spacing,
+  typography,
+  wpx,
+} from "../../src/constants/theme";
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -10,7 +20,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     <View
       style={[
         styles.bottomTabBar,
-        { paddingBottom: insets.bottom > 0 ? insets.bottom : 4 },
+        { paddingBottom: insets.bottom > 0 ? insets.bottom : spacing.xs },
       ]}
     >
       {state.routes.map((route: any, index: number) => {
@@ -24,7 +34,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             target: route.key,
             canPreventDefault: true,
           });
-
           if (!isFocused && !event.defaultPrevented) {
             navigation.navigate(route.name);
           }
@@ -48,7 +57,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               >
                 <Ionicons
                   name={isFocused ? "calendar" : "calendar-outline"}
-                  size={24}
+                  size={26}
                   color="#FFFFFF"
                 />
               </View>
@@ -84,7 +93,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             <Ionicons
               name={iconName as any}
               size={22}
-              color={isFocused ? "#2E5BFF" : "#8F9BB3"}
+              color={isFocused ? colors.primary : colors.textMuted}
             />
             <Text style={[styles.tabLabel, isFocused && styles.activeTabLabel]}>
               {label}
@@ -105,8 +114,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="home" options={{ title: "Home" }} />
       <Tabs.Screen name="timeline" options={{ title: "Task" }} />
       <Tabs.Screen name="kehadiran" options={{ title: "Kehadiran" }} />
-      <Tabs.Screen name="perusahaan" options={{ title: "Perusahaan" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profil" }} />
+      <Tabs.Screen name="perusahaan" options={{ title: "Company" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }
@@ -114,57 +123,55 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   bottomTabBar: {
     flexDirection: "row",
-    backgroundColor: "#ffffffff",
+    backgroundColor: colors.card,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: colors.border,
     justifyContent: "space-around",
     alignItems: "center",
-    paddingTop: 4,
+    paddingTop: spacing.xs,
   },
   tabButton: {
     alignItems: "center",
     justifyContent: "center",
-    width: 60,
+    width: wpx(60),
+    paddingTop: spacing.xs,
   },
   raisedTabButton: {
     alignItems: "center",
     justifyContent: "center",
-    width: 76,
-    top: -15,
+    width: wpx(76),
+    top: -spacing.md,
   },
   raisedTabIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: sizes.iconLg,
+    height: sizes.iconLg,
+    borderRadius: radius.full,
     justifyContent: "center",
     alignItems: "center",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
-    marginBottom: 4,
+    ...shadows.elevated,
+    marginBottom: spacing.xs,
   },
   raisedTabActiveContainer: {
-    backgroundColor: "#2E5BFF",
-    shadowColor: "#2E5BFF",
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
   },
   raisedTabInactiveContainer: {
-    backgroundColor: "#8F9BB3",
-    shadowColor: "#8F9BB3",
+    backgroundColor: colors.textMuted,
+    shadowColor: colors.textMuted,
   },
   tabLabel: {
-    fontSize: 10,
-    color: "#8F9BB3",
-    marginTop: 4,
-    fontWeight: "500",
+    fontSize: rf(10),
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    fontWeight: typography.weight.medium,
   },
   raisedTabLabel: {
-    fontSize: 11,
-    color: "#8F9BB3",
-    fontWeight: "500",
+    fontSize: rf(11),
+    color: colors.textMuted,
+    fontWeight: typography.weight.medium,
   },
   activeTabLabel: {
-    color: "#2E5BFF",
-    fontWeight: "700",
+    color: colors.primary,
+    fontWeight: typography.weight.bold,
   },
 });
