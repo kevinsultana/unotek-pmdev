@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -13,33 +13,31 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
 import { useProfile } from "../../hooks/useProfile";
-import { Avatar, Card, SectionHeader } from "../../src/components/ui";
+import { useTasks } from "../../hooks/useTasks";
 import {
   colors,
   hpx,
   radius,
   rf,
   shadows,
-  sizes,
   spacing,
-  textPresets,
   wpx,
 } from "../../src/constants/theme";
 
-const QUICK_ACTIONS = [
+const MENU_GRID = [
   {
     route: "/timeline",
-    icon: "list-outline",
+    icon: "checkbox-outline",
     label: "Task",
-    color: "#F59E0B",
-    bg: "#FEF3C7",
+    color: colors.primary,
+    bg: colors.primaryLight,
   },
   {
     route: "/kehadiran",
     icon: "finger-print",
     label: "Absensi",
-    color: colors.primary,
-    bg: colors.primaryLight,
+    color: "#F59E0B",
+    bg: "#FEF3C7",
   },
   {
     route: "/perusahaan",
@@ -48,29 +46,80 @@ const QUICK_ACTIONS = [
     color: "#059669",
     bg: "#D1FAE5",
   },
+  {
+    route: "/profile",
+    icon: "person-outline",
+    label: "Profil",
+    color: "#7C3AED",
+    bg: "#EDE9FE",
+  },
 ] as const;
+
+function stripHtml(html?: string | null) {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .trim();
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { refreshUser } = useAuth();
   const { profile, isLoading } = useProfile();
+  const { tasks, isLoading: tasksLoading, refresh: refreshTasks } = useTasks();
+
+  // Live clock
+  const [clock, setClock] = useState({ time: "", date: "" });
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setClock({
+        time: now.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+        date: now.toLocaleDateString("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       refreshUser();
-    }, [refreshUser]),
+      refreshTasks();
+    }, [refreshUser, refreshTasks]),
   );
 
   const userName = profile?.employee?.name || "User";
-  const userDept = profile?.employee?.department || "";
-  const avatarInitials = userName.charAt(0).toUpperCase();
+  const initials = userName.charAt(0).toUpperCase();
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 11
+      ? "Selamat Pagi"
+      : hour < 15
+        ? "Selamat Siang"
+        : hour < 18
+          ? "Selamat Sore"
+          : "Selamat Malam";
+
+  // ponytail: first 5 tasks, no pagination on dashboard
+  const recentTasks = tasks.slice(0, 5);
 
   if (isLoading) {
     return (
-      <View
-        style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}
-      >
+      <View style={[styles.center, { paddingTop: insets.top + hpx(48) }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -83,176 +132,358 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Profile Header ────────────────────────────────────────── */}
-        <View style={styles.profileSection}>
-          <Avatar initials={avatarInitials} size={56} />
-          <View style={styles.profileInfo}>
-            <Text style={styles.greeting}>Selamat Datang</Text>
-            <Text style={styles.name}>{userName}</Text>
-            {userDept ? <Text style={styles.dept}>{userDept}</Text> : null}
+        {/* ── Header: greeting + avatar ─────────────────────────────── */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{greeting},</Text>
+            <Text style={styles.userName}>{userName}</Text>
           </View>
-          <View style={styles.statusDot} />
+          <View style={styles.avatarWrap}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
         </View>
 
-        {/* ── Stats Grid ────────────────────────────────────────────── */}
-        <View style={styles.statsGrid}>
-          <Card style={styles.statCard}>
-            <View
-              style={[
-                styles.statIcon,
-                { backgroundColor: colors.primaryLight },
-              ]}
+        {/* ── Attendance Hero Card ──────────────────────────────────── */}
+        <View style={styles.heroCard}>
+          <Text style={styles.heroDate}>{clock.date}</Text>
+          <Text style={styles.heroTime}>{clock.time}</Text>
+          <View style={styles.pulseDot} />
+          <View style={styles.heroActions}>
+            <TouchableOpacity
+              style={[styles.heroBtn, styles.heroBtnIn]}
+              onPress={() => router.push("/kehadiran")}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="finger-print" size={wpx(18)} color="#FFFFFF" />
+              <Text style={styles.heroBtnText}>Check In</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.heroBtn, styles.heroBtnOut]}
+              onPress={() => router.push("/kehadiran")}
+              activeOpacity={0.85}
             >
               <Ionicons
-                name="checkbox-outline"
-                size={22}
-                color={colors.primary}
+                name="exit-outline"
+                size={wpx(18)}
+                color={colors.error}
               />
-            </View>
-            <Text style={styles.statValue}>5</Text>
-            <Text style={styles.statLabel}>Tugas Aktif</Text>
-          </Card>
-
-          <Card style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: "#D1FAE5" }]}>
-              <Ionicons name="calendar-outline" size={22} color="#059669" />
-            </View>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Sisa Cuti</Text>
-          </Card>
+              <Text style={[styles.heroBtnText, { color: colors.error }]}>
+                Check Out
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* ── Quick Actions ─────────────────────────────────────────── */}
-        <SectionHeader title="Menu Cepat" />
-        <View style={styles.actionsGrid}>
-          {QUICK_ACTIONS.map((action) => (
+        {/* ── Quick Menu Grid ──────────────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Menu</Text>
+        <View style={styles.menuGrid}>
+          {MENU_GRID.map((item) => (
             <TouchableOpacity
-              key={action.route}
-              style={styles.actionCard}
-              onPress={() => router.push(action.route)}
+              key={item.route}
+              style={styles.menuItem}
+              onPress={() => router.push(item.route)}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
+              <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
                 <Ionicons
-                  name={action.icon as any}
-                  size={22}
-                  color={action.color}
+                  name={item.icon as any}
+                  size={wpx(22)}
+                  color={item.color}
                 />
               </View>
-              <Text style={styles.actionLabel}>{action.label}</Text>
+              <Text style={styles.menuLabel}>{item.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* ── Bottom spacer ─────────────────────────────────────────── */}
-        <View style={{ height: spacing["3xl"] }} />
+        {/* ── Today's Tasks (Feed) ──────────────────────────────────── */}
+        <View style={styles.feedHeader}>
+          <Text style={styles.sectionTitle}>Tugas Hari Ini</Text>
+          <TouchableOpacity onPress={() => router.push("/timeline")}>
+            <Text style={styles.feedSeeAll}>Lihat Semua</Text>
+          </TouchableOpacity>
+        </View>
+
+        {tasksLoading ? (
+          <ActivityIndicator
+            size="small"
+            color={colors.primary}
+            style={{ marginVertical: hpx(24) }}
+          />
+        ) : recentTasks.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Ionicons
+              name="documents-outline"
+              size={wpx(32)}
+              color={colors.textMuted}
+            />
+            <Text style={styles.emptyText}>Belum ada tugas hari ini</Text>
+          </View>
+        ) : (
+          recentTasks.map((task) => (
+            <TouchableOpacity
+              key={task.id}
+              style={styles.taskCard}
+              activeOpacity={0.7}
+              onPress={() => router.push(`/task-detail?id=${task.id}`)}
+            >
+              <View style={styles.taskCardTop}>
+                <Text style={styles.taskName} numberOfLines={1}>
+                  {task.name}
+                </Text>
+                {task.stage && (
+                  <View
+                    style={[styles.taskBadge, { backgroundColor: "#DBEAFE" }]}
+                  >
+                    <Text
+                      style={[styles.taskBadgeText, { color: colors.primary }]}
+                    >
+                      {task.stage.name}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {task.description && (
+                <Text style={styles.taskDesc} numberOfLines={2}>
+                  {stripHtml(task.description)}
+                </Text>
+              )}
+              <View style={styles.taskCardBottom}>
+                {task.date_deadline && (
+                  <View style={styles.taskMeta}>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={wpx(12)}
+                      color={colors.textMuted}
+                    />
+                    <Text style={styles.taskMetaText}>
+                      {task.date_deadline.substring(0, 10)}
+                    </Text>
+                  </View>
+                )}
+                {task.project?.name && (
+                  <View style={styles.taskMeta}>
+                    <Ionicons
+                      name="folder-outline"
+                      size={wpx(12)}
+                      color={colors.textMuted}
+                    />
+                    <Text style={styles.taskMetaText} numberOfLines={1}>
+                      {task.project.name}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+
+        <View style={{ height: hpx(40) }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  container: { flex: 1, backgroundColor: colors.surface },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   scroll: {
-    padding: spacing["2xl"],
-    paddingBottom: spacing["4xl"],
+    paddingHorizontal: spacing["2xl"],
+    paddingTop: spacing["2xl"],
+    paddingBottom: hpx(40),
   },
 
-  // Profile
-  profileSection: {
+  // ── Header ────────────────────────────────────────────────────────
+  header: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing["3xl"],
-    paddingTop: spacing.md,
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: spacing.lg,
+    marginBottom: hpx(28),
   },
   greeting: {
-    ...textPresets.label,
+    fontSize: rf(15),
+    fontWeight: "500" as any,
+    color: colors.textSecondary,
     marginBottom: hpx(2),
   },
-  name: {
-    ...textPresets.display,
-    fontSize: rf(20), // slightly smaller than full display
-    marginBottom: hpx(2),
+  userName: {
+    fontSize: rf(22),
+    fontWeight: "800" as any,
+    color: colors.textPrimary,
   },
-  dept: {
-    ...textPresets.body,
-    fontSize: rf(13),
-  },
-  statusDot: {
-    width: wpx(10),
-    height: hpx(10),
+  avatarWrap: {
+    width: wpx(48),
+    height: wpx(48),
     borderRadius: radius.full,
-    backgroundColor: colors.success,
-    borderWidth: 2,
-    borderColor: "#D1FAE5",
+    backgroundColor: colors.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: rf(18),
+    fontWeight: "800" as any,
+    color: colors.primary,
   },
 
-  // Stats
-  statsGrid: {
+  // ── Attendance Hero ───────────────────────────────────────────────
+  heroCard: {
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    alignItems: "center",
+    marginBottom: hpx(28),
+    ...shadows.elevated,
+  },
+  heroDate: {
+    fontSize: rf(13),
+    fontWeight: "500" as any,
+    color: colors.textSecondary,
+    marginBottom: hpx(8),
+  },
+  heroTime: {
+    fontSize: rf(42),
+    fontWeight: "800" as any,
+    color: colors.textPrimary,
+    letterSpacing: wpx(1),
+    marginBottom: hpx(4),
+  },
+  pulseDot: {
+    width: wpx(8),
+    height: wpx(8),
+    borderRadius: radius.full,
+    backgroundColor: colors.success,
+    marginBottom: hpx(20),
+  },
+  heroActions: {
     flexDirection: "row",
     gap: spacing.md,
-    marginBottom: spacing["3xl"],
+    width: "100%",
   },
-  statCard: {
+  heroBtn: {
     flex: 1,
-    alignItems: "center",
-    padding: spacing.xl,
-    // ponytail: no row-gap on RN < 0.71, using gap above works for 0.81
-  },
-  statIcon: {
-    width: sizes.iconMd,
-    height: sizes.iconMd,
+    height: hpx(48),
     borderRadius: radius.md,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    gap: spacing.sm,
+  },
+  heroBtnIn: {
+    backgroundColor: colors.primary,
+  },
+  heroBtnOut: {
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.error,
+  },
+  heroBtnText: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+  },
+
+  // ── Menu Grid ─────────────────────────────────────────────────────
+  sectionTitle: {
+    fontSize: rf(15),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  menuGrid: {
+    flexDirection: "row",
+    gap: spacing["2xl"],
+    marginBottom: hpx(28),
+    justifyContent: "space-between",
+  },
+  menuItem: {
+    width: wpx(72),
+    alignItems: "center",
+    gap: hpx(6),
+  },
+  menuIcon: {
+    width: wpx(52),
+    height: wpx(52),
+    borderRadius: radius.full,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuLabel: {
+    fontSize: rf(11),
+    fontWeight: "600" as any,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+
+  // ── Task Feed ─────────────────────────────────────────────────────
+  feedHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: spacing.md,
   },
-  statValue: {
-    ...textPresets.display,
-    marginBottom: spacing.xs,
+  feedSeeAll: {
+    fontSize: rf(13),
+    fontWeight: "600" as any,
+    color: colors.primary,
   },
-  statLabel: {
-    ...textPresets.caption,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  emptyBox: {
+    alignItems: "center",
+    paddingVertical: hpx(32),
+    gap: hpx(8),
   },
-
-  // Quick Actions
-  actionsGrid: {
-    flexDirection: "row",
-    gap: spacing.md,
+  emptyText: {
+    fontSize: rf(13),
+    color: colors.textMuted,
   },
-  actionCard: {
-    flex: 1,
+  taskCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    alignItems: "center",
+    marginBottom: spacing.md,
     ...shadows.card,
   },
-  actionIcon: {
-    width: sizes.iconMd,
-    height: sizes.iconMd,
-    borderRadius: radius.md,
-    justifyContent: "center",
+  taskCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: hpx(10),
+    marginBottom: spacing.sm,
   },
-  actionLabel: {
-    ...textPresets.cardTitle,
-    fontSize: rf(12),
-    textAlign: "center",
+  taskName: {
+    fontSize: rf(15),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  taskBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(3),
+    borderRadius: radius.sm,
+  },
+  taskBadgeText: {
+    fontSize: rf(10),
+    fontWeight: "700" as any,
+  },
+  taskDesc: {
+    fontSize: rf(13),
+    color: colors.textSecondary,
+    lineHeight: rf(18),
+    marginBottom: spacing.md,
+  },
+  taskCardBottom: {
+    flexDirection: "row",
+    gap: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  taskMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  taskMetaText: {
+    fontSize: rf(11),
+    color: colors.textMuted,
   },
 });
