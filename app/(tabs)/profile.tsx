@@ -86,6 +86,7 @@ export default function ProfileScreen() {
       <View style={[styles.curvedHeader]}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Profil</Text>
+          <Text style={styles.headerSub}>Kelola akun & data pribadi</Text>
         </View>
       </View>
 
@@ -174,18 +175,19 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: wpx(30),
     paddingHorizontal: spacing["2xl"],
     justifyContent: "flex-end",
-    paddingBottom: hpx(20),
+    paddingBottom: hpx(16),
     zIndex: 1,
   },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  headerContent: { alignItems: "center" },
   headerTitle: {
     fontSize: rf(18),
     fontWeight: "700" as any,
     color: "#FFFFFF",
+  },
+  headerSub: {
+    fontSize: rf(13),
+    color: "rgba(255,255,255,0.7)",
+    marginTop: hpx(4),
   },
 
   scroll: {

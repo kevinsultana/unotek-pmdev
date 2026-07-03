@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: wpx(30),
     paddingHorizontal: spacing["2xl"],
     justifyContent: "flex-end",
-    paddingBottom: hpx(20),
+    paddingBottom: hpx(16),
     zIndex: 1,
   },
   headerRow: {

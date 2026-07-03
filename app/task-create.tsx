@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -16,9 +15,19 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import { projectService } from "../services/projectService";
 import { taskService } from "../services/taskService";
+import {
+  colors,
+  hpx,
+  radius,
+  rf,
+  shadows,
+  sizes,
+  spacing,
+  textPresets,
+  wpx,
+} from "../src/constants/theme";
 import type { Project } from "../types/project";
 import type { TaskStageItem, TaskTagItem } from "../types/task";
 import { showToast } from "../utils/toast";
@@ -31,7 +40,9 @@ export default function TaskCreateScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedStage, setSelectedStage] = useState<TaskStageItem | null>(null);
+  const [selectedStage, setSelectedStage] = useState<TaskStageItem | null>(
+    null,
+  );
   const [selectedTags, setSelectedTags] = useState<TaskTagItem[]>([]);
   const [priority, setPriority] = useState("0");
   const [plannedHours, setPlannedHours] = useState("");
@@ -91,7 +102,11 @@ export default function TaskCreateScreen() {
       showToast("success", "Berhasil", "Tugas baru telah dibuat.");
       router.back();
     } catch (err: any) {
-      showToast("error", "Gagal", err?.response?.data?.message || "Terjadi kesalahan.");
+      showToast(
+        "error",
+        "Gagal",
+        err?.response?.data?.message || "Terjadi kesalahan.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -117,12 +132,21 @@ export default function TaskCreateScreen() {
       </View>
 
       {isLoadingRef ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          style={{ marginVertical: spacing["4xl"] }}
+        />
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.floatingCard}>
             {/* Nama Tugas */}
-            <Text style={styles.label}>Nama Tugas <Text style={{ color: colors.error }}>*</Text></Text>
+            <Text style={styles.label}>
+              Nama Tugas <Text style={{ color: colors.error }}>*</Text>
+            </Text>
             <TextInput
               style={styles.input}
               placeholder="Masukkan nama tugas"
@@ -144,20 +168,44 @@ export default function TaskCreateScreen() {
 
             {/* Project */}
             <Text style={styles.label}>Project</Text>
-            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowProjectPicker(true)}>
-              <Text style={selectedProject ? styles.selectValue : styles.selectPlaceholder}>
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setShowProjectPicker(true)}
+            >
+              <Text
+                style={
+                  selectedProject
+                    ? styles.selectValue
+                    : styles.selectPlaceholder
+                }
+              >
                 {selectedProject?.name || "Pilih project"}
               </Text>
-              <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={colors.textMuted}
+              />
             </TouchableOpacity>
 
             {/* Stage */}
             <Text style={styles.label}>Stage</Text>
-            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowStagePicker(true)}>
-              <Text style={selectedStage ? styles.selectValue : styles.selectPlaceholder}>
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setShowStagePicker(true)}
+            >
+              <Text
+                style={
+                  selectedStage ? styles.selectValue : styles.selectPlaceholder
+                }
+              >
                 {selectedStage?.name || "Pilih stage"}
               </Text>
-              <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={colors.textMuted}
+              />
             </TouchableOpacity>
 
             {/* Priority */}
@@ -169,10 +217,18 @@ export default function TaskCreateScreen() {
               ].map((p) => (
                 <TouchableOpacity
                   key={p.value}
-                  style={[styles.priorityBtn, priority === p.value && styles.priorityActive]}
+                  style={[
+                    styles.priorityBtn,
+                    priority === p.value && styles.priorityActive,
+                  ]}
                   onPress={() => setPriority(p.value)}
                 >
-                  <Text style={[styles.priorityText, priority === p.value && styles.priorityTextActive]}>
+                  <Text
+                    style={[
+                      styles.priorityText,
+                      priority === p.value && styles.priorityTextActive,
+                    ]}
+                  >
                     {p.label}
                   </Text>
                 </TouchableOpacity>
@@ -181,16 +237,30 @@ export default function TaskCreateScreen() {
 
             {/* Deadline */}
             <Text style={styles.label}>Deadline</Text>
-            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowDatePicker(true)}>
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setShowDatePicker(true)}
+            >
               <Text style={styles.selectValue}>
-                {dateDeadline.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                {dateDeadline.toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
               </Text>
-              <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={colors.textMuted}
+              />
             </TouchableOpacity>
 
             {showDatePicker && Platform.OS === "ios" ? (
               <View style={StyleSheet.absoluteFill}>
-                <TouchableOpacity style={styles.pickerBg} onPress={() => setShowDatePicker(false)} />
+                <TouchableOpacity
+                  style={styles.pickerBg}
+                  onPress={() => setShowDatePicker(false)}
+                />
                 <View style={styles.pickerContainer}>
                   <View style={styles.pickerHeader}>
                     <TouchableOpacity onPress={() => setShowDatePicker(false)}>
@@ -202,7 +272,9 @@ export default function TaskCreateScreen() {
                     mode="date"
                     display="inline"
                     themeVariant="light"
-                    onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+                    onChange={(_e, d) => {
+                      if (d) setDateDeadline(d);
+                    }}
                   />
                 </View>
               </View>
@@ -211,7 +283,9 @@ export default function TaskCreateScreen() {
                 value={dateDeadline}
                 mode="date"
                 display="default"
-                onChange={(_e, d) => { if (d) setDateDeadline(d); }}
+                onChange={(_e, d) => {
+                  if (d) setDateDeadline(d);
+                }}
               />
             ) : null}
 
@@ -228,11 +302,27 @@ export default function TaskCreateScreen() {
 
             {/* Tags */}
             <Text style={styles.label}>Tags</Text>
-            <TouchableOpacity style={styles.selectBtn} onPress={() => setShowTagPicker(true)}>
-              <Text style={selectedTags.length ? styles.selectValue : styles.selectPlaceholder} numberOfLines={1}>
-                {selectedTags.length ? selectedTags.map((t) => t.name).join(", ") : "Pilih tags"}
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setShowTagPicker(true)}
+            >
+              <Text
+                style={
+                  selectedTags.length
+                    ? styles.selectValue
+                    : styles.selectPlaceholder
+                }
+                numberOfLines={1}
+              >
+                {selectedTags.length
+                  ? selectedTags.map((t) => t.name).join(", ")
+                  : "Pilih tags"}
               </Text>
-              <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={colors.textMuted}
+              />
             </TouchableOpacity>
 
             {/* Submit */}
@@ -254,9 +344,37 @@ export default function TaskCreateScreen() {
       )}
 
       {/* ── Modals ── */}
-      {renderPickerModal(showProjectPicker, setShowProjectPicker, "Pilih Project", projects, (p) => p.name, (p) => { setSelectedProject(p as Project); setShowProjectPicker(false); }, selectedProject?.id)}
-      {renderPickerModal(showStagePicker, setShowStagePicker, "Pilih Stage", stages, (s) => s.name, (s) => { setSelectedStage(s as TaskStageItem); setShowStagePicker(false); }, selectedStage?.id)}
-      {renderTagModal(showTagPicker, setShowTagPicker, tags, selectedTags, toggleTag)}
+      {renderPickerModal(
+        showProjectPicker,
+        setShowProjectPicker,
+        "Pilih Project",
+        projects,
+        (p) => p.name,
+        (p) => {
+          setSelectedProject(p as Project);
+          setShowProjectPicker(false);
+        },
+        selectedProject?.id,
+      )}
+      {renderPickerModal(
+        showStagePicker,
+        setShowStagePicker,
+        "Pilih Stage",
+        stages,
+        (s) => s.name,
+        (s) => {
+          setSelectedStage(s as TaskStageItem);
+          setShowStagePicker(false);
+        },
+        selectedStage?.id,
+      )}
+      {renderTagModal(
+        showTagPicker,
+        setShowTagPicker,
+        tags,
+        selectedTags,
+        toggleTag,
+      )}
     </View>
   );
 }
@@ -285,10 +403,18 @@ function renderPickerModal<T extends { id: number }>(
             {items.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                style={[modalStyles.item, selectedId === item.id && modalStyles.itemActive]}
+                style={[
+                  modalStyles.item,
+                  selectedId === item.id && modalStyles.itemActive,
+                ]}
                 onPress={() => onSelect(item)}
               >
-                <Text style={[modalStyles.itemText, selectedId === item.id && modalStyles.itemTextActive]}>
+                <Text
+                  style={[
+                    modalStyles.itemText,
+                    selectedId === item.id && modalStyles.itemTextActive,
+                  ]}
+                >
                   {getName(item)}
                 </Text>
               </TouchableOpacity>
@@ -327,17 +453,32 @@ function renderTagModal(
                   style={[modalStyles.item, isSel && modalStyles.itemActive]}
                   onPress={() => toggle(t)}
                 >
-                  <View style={[modalStyles.checkbox, isSel && modalStyles.checkboxActive]}>
-                    {isSel && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                  <View
+                    style={[
+                      modalStyles.checkbox,
+                      isSel && modalStyles.checkboxActive,
+                    ]}
+                  >
+                    {isSel && (
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                    )}
                   </View>
-                  <Text style={[modalStyles.itemText, isSel && modalStyles.itemTextActive]}>
+                  <Text
+                    style={[
+                      modalStyles.itemText,
+                      isSel && modalStyles.itemTextActive,
+                    ]}
+                  >
                     {t.name}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-          <TouchableOpacity style={modalStyles.doneBtn} onPress={() => close(false)}>
+          <TouchableOpacity
+            style={modalStyles.doneBtn}
+            onPress={() => close(false)}
+          >
             <Text style={modalStyles.doneBtnText}>Selesai</Text>
           </TouchableOpacity>
         </View>
@@ -372,7 +513,7 @@ const styles = StyleSheet.create({
   // Scroll
   scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
   floatingCard: {
-    marginTop: -hpx(24),
+    marginTop: hpx(6),
     backgroundColor: colors.card,
     borderRadius: wpx(20),
     padding: spacing["2xl"],
@@ -380,7 +521,12 @@ const styles = StyleSheet.create({
   },
 
   // Form
-  label: { ...textPresets.label, marginBottom: spacing.sm, marginTop: spacing.lg, fontWeight: "700" as any },
+  label: {
+    ...textPresets.label,
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
+    fontWeight: "700" as any,
+  },
   input: {
     borderWidth: 1.5,
     borderColor: colors.border,
@@ -391,7 +537,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: rf(14),
   },
-  textArea: { height: hpx(80), textAlignVertical: "top", paddingTop: spacing.md },
+  textArea: {
+    height: hpx(80),
+    textAlignVertical: "top",
+    paddingTop: spacing.md,
+  },
 
   // Select
   selectBtn: {
@@ -419,8 +569,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: "center",
   },
-  priorityActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  priorityText: { fontSize: rf(14), fontWeight: "700" as any, color: colors.textSecondary },
+  priorityActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  priorityText: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textSecondary,
+  },
   priorityTextActive: { color: "#FFFFFF" },
 
   // Submit
@@ -449,14 +606,32 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
   },
-  pickerDone: { fontSize: rf(16), fontWeight: "700" as any, color: colors.primary },
+  pickerDone: {
+    fontSize: rf(16),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
 });
 
 // ── Modal sub-styles ──────────────────────────────────────────────────────
 const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
-  content: { backgroundColor: colors.card, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing["2xl"] },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xl },
+  overlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+  },
+  content: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing["2xl"],
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xl,
+  },
   title: { ...textPresets.screenTitle },
   item: {
     flexDirection: "row",
@@ -467,7 +642,11 @@ const modalStyles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   itemActive: { backgroundColor: colors.primaryLight },
-  itemText: { fontSize: rf(14), fontWeight: "600" as any, color: colors.textSecondary },
+  itemText: {
+    fontSize: rf(14),
+    fontWeight: "600" as any,
+    color: colors.textSecondary,
+  },
   itemTextActive: { color: colors.primary },
   checkbox: {
     width: wpx(20),
@@ -479,7 +658,10 @@ const modalStyles = StyleSheet.create({
     alignItems: "center",
     marginRight: spacing.md,
   },
-  checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   doneBtn: {
     height: sizes.selectHeight,
     backgroundColor: colors.primary,

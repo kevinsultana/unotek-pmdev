@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
@@ -15,8 +17,18 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import { timeOffService } from "../services/timeOffService";
+import {
+  colors,
+  hpx,
+  radius,
+  rf,
+  shadows,
+  sizes,
+  spacing,
+  textPresets,
+  wpx,
+} from "../src/constants/theme";
 import type { TimeOff, TimeOffBalanceItem } from "../types/timeOff";
 import { showToast } from "../utils/toast";
 
@@ -30,7 +42,11 @@ function formatDate(d: Date) {
 }
 
 function toDisplay(d: Date) {
-  return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 const STATE_COLORS: Record<string, { c: string; b: string }> = {
@@ -55,8 +71,12 @@ export default function LeaveAllocationsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const now = new Date();
-  const [dateFrom, setDateFrom] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
-  const [dateTo, setDateTo] = useState(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const [dateFrom, setDateFrom] = useState(
+    new Date(now.getFullYear(), now.getMonth(), 1),
+  );
+  const [dateTo, setDateTo] = useState(
+    new Date(now.getFullYear(), now.getMonth() + 1, 0),
+  );
   const [showPicker, setShowPicker] = useState<"from" | "to" | null>(null);
   const [tempPickerDate, setTempPickerDate] = useState(new Date());
 
@@ -68,37 +88,53 @@ export default function LeaveAllocationsScreen() {
   const [createDateTo, setCreateDateTo] = useState("");
   const [createReason, setCreateReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCreatePicker, setShowCreatePicker] = useState<"from" | "to" | null>(null);
+  const [showCreatePicker, setShowCreatePicker] = useState<
+    "from" | "to" | null
+  >(null);
   const [createDateFromDate, setCreateDateFromDate] = useState(new Date());
   const [createDateToDate, setCreateDateToDate] = useState(new Date());
 
-  const fetchRecords = useCallback(async (pageNum: number, append = false) => {
-    if (append) setIsLoadingMore(true); else setIsLoading(true);
-    setError(null);
-    try {
-      const params: any = { page: pageNum, per_page: PER_PAGE, date_from: formatDate(dateFrom), date_to: formatDate(dateTo) };
-      const res = await timeOffService.list(params);
-      const items = res.data.data || [];
-      const pagination = res.data.pagination;
-      if (append) setRecords((p) => [...p, ...items]); else setRecords(items);
-      setTotalPages(pagination?.total_pages || 1);
-      setPage(pageNum);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Gagal memuat data cuti");
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [dateFrom, dateTo]);
+  const fetchRecords = useCallback(
+    async (pageNum: number, append = false) => {
+      if (append) setIsLoadingMore(true);
+      else setIsLoading(true);
+      setError(null);
+      try {
+        const params: any = {
+          page: pageNum,
+          per_page: PER_PAGE,
+          date_from: formatDate(dateFrom),
+          date_to: formatDate(dateTo),
+        };
+        const res = await timeOffService.list(params);
+        const items = res.data.data || [];
+        const pagination = res.data.pagination;
+        if (append) setRecords((p) => [...p, ...items]);
+        else setRecords(items);
+        setTotalPages(pagination?.total_pages || 1);
+        setPage(pageNum);
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Gagal memuat data cuti");
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [dateFrom, dateTo],
+  );
 
-  useEffect(() => { fetchRecords(1); }, [dateFrom, dateTo]);
+  useEffect(() => {
+    fetchRecords(1);
+  }, [dateFrom, dateTo]);
 
   useEffect(() => {
     (async () => {
       try {
         const res = await timeOffService.getBalance();
         setBalances(res.data.data?.balances || []);
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     })();
   }, []);
 
@@ -117,11 +153,17 @@ export default function LeaveAllocationsScreen() {
       });
       setIsCreateModalVisible(false);
       setSelectedTypeId(null);
-      setCreateDateFrom(""); setCreateDateTo(""); setCreateReason("");
+      setCreateDateFrom("");
+      setCreateDateTo("");
+      setCreateReason("");
       showToast("success", "Berhasil", "Pengajuan cuti telah dikirim.");
       fetchRecords(1);
     } catch (err: any) {
-      showToast("error", "Gagal", err?.response?.data?.message || "Terjadi kesalahan.");
+      showToast(
+        "error",
+        "Gagal",
+        err?.response?.data?.message || "Terjadi kesalahan.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -149,12 +191,23 @@ export default function LeaveAllocationsScreen() {
       </View>
 
       <View style={styles.filterRow}>
-        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker("from")}>
+        <TouchableOpacity
+          style={styles.dateBtn}
+          onPress={() => setShowPicker("from")}
+        >
           <Text style={styles.dateLabel}>Dari</Text>
           <Text style={styles.dateValue}>{toDisplay(dateFrom)}</Text>
         </TouchableOpacity>
-        <Ionicons name="arrow-forward" size={14} color={colors.border} style={{ marginHorizontal: spacing.sm }} />
-        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker("to")}>
+        <Ionicons
+          name="arrow-forward"
+          size={14}
+          color={colors.border}
+          style={{ marginHorizontal: spacing.sm }}
+        />
+        <TouchableOpacity
+          style={styles.dateBtn}
+          onPress={() => setShowPicker("to")}
+        >
           <Text style={styles.dateLabel}>Sampai</Text>
           <Text style={styles.dateValue}>{toDisplay(dateTo)}</Text>
         </TouchableOpacity>
@@ -162,14 +215,31 @@ export default function LeaveAllocationsScreen() {
 
       {showPicker && Platform.OS === "ios" ? (
         <View style={StyleSheet.absoluteFill}>
-          <TouchableOpacity style={styles.pickerBg} onPress={() => setShowPicker(null)} />
+          <TouchableOpacity
+            style={styles.pickerBg}
+            onPress={() => setShowPicker(null)}
+          />
           <View style={styles.pickerContainer}>
             <View style={styles.pickerHeader}>
-              <TouchableOpacity onPress={() => { if (showPicker === "from") setDateFrom(tempPickerDate); else setDateTo(tempPickerDate); setShowPicker(null); }}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (showPicker === "from") setDateFrom(tempPickerDate);
+                  else setDateTo(tempPickerDate);
+                  setShowPicker(null);
+                }}
+              >
                 <Text style={styles.pickerDone}>Selesai</Text>
               </TouchableOpacity>
             </View>
-            <DateTimePicker value={showPicker === "from" ? dateFrom : dateTo} mode="date" display="inline" themeVariant="light" onChange={(_e, d) => { if (d) setTempPickerDate(d); }} />
+            <DateTimePicker
+              value={showPicker === "from" ? dateFrom : dateTo}
+              mode="date"
+              display="inline"
+              themeVariant="light"
+              onChange={(_e, d) => {
+                if (d) setTempPickerDate(d);
+              }}
+            />
           </View>
         </View>
       ) : null}
@@ -179,106 +249,258 @@ export default function LeaveAllocationsScreen() {
         showsVerticalScrollIndicator={false}
         onMomentumScrollEnd={({ nativeEvent }) => {
           const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
-          if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 40) handleLoadMore();
+          if (
+            contentOffset.y + layoutMeasurement.height >=
+            contentSize.height - 40
+          )
+            handleLoadMore();
         }}
       >
         <View style={styles.floatingCard}>
           {isLoading ? (
-            <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing["4xl"] }} />
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+              style={{ marginVertical: spacing["4xl"] }}
+            />
           ) : error ? (
             <View style={styles.center}>
-              <Ionicons name="alert-circle-outline" size={40} color={colors.error} />
+              <Ionicons
+                name="alert-circle-outline"
+                size={40}
+                color={colors.error}
+              />
               <Text style={styles.emptyText}>{error}</Text>
             </View>
           ) : records.length === 0 ? (
             <View style={styles.center}>
-              <Ionicons name="umbrella-outline" size={40} color={colors.textMuted} />
+              <Ionicons
+                name="umbrella-outline"
+                size={40}
+                color={colors.textMuted}
+              />
               <Text style={styles.emptyText}>Belum ada pengajuan cuti.</Text>
             </View>
           ) : (
             records.map((rec) => {
               const st = STATE_COLORS[rec.state] ?? STATE_COLORS.draft;
               const fmt = (iso: string) => {
-                try { return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }); }
-                catch { return iso; }
+                try {
+                  return new Date(iso).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    timeZone: "Asia/Jakarta",
+                  });
+                } catch {
+                  return iso;
+                }
               };
               return (
-                <TouchableOpacity key={rec.id} style={styles.recordCard} activeOpacity={0.7} onPress={() => router.push(`/time-off-detail?id=${rec.id}`)}>
+                <TouchableOpacity
+                  key={rec.id}
+                  style={styles.recordCard}
+                  activeOpacity={0.7}
+                  onPress={() => router.push(`/time-off-detail?id=${rec.id}`)}
+                >
                   <View style={styles.recordTop}>
-                    <Text style={styles.recordType}>{rec.holiday_status?.name || rec.name || "Cuti"}</Text>
-                    <View style={[styles.stateBadge, { backgroundColor: st.b }]}>
-                      <Text style={[styles.stateBadgeText, { color: st.c }]}>{rec.state_label || rec.state}</Text>
+                    <Text style={styles.recordType}>
+                      {rec.holiday_status?.name || rec.name || "Cuti"}
+                    </Text>
+                    <View
+                      style={[styles.stateBadge, { backgroundColor: st.b }]}
+                    >
+                      <Text style={[styles.stateBadgeText, { color: st.c }]}>
+                        {rec.state_label || rec.state}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.recordDateRow}>
-                    <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
-                    <Text style={styles.recordDates}>{fmt(rec.date_from)} → {fmt(rec.date_to)}</Text>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={13}
+                      color={colors.textMuted}
+                    />
+                    <Text style={styles.recordDates}>
+                      {fmt(rec.date_from)} → {fmt(rec.date_to)}
+                    </Text>
                   </View>
-                  <Text style={styles.recordDays}>{rec.number_of_days} hari</Text>
+                  <Text style={styles.recordDays}>
+                    {rec.number_of_days} hari
+                  </Text>
                 </TouchableOpacity>
               );
             })
           )}
-          {isLoadingMore && <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.lg }} />}
-          {page >= totalPages && records.length > 0 && <Text style={styles.endText}>Semua data telah dimuat</Text>}
+          {isLoadingMore && (
+            <ActivityIndicator
+              size="small"
+              color={colors.primary}
+              style={{ marginVertical: spacing.lg }}
+            />
+          )}
+          {page >= totalPages && records.length > 0 && (
+            <Text style={styles.endText}>Semua data telah dimuat</Text>
+          )}
         </View>
         <View style={{ height: hpx(24) }} />
       </ScrollView>
 
       {showPicker && Platform.OS !== "ios" ? (
-        <DateTimePicker value={showPicker === "from" ? dateFrom : dateTo} mode="date" display="default" onChange={handlePickerChange} />
+        <DateTimePicker
+          value={showPicker === "from" ? dateFrom : dateTo}
+          mode="date"
+          display="default"
+          onChange={handlePickerChange}
+        />
       ) : null}
 
-      <TouchableOpacity style={styles.fab} onPress={() => setIsCreateModalVisible(true)} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setIsCreateModalVisible(true)}
+        activeOpacity={0.85}
+      >
         <Ionicons name="add" size={26} color="#FFFFFF" />
       </TouchableOpacity>
 
       {/* ── Create Modal ── */}
       <Modal visible={isCreateModalVisible} animationType="slide" transparent>
         <View style={modalStyles.overlay}>
-          <View style={[modalStyles.content, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+          <View
+            style={[
+              modalStyles.content,
+              { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) },
+            ]}
+          >
             <View style={modalStyles.header}>
               <Text style={modalStyles.title}>Ajukan Cuti / Izin</Text>
               <TouchableOpacity onPress={() => setIsCreateModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: hpx(420) }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: hpx(420) }}
+            >
               <Text style={modalStyles.fieldLabel}>Tipe Cuti</Text>
               {balances.map((b) => {
                 const isSel = selectedTypeId === b.leave_type.id;
                 const pct = b.allocated > 0 ? (b.taken / b.allocated) * 100 : 0;
                 return (
-                  <TouchableOpacity key={b.leave_type.id} style={[modalStyles.pickerRow, isSel && modalStyles.pickerRowActive]} onPress={() => setSelectedTypeId(b.leave_type.id)}>
+                  <TouchableOpacity
+                    key={b.leave_type.id}
+                    style={[
+                      modalStyles.pickerRow,
+                      isSel && modalStyles.pickerRowActive,
+                    ]}
+                    onPress={() => setSelectedTypeId(b.leave_type.id)}
+                  >
                     <View style={modalStyles.pickerRowLeft}>
-                      <View style={[modalStyles.radio, isSel && modalStyles.radioActive]} />
+                      <View
+                        style={[
+                          modalStyles.radio,
+                          isSel && modalStyles.radioActive,
+                        ]}
+                      />
                       <View>
-                        <Text style={[modalStyles.pickerRowTitle, isSel && modalStyles.pickerRowTitleActive]}>{b.leave_type.name}</Text>
-                        <Text style={modalStyles.pickerRowSub}>Sisa: {b.remaining} dari {b.allocated} hari</Text>
+                        <Text
+                          style={[
+                            modalStyles.pickerRowTitle,
+                            isSel && modalStyles.pickerRowTitleActive,
+                          ]}
+                        >
+                          {b.leave_type.name}
+                        </Text>
+                        <Text style={modalStyles.pickerRowSub}>
+                          Sisa: {b.remaining} dari {b.allocated} hari
+                        </Text>
                       </View>
                     </View>
                     <View style={modalStyles.pickerRowRight}>
-                      <Text style={[modalStyles.pickerRowRemain, isSel && modalStyles.pickerRowRemainActive]}>{b.remaining}</Text>
+                      <Text
+                        style={[
+                          modalStyles.pickerRowRemain,
+                          isSel && modalStyles.pickerRowRemainActive,
+                        ]}
+                      >
+                        {b.remaining}
+                      </Text>
                       <View style={modalStyles.progressTrack}>
-                        <View style={[modalStyles.progressBar, { width: `${Math.min(pct, 100)}%` }]} />
+                        <View
+                          style={[
+                            modalStyles.progressBar,
+                            { width: `${Math.min(pct, 100)}%` },
+                          ]}
+                        />
                       </View>
                     </View>
                   </TouchableOpacity>
                 );
               })}
               <Text style={modalStyles.fieldLabel}>Tanggal Mulai</Text>
-              <TouchableOpacity style={modalStyles.formField} onPress={() => { setIsCreateModalVisible(false); setTimeout(() => setShowCreatePicker("from"), 300); }}>
-                <Text style={createDateFrom ? modalStyles.formValue : modalStyles.formPlaceholder}>{createDateFrom || "Pilih tanggal"}</Text>
+              <TouchableOpacity
+                style={modalStyles.formField}
+                onPress={() => {
+                  setIsCreateModalVisible(false);
+                  setTimeout(() => setShowCreatePicker("from"), 300);
+                }}
+              >
+                <Text
+                  style={
+                    createDateFrom
+                      ? modalStyles.formValue
+                      : modalStyles.formPlaceholder
+                  }
+                >
+                  {createDateFrom || "Pilih tanggal"}
+                </Text>
               </TouchableOpacity>
               <Text style={modalStyles.fieldLabel}>Tanggal Selesai</Text>
-              <TouchableOpacity style={modalStyles.formField} onPress={() => { setIsCreateModalVisible(false); setTimeout(() => setShowCreatePicker("to"), 300); }}>
-                <Text style={createDateTo ? modalStyles.formValue : modalStyles.formPlaceholder}>{createDateTo || "Pilih tanggal"}</Text>
+              <TouchableOpacity
+                style={modalStyles.formField}
+                onPress={() => {
+                  setIsCreateModalVisible(false);
+                  setTimeout(() => setShowCreatePicker("to"), 300);
+                }}
+              >
+                <Text
+                  style={
+                    createDateTo
+                      ? modalStyles.formValue
+                      : modalStyles.formPlaceholder
+                  }
+                >
+                  {createDateTo || "Pilih tanggal"}
+                </Text>
               </TouchableOpacity>
               <Text style={modalStyles.fieldLabel}>Alasan</Text>
-              <TextInput style={[modalStyles.formField, { height: hpx(80), textAlignVertical: "top", paddingTop: spacing.md }]} placeholder="Tuliskan alasan..." placeholderTextColor={colors.textMuted} multiline value={createReason} onChangeText={setCreateReason} />
+              <TextInput
+                style={[
+                  modalStyles.formField,
+                  {
+                    height: hpx(80),
+                    textAlignVertical: "top",
+                    paddingTop: spacing.md,
+                  },
+                ]}
+                placeholder="Tuliskan alasan..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                value={createReason}
+                onChangeText={setCreateReason}
+              />
             </ScrollView>
-            <TouchableOpacity style={[modalStyles.submitBtn, isSubmitting && { opacity: 0.6 }]} onPress={handleCreate} disabled={isSubmitting} activeOpacity={0.85}>
-              {isSubmitting ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={modalStyles.submitBtnText}>Kirim Pengajuan</Text>}
+            <TouchableOpacity
+              style={[modalStyles.submitBtn, isSubmitting && { opacity: 0.6 }]}
+              onPress={handleCreate}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={modalStyles.submitBtnText}>Kirim Pengajuan</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -287,36 +509,67 @@ export default function LeaveAllocationsScreen() {
       {/* iOS create date pickers */}
       {showCreatePicker && Platform.OS === "ios" ? (
         <View style={StyleSheet.absoluteFill}>
-          <TouchableOpacity style={styles.pickerBg} onPress={() => { setShowCreatePicker(null); setIsCreateModalVisible(true); }} />
+          <TouchableOpacity
+            style={styles.pickerBg}
+            onPress={() => {
+              setShowCreatePicker(null);
+              setIsCreateModalVisible(true);
+            }}
+          />
           <View style={styles.pickerContainer}>
             <View style={styles.pickerHeader}>
-              <TouchableOpacity onPress={() => {
-                const d = showCreatePicker === "from" ? createDateFromDate : createDateToDate;
-                const v = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-                if (showCreatePicker === "from") setCreateDateFrom(v); else setCreateDateTo(v);
-                setShowCreatePicker(null);
-                setIsCreateModalVisible(true);
-              }}>
+              <TouchableOpacity
+                onPress={() => {
+                  const d =
+                    showCreatePicker === "from"
+                      ? createDateFromDate
+                      : createDateToDate;
+                  const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                  if (showCreatePicker === "from") setCreateDateFrom(v);
+                  else setCreateDateTo(v);
+                  setShowCreatePicker(null);
+                  setIsCreateModalVisible(true);
+                }}
+              >
                 <Text style={styles.pickerDone}>Selesai</Text>
               </TouchableOpacity>
             </View>
             <DateTimePicker
-              value={showCreatePicker === "from" ? createDateFromDate : createDateToDate}
-              mode="date" display="inline" themeVariant="light"
-              onChange={(_e, d) => { if (d) { if (showCreatePicker === "from") setCreateDateFromDate(d); else setCreateDateToDate(d); }}}
+              value={
+                showCreatePicker === "from"
+                  ? createDateFromDate
+                  : createDateToDate
+              }
+              mode="date"
+              display="inline"
+              themeVariant="light"
+              onChange={(_e, d) => {
+                if (d) {
+                  if (showCreatePicker === "from") setCreateDateFromDate(d);
+                  else setCreateDateToDate(d);
+                }
+              }}
             />
           </View>
         </View>
       ) : showCreatePicker ? (
         <DateTimePicker
-          value={showCreatePicker === "from" ? createDateFromDate : createDateToDate}
-          mode="date" display="default"
+          value={
+            showCreatePicker === "from" ? createDateFromDate : createDateToDate
+          }
+          mode="date"
+          display="default"
           onChange={(_e, d) => {
             setShowCreatePicker(null);
             if (!d) return;
-            const v = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-            if (showCreatePicker === "from") { setCreateDateFrom(v); setCreateDateFromDate(d); }
-            else { setCreateDateTo(v); setCreateDateToDate(d); }
+            const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            if (showCreatePicker === "from") {
+              setCreateDateFrom(v);
+              setCreateDateFromDate(d);
+            } else {
+              setCreateDateTo(v);
+              setCreateDateToDate(d);
+            }
             setIsCreateModalVisible(true);
           }}
         />
@@ -350,11 +603,23 @@ const styles = StyleSheet.create({
   },
 
   filterRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingHorizontal: spacing["2xl"], paddingVertical: spacing.md,
-    marginTop: -hpx(24), zIndex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing["2xl"],
+    paddingVertical: spacing.md,
+    zIndex: 2,
   },
-  dateBtn: { flex: 1, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingVertical: spacing.md, paddingHorizontal: spacing.md, ...shadows.card },
+  dateBtn: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
+  },
   dateLabel: { ...textPresets.label, marginBottom: 2 },
   dateValue: { ...textPresets.cardTitle, fontSize: rf(13) },
 
@@ -367,65 +632,185 @@ const styles = StyleSheet.create({
   },
 
   recordCard: {
-    backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg,
-    marginBottom: spacing.md, ...shadows.card,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    ...shadows.card,
   },
-  recordTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  recordTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
   recordType: { ...textPresets.cardTitle, flex: 1, marginRight: spacing.sm },
-  stateBadge: { paddingHorizontal: spacing.sm + 1, paddingVertical: spacing.xs, borderRadius: radius.sm },
+  stateBadge: {
+    paddingHorizontal: spacing.sm + 1,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+  },
   stateBadgeText: { fontSize: rf(10), fontWeight: "700" as any },
-  recordDateRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.xs },
+  recordDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   recordDates: { fontSize: rf(12), color: colors.textSecondary, flex: 1 },
-  recordDays: { fontSize: rf(12), fontWeight: "700" as any, color: colors.primary, textAlign: "right" },
-  endText: { textAlign: "center", ...textPresets.caption, marginTop: spacing.sm },
+  recordDays: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.primary,
+    textAlign: "right",
+  },
+  endText: {
+    textAlign: "center",
+    ...textPresets.caption,
+    marginTop: spacing.sm,
+  },
 
   fab: {
-    position: "absolute", right: spacing["2xl"], bottom: spacing["2xl"],
-    width: sizes.fabSize, height: sizes.fabSize, borderRadius: radius.full,
-    backgroundColor: colors.primary, justifyContent: "center", alignItems: "center",
-    ...shadows.elevated, shadowColor: colors.primary,
+    position: "absolute",
+    right: spacing["2xl"],
+    bottom: spacing["2xl"],
+    width: sizes.fabSize,
+    height: sizes.fabSize,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.elevated,
+    shadowColor: colors.primary,
   },
 
   // iOS picker
   pickerBg: { flex: 1, backgroundColor: colors.overlay },
-  pickerContainer: { backgroundColor: colors.card, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingBottom: hpx(34) },
-  pickerHeader: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xs },
-  pickerDone: { fontSize: rf(16), fontWeight: "700" as any, color: colors.primary },
+  pickerContainer: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingBottom: hpx(34),
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  pickerDone: {
+    fontSize: rf(16),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
 });
 
 const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
-  content: { backgroundColor: colors.card, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing["2xl"] },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xl },
+  overlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+  },
+  content: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing["2xl"],
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xl,
+  },
   title: { ...textPresets.screenTitle },
-  fieldLabel: { ...textPresets.label, marginBottom: spacing.sm, marginTop: spacing.md, fontWeight: "700" as any },
+  fieldLabel: {
+    ...textPresets.label,
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
+    fontWeight: "700" as any,
+  },
 
   pickerRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border,
-    padding: spacing.md, marginBottom: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
-  pickerRowActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  pickerRowActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
   pickerRowLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
-  radio: { width: wpx(18), height: hpx(18), borderRadius: radius.full, borderWidth: 2, borderColor: colors.border, marginRight: spacing.md },
+  radio: {
+    width: wpx(18),
+    height: hpx(18),
+    borderRadius: radius.full,
+    borderWidth: 2,
+    borderColor: colors.border,
+    marginRight: spacing.md,
+  },
   radioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
-  pickerRowTitle: { fontSize: rf(14), fontWeight: "700" as any, color: colors.textPrimary },
+  pickerRowTitle: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
   pickerRowTitleActive: { color: colors.primary },
-  pickerRowSub: { fontSize: rf(11), color: colors.textMuted, marginTop: hpx(2) },
+  pickerRowSub: {
+    fontSize: rf(11),
+    color: colors.textMuted,
+    marginTop: hpx(2),
+  },
   pickerRowRight: { alignItems: "flex-end", marginLeft: spacing.md },
-  pickerRowRemain: { fontSize: rf(18), fontWeight: "800" as any, color: colors.textMuted },
+  pickerRowRemain: {
+    fontSize: rf(18),
+    fontWeight: "800" as any,
+    color: colors.textMuted,
+  },
   pickerRowRemainActive: { color: colors.primary },
-  progressTrack: { width: wpx(44), height: hpx(4), backgroundColor: colors.border, borderRadius: 2, marginTop: spacing.xs, overflow: "hidden" },
-  progressBar: { height: "100%", backgroundColor: colors.primary, borderRadius: 2 },
+  progressTrack: {
+    width: wpx(44),
+    height: hpx(4),
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    marginTop: spacing.xs,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
 
   formField: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
     height: sizes.selectHeight,
-    justifyContent: "center", marginBottom: spacing.md,
+    justifyContent: "center",
+    marginBottom: spacing.md,
   },
   formValue: { color: colors.textPrimary, fontSize: rf(14) },
   formPlaceholder: { color: colors.textMuted, fontSize: rf(14) },
 
-  submitBtn: { height: sizes.buttonMd, backgroundColor: colors.primary, borderRadius: radius.md, justifyContent: "center", alignItems: "center", marginTop: spacing.lg },
-  submitBtnText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
+  submitBtn: {
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.lg,
+  },
+  submitBtnText: {
+    color: "#FFFFFF",
+    fontSize: rf(16),
+    fontWeight: "700" as any,
+  },
 });

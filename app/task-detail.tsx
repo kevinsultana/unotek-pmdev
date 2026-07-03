@@ -11,9 +11,18 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
-import { Badge } from "../src/components/ui";
 import { taskService } from "../services/taskService";
+import {
+  colors,
+  hpx,
+  radius,
+  rf,
+  shadows,
+  sizes,
+  spacing,
+  textPresets,
+  wpx,
+} from "../src/constants/theme";
 import type { Task } from "../types/task";
 
 // ponytail: single stage colour map, also used in timeline.tsx
@@ -34,7 +43,10 @@ const STAGE_BG: Record<string, string> = {
   Done: "#D1FAE5",
 };
 
-const PRIORITY_MAP: Record<string, { label: string; color: string; bg: string }> = {
+const PRIORITY_MAP: Record<
+  string,
+  { label: string; color: string; bg: string }
+> = {
   "0": { label: "Normal", color: colors.textMuted, bg: "#F1F5F9" },
   "1": { label: "Urgent", color: colors.error, bg: "#FEE2E2" },
 };
@@ -45,7 +57,10 @@ function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleDateString("id-ID", {
-      day: "numeric", month: "long", year: "numeric", timeZone: tz,
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: tz,
     });
   } catch {
     return iso;
@@ -64,7 +79,15 @@ function stripHtml(html?: string | null) {
 }
 
 // ── Shared sub-components ──────────────────────────────────────────────────
-function DetailRow({ icon, label, children }: { icon: keyof typeof Ionicons.glyphMap; label: string; children: React.ReactNode }) {
+function DetailRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={detailStyles.row}>
       <View style={detailStyles.rowLeft}>
@@ -78,8 +101,12 @@ function DetailRow({ icon, label, children }: { icon: keyof typeof Ionicons.glyp
 
 function AvatarCircle({ name, bg }: { name: string; bg?: string }) {
   return (
-    <View style={[detailStyles.avatar, bg ? { backgroundColor: bg } : undefined]}>
-      <Text style={detailStyles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
+    <View
+      style={[detailStyles.avatar, bg ? { backgroundColor: bg } : undefined]}
+    >
+      <Text style={detailStyles.avatarText}>
+        {name.charAt(0).toUpperCase()}
+      </Text>
     </View>
   );
 }
@@ -111,7 +138,9 @@ export default function TaskDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}>
+      <View
+        style={[styles.center, { paddingTop: insets.top + spacing["5xl"] }]}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -124,7 +153,11 @@ export default function TaskDetailScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
               <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Detail Tugas</Text>
@@ -132,8 +165,14 @@ export default function TaskDetailScreen() {
           </View>
         </View>
         <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
-          <Text style={styles.emptyText}>{error || "Tugas tidak ditemukan."}</Text>
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color={colors.error}
+          />
+          <Text style={styles.emptyText}>
+            {error || "Tugas tidak ditemukan."}
+          </Text>
         </View>
       </View>
     );
@@ -151,7 +190,11 @@ export default function TaskDetailScreen() {
 
       <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+          >
             <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Detail Tugas</Text>
@@ -159,18 +202,25 @@ export default function TaskDetailScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.floatingCard}>
           {/* ── Hero ──────────────────────────────────────────────────── */}
           <View style={styles.hero}>
             <View style={styles.badgeRow}>
               {st && sbg ? (
                 <View style={[styles.heroBadge, { backgroundColor: sbg }]}>
-                  <Text style={[styles.heroBadgeText, { color: st }]}>{task.stage?.name}</Text>
+                  <Text style={[styles.heroBadgeText, { color: st }]}>
+                    {task.stage?.name}
+                  </Text>
                 </View>
               ) : null}
               <View style={[styles.heroBadge, { backgroundColor: pr.bg }]}>
-                <Text style={[styles.heroBadgeText, { color: pr.color }]}>{pr.label}</Text>
+                <Text style={[styles.heroBadgeText, { color: pr.color }]}>
+                  {pr.label}
+                </Text>
               </View>
             </View>
             <Text style={styles.heroTitle}>{task.name}</Text>
@@ -188,12 +238,16 @@ export default function TaskDetailScreen() {
             )}
             {task.partner_id && (
               <DetailRow icon="business-outline" label="Klien">
-                <Text style={detailStyles.valueText}>{task.partner_id.name}</Text>
+                <Text style={detailStyles.valueText}>
+                  {task.partner_id.name}
+                </Text>
               </DetailRow>
             )}
             {task.parent_id && (
               <DetailRow icon="git-branch-outline" label="Parent Task">
-                <Text style={detailStyles.valueText}>{task.parent_id.name}</Text>
+                <Text style={detailStyles.valueText}>
+                  {task.parent_id.name}
+                </Text>
               </DetailRow>
             )}
           </View>
@@ -203,7 +257,15 @@ export default function TaskDetailScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Assignee</Text>
               {task.user_ids.map((u, i) => (
-                <View key={u.id} style={[detailStyles.row, i === (task.user_ids?.length ?? 0) - 1 && { borderBottomWidth: 0 }]}>
+                <View
+                  key={u.id}
+                  style={[
+                    detailStyles.row,
+                    i === (task.user_ids?.length ?? 0) - 1 && {
+                      borderBottomWidth: 0,
+                    },
+                  ]}
+                >
                   <View style={detailStyles.rowLeft}>
                     <AvatarCircle name={u.name} />
                     <Text style={detailStyles.assigneeName}>{u.name}</Text>
@@ -218,17 +280,33 @@ export default function TaskDetailScreen() {
             <Text style={styles.sectionTitle}>Tanggal</Text>
             <View style={styles.dateRow}>
               <View style={styles.dateBox}>
-                <Ionicons name="calendar-outline" size={18} color={colors.amber} />
+                <Ionicons
+                  name="calendar-outline"
+                  size={18}
+                  color={colors.amber}
+                />
                 <Text style={styles.dateLabel}>Deadline</Text>
-                <Text style={styles.dateValue}>{fmtDate(task.date_deadline)}</Text>
+                <Text style={styles.dateValue}>
+                  {fmtDate(task.date_deadline)}
+                </Text>
               </View>
               <View style={styles.dateArrow}>
-                <Ionicons name="arrow-forward" size={16} color={colors.border} />
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={colors.border}
+                />
               </View>
               <View style={styles.dateBox}>
-                <Ionicons name="time-outline" size={18} color={colors.success} />
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={colors.success}
+                />
                 <Text style={styles.dateLabel}>Assign</Text>
-                <Text style={styles.dateValue}>{fmtDate(task.date_assign)}</Text>
+                <Text style={styles.dateValue}>
+                  {fmtDate(task.date_assign)}
+                </Text>
               </View>
             </View>
           </View>
@@ -258,10 +336,16 @@ export default function TaskDetailScreen() {
           {/* ── Child Tasks ───────────────────────────────────────────── */}
           {task.child_ids?.length ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Sub Tugas ({task.child_ids.length})</Text>
+              <Text style={styles.sectionTitle}>
+                Sub Tugas ({task.child_ids.length})
+              </Text>
               {task.child_ids.map((child) => (
                 <View key={child.id} style={styles.childRow}>
-                  <Ionicons name="git-commit-outline" size={16} color={colors.textMuted} />
+                  <Ionicons
+                    name="git-commit-outline"
+                    size={16}
+                    color={colors.textMuted}
+                  />
                   <Text style={styles.childName}>{child.name}</Text>
                 </View>
               ))}
@@ -315,7 +399,7 @@ const styles = StyleSheet.create({
   // Scroll
   scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
   floatingCard: {
-    marginTop: -hpx(24),
+    marginTop: hpx(6),
     backgroundColor: colors.card,
     borderRadius: wpx(20),
     padding: spacing["2xl"],
@@ -331,7 +415,11 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   badgeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  heroBadge: { paddingHorizontal: spacing.sm + 2, paddingVertical: spacing.xs, borderRadius: radius.sm },
+  heroBadge: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+  },
   heroBadgeText: { fontSize: rf(11), fontWeight: "700" as any },
   heroTitle: { ...textPresets.display, marginBottom: spacing.xs },
   heroId: { ...textPresets.label, fontWeight: "600" as any },
@@ -376,12 +464,30 @@ const styles = StyleSheet.create({
 
   // Tags
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  tag: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 1, borderRadius: radius.sm },
-  tagText: { fontSize: rf(12), fontWeight: "600" as any, color: colors.primary },
+  tag: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 1,
+    borderRadius: radius.sm,
+  },
+  tagText: {
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+    color: colors.primary,
+  },
 
   // Child tasks
-  childRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
-  childName: { ...textPresets.body, fontSize: rf(13), color: colors.textPrimary },
+  childRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  childName: {
+    ...textPresets.body,
+    fontSize: rf(13),
+    color: colors.textPrimary,
+  },
 });
 
 // ── DetailRow sub-styles ───────────────────────────────────────────────────
@@ -408,6 +514,14 @@ const detailStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: { fontSize: rf(13), fontWeight: "800" as any, color: colors.primary },
-  assigneeName: { ...textPresets.body, color: colors.textPrimary, fontWeight: "600" as any },
+  avatarText: {
+    fontSize: rf(13),
+    fontWeight: "800" as any,
+    color: colors.primary,
+  },
+  assigneeName: {
+    ...textPresets.body,
+    color: colors.textPrimary,
+    fontWeight: "600" as any,
+  },
 });
