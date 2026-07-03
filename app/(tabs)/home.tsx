@@ -71,7 +71,6 @@ export default function HomeScreen() {
   const { profile, isLoading } = useProfile();
   const { tasks, isLoading: tasksLoading, refresh: refreshTasks } = useTasks();
 
-  // Live clock
   const [clock, setClock] = useState({ time: "", date: "" });
   useEffect(() => {
     const tick = () => {
@@ -113,8 +112,6 @@ export default function HomeScreen() {
         : hour < 18
           ? "Selamat Sore"
           : "Selamat Malam";
-
-  // ponytail: first 5 tasks, no pagination on dashboard
   const recentTasks = tasks.slice(0, 5);
 
   if (isLoading) {
@@ -126,20 +123,50 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <StatusBar style="light" />
+
+      {/* ── Curved Header Background ────────────────────────────────── */}
+      <View style={[styles.curvedHeader]}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerTextCol}>
+            <Text style={styles.greeting}>{greeting},</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {userName}
+            </Text>
+          </View>
+          <View style={styles.avatarWrap}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Scrollable Content ──────────────────────────────────────── */}
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header: greeting + avatar ─────────────────────────────── */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{greeting},</Text>
-            <Text style={styles.userName}>{userName}</Text>
-          </View>
-          <View style={styles.avatarWrap}>
-            <Text style={styles.avatarText}>{initials}</Text>
+        {/* ── Floating Menu Card ────────────────────────────────────── */}
+        <View style={styles.menuCard}>
+          <Text style={styles.menuCardTitle}>Menu</Text>
+          <View style={styles.menuGrid}>
+            {MENU_GRID.map((item) => (
+              <TouchableOpacity
+                key={item.route}
+                style={styles.menuItem}
+                onPress={() => router.push(item.route)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
+                  <Ionicons
+                    name={item.icon as any}
+                    size={wpx(22)}
+                    color={item.color}
+                  />
+                </View>
+                <Text style={styles.menuLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -174,31 +201,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Quick Menu Grid ──────────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Menu</Text>
-        <View style={styles.menuGrid}>
-          {MENU_GRID.map((item) => (
-            <TouchableOpacity
-              key={item.route}
-              style={styles.menuItem}
-              onPress={() => router.push(item.route)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
-                <Ionicons
-                  name={item.icon as any}
-                  size={wpx(22)}
-                  color={item.color}
-                />
-              </View>
-              <Text style={styles.menuLabel}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ── Today's Tasks (Feed) ──────────────────────────────────── */}
+        {/* ── Task Feed ─────────────────────────────────────────────── */}
         <View style={styles.feedHeader}>
-          <Text style={styles.sectionTitle}>Tugas Hari Ini</Text>
+          <Text style={styles.feedTitle}>Tugas Hari Ini</Text>
           <TouchableOpacity onPress={() => router.push("/timeline")}>
             <Text style={styles.feedSeeAll}>Lihat Semua</Text>
           </TouchableOpacity>
@@ -278,7 +283,7 @@ export default function HomeScreen() {
           ))
         )}
 
-        <View style={{ height: hpx(40) }} />
+        <View style={{ height: hpx(24) }} />
       </ScrollView>
     </View>
   );
@@ -287,52 +292,105 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  scroll: {
-    paddingHorizontal: spacing["2xl"],
-    paddingTop: spacing["2xl"],
-    paddingBottom: hpx(40),
-  },
 
-  // ── Header ────────────────────────────────────────────────────────
-  header: {
+  // ── Curved Header ──────────────────────────────────────────────────
+  curvedHeader: {
+    height: hpx(130),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: wpx(30),
+    borderBottomRightRadius: wpx(30),
+    paddingHorizontal: spacing["2xl"],
+    justifyContent: "flex-end",
+    paddingBottom: hpx(20),
+    zIndex: 1,
+  },
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: hpx(28),
   },
+  headerTextCol: { flex: 1, marginRight: spacing.md },
   greeting: {
     fontSize: rf(15),
     fontWeight: "500" as any,
-    color: colors.textSecondary,
+    color: "rgba(255,255,255,0.7)",
     marginBottom: hpx(2),
   },
   userName: {
     fontSize: rf(22),
     fontWeight: "800" as any,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
   },
   avatarWrap: {
     width: wpx(48),
     height: wpx(48),
     borderRadius: radius.full,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
     fontSize: rf(18),
     fontWeight: "800" as any,
-    color: colors.primary,
+    color: "#FFFFFF",
   },
 
-  // ── Attendance Hero ───────────────────────────────────────────────
+  // ── Scroll container ───────────────────────────────────────────────
+  scroll: {
+    paddingHorizontal: spacing["2xl"],
+    paddingBottom: hpx(40),
+    paddingTop: hpx(45),
+  },
+
+  // ── Floating Menu Card ─────────────────────────────────────────────
+  menuCard: {
+    marginTop: -hpx(36),
+    backgroundColor: colors.card,
+    borderRadius: wpx(20),
+    padding: spacing["2xl"],
+    ...shadows.elevated,
+    marginBottom: hpx(20),
+    zIndex: 10,
+  },
+  menuCardTitle: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: wpx(0.8),
+    marginBottom: spacing.lg,
+  },
+  menuGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  menuItem: {
+    alignItems: "center",
+    width: wpx(68),
+    gap: hpx(6),
+  },
+  menuIcon: {
+    width: wpx(48),
+    height: wpx(48),
+    borderRadius: radius.full,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuLabel: {
+    fontSize: rf(11),
+    fontWeight: "600" as any,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+
+  // ── Attendance Hero Card ───────────────────────────────────────────
   heroCard: {
     backgroundColor: colors.card,
     borderRadius: wpx(20),
     padding: spacing["2xl"],
     alignItems: "center",
-    marginBottom: hpx(28),
-    ...shadows.elevated,
+    marginBottom: hpx(24),
+    ...shadows.card,
   },
   heroDate: {
     fontSize: rf(13),
@@ -368,58 +426,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  heroBtnIn: {
-    backgroundColor: colors.primary,
-  },
+  heroBtnIn: { backgroundColor: colors.primary },
   heroBtnOut: {
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: colors.error,
   },
-  heroBtnText: {
-    fontSize: rf(14),
-    fontWeight: "700" as any,
-    color: "#FFFFFF",
-  },
+  heroBtnText: { fontSize: rf(14), fontWeight: "700" as any, color: "#FFFFFF" },
 
-  // ── Menu Grid ─────────────────────────────────────────────────────
-  sectionTitle: {
-    fontSize: rf(15),
-    fontWeight: "700" as any,
-    color: colors.textPrimary,
-    marginBottom: spacing.lg,
-  },
-  menuGrid: {
-    flexDirection: "row",
-    gap: spacing["2xl"],
-    marginBottom: hpx(28),
-    justifyContent: "space-between",
-  },
-  menuItem: {
-    width: wpx(72),
-    alignItems: "center",
-    gap: hpx(6),
-  },
-  menuIcon: {
-    width: wpx(52),
-    height: wpx(52),
-    borderRadius: radius.full,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  menuLabel: {
-    fontSize: rf(11),
-    fontWeight: "600" as any,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
-  // ── Task Feed ─────────────────────────────────────────────────────
+  // ── Task Feed ──────────────────────────────────────────────────────
   feedHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: spacing.md,
+  },
+  feedTitle: {
+    fontSize: rf(16),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
   },
   feedSeeAll: {
     fontSize: rf(13),
@@ -431,10 +456,7 @@ const styles = StyleSheet.create({
     paddingVertical: hpx(32),
     gap: hpx(8),
   },
-  emptyText: {
-    fontSize: rf(13),
-    color: colors.textMuted,
-  },
+  emptyText: { fontSize: rf(13), color: colors.textMuted },
   taskCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -460,10 +482,7 @@ const styles = StyleSheet.create({
     paddingVertical: hpx(3),
     borderRadius: radius.sm,
   },
-  taskBadgeText: {
-    fontSize: rf(10),
-    fontWeight: "700" as any,
-  },
+  taskBadgeText: { fontSize: rf(10), fontWeight: "700" as any },
   taskDesc: {
     fontSize: rf(13),
     color: colors.textSecondary,
@@ -477,13 +496,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: spacing.md,
   },
-  taskMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  taskMetaText: {
-    fontSize: rf(11),
-    color: colors.textMuted,
-  },
+  taskMeta: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  taskMetaText: { fontSize: rf(11), color: colors.textMuted },
 });
