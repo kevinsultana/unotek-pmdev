@@ -30,7 +30,7 @@ const QUICK_ACTIONS = [
   {
     route: "/timeline",
     icon: "list-outline",
-    label: "Daftar Tugas",
+    label: "Task",
     color: "#F59E0B",
     bg: "#FEF3C7",
   },
@@ -44,7 +44,7 @@ const QUICK_ACTIONS = [
   {
     route: "/perusahaan",
     icon: "business-outline",
-    label: "Perusahaan",
+    label: "Company",
     color: "#059669",
     bg: "#D1FAE5",
   },
