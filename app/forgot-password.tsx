@@ -23,6 +23,7 @@ export default function ForgotPasswordScreen() {
   const [emailError, setEmailError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
 
   const validateEmail = (text: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,8 +70,8 @@ export default function ForgotPasswordScreen() {
               <>
                 <View style={styles.field}>
                   <Text style={styles.label}>Alamat Email Karyawan</Text>
-                  <View style={[styles.inputBox, emailError && styles.inputError]}>
-                    <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={{ marginRight: spacing.md }} />
+                  <View style={[styles.inputBox, emailError ? styles.inputError : isEmailFocused ? styles.inputFocused : null]}>
+                    <Ionicons name="mail-outline" size={18} color={isEmailFocused ? colors.primary : colors.textMuted} style={{ marginRight: spacing.md }} />
                     <TextInput
                       style={styles.input}
                       placeholder="nama@unotek.com"
@@ -78,6 +79,8 @@ export default function ForgotPasswordScreen() {
                       keyboardType="email-address"
                       autoCapitalize="none"
                       value={email}
+                      onFocus={() => setIsEmailFocused(true)}
+                      onBlur={() => setIsEmailFocused(false)}
                       onChangeText={(text) => {
                         setEmail(text);
                         if (emailError) setEmailError(validateEmail(text));
@@ -97,8 +100,8 @@ export default function ForgotPasswordScreen() {
               </>
             ) : (
               <View style={styles.success}>
-                <View style={styles.successIcon}>
-                  <Ionicons name="checkmark-circle" size={44} color={colors.success} />
+                <View style={styles.successIconBox}>
+                  <Ionicons name="checkmark" size={32} color={colors.success} />
                 </View>
                 <Text style={styles.successTitle}>Email Terkirim!</Text>
                 <Text style={styles.successSub}>
@@ -136,6 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     justifyContent: "center",
     alignItems: "center",
+    alignSelf: "flex-start",
     ...shadows.card,
     marginBottom: spacing["2xl"],
   },
@@ -146,7 +150,7 @@ const styles = StyleSheet.create({
     width: wpx(72),
     height: hpx(72),
     borderRadius: radius.xl,
-    backgroundColor: colors.card,
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
     ...shadows.elevated,
@@ -175,6 +179,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     height: sizes.inputHeight,
   },
+  inputFocused: { borderColor: colors.primary, backgroundColor: colors.card },
   inputError: { borderColor: colors.error, backgroundColor: "#FEF2F2" },
   input: { flex: 1, color: colors.textPrimary, fontSize: rf(15) },
   errorText: { color: colors.error, fontSize: rf(12), marginTop: spacing.xs },
@@ -191,14 +196,22 @@ const styles = StyleSheet.create({
 
   // Success
   success: { alignItems: "center", paddingVertical: spacing.sm },
-  successIcon: { marginBottom: spacing.lg },
+  successIconBox: {
+    width: wpx(64),
+    height: hpx(64),
+    borderRadius: radius.full,
+    backgroundColor: "#D1FAE5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
   successTitle: { ...textPresets.screenTitle, color: colors.success, marginBottom: spacing.sm },
   successSub: { ...textPresets.body, textAlign: "center" },
   successEmail: { ...textPresets.cardTitle, textAlign: "center", marginTop: spacing.xs, marginBottom: spacing.sm },
   successHint: { ...textPresets.body, fontSize: rf(13), textAlign: "center", marginBottom: spacing["2xl"] },
   backLoginBtn: {
     width: "100%",
-    height: sizes.selectHeight,
+    height: sizes.buttonMd,
     borderWidth: 1.5,
     borderColor: colors.primary,
     borderRadius: radius.md,
@@ -209,5 +222,5 @@ const styles = StyleSheet.create({
 
   // Bottom link
   backLink: { alignItems: "center", marginTop: spacing["2xl"] },
-  backLinkText: { ...textPresets.body, color: colors.textSecondary },
+  backLinkText: { fontSize: rf(14), fontWeight: "600" as any, color: colors.primary },
 });

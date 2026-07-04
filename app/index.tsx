@@ -15,8 +15,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import { useAuth } from "../hooks/useAuth";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -30,6 +30,8 @@ export default function LoginScreen() {
   const [passwordError, setPasswordError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [generalError, setGeneralError] = useState("");
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -105,8 +107,8 @@ export default function LoginScreen() {
             {/* Email */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Alamat Email</Text>
-              <View style={[styles.inputBox, emailError ? styles.inputError : null]}>
-                <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
+              <View style={[styles.inputBox, emailError ? styles.inputError : isEmailFocused ? styles.inputFocused : null]}>
+                <Ionicons name="mail-outline" size={18} color={isEmailFocused ? colors.primary : colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="nama@unotek.com"
@@ -114,6 +116,8 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
+                  onFocus={() => setIsEmailFocused(true)}
+                  onBlur={() => setIsEmailFocused(false)}
                   onChangeText={(text) => {
                     setEmail(text);
                     if (emailError) setEmailError(validateEmail(text));
@@ -126,8 +130,8 @@ export default function LoginScreen() {
             {/* Password */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Kata Sandi</Text>
-              <View style={[styles.inputBox, passwordError ? styles.inputError : null]}>
-                <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
+              <View style={[styles.inputBox, passwordError ? styles.inputError : isPasswordFocused ? styles.inputFocused : null]}>
+                <Ionicons name="lock-closed-outline" size={18} color={isPasswordFocused ? colors.primary : colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Masukkan kata sandi"
@@ -135,6 +139,8 @@ export default function LoginScreen() {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   value={password}
+                  onFocus={() => setIsPasswordFocused(true)}
+                  onBlur={() => setIsPasswordFocused(false)}
                   onChangeText={(text) => {
                     setPassword(text);
                     if (passwordError) setPasswordError(text.length < 6 ? "Password minimal 6 karakter" : "");
@@ -176,7 +182,7 @@ export default function LoginScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Butuh bantuan login? Hubungi HRD</Text>
-            <Text style={styles.versionText}>unotek-pmdev v1.0.0</Text>
+            <Text style={styles.versionText}>unotek-pmdev v1.1.0</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -195,7 +201,7 @@ const styles = StyleSheet.create({
     width: wpx(72),
     height: hpx(72),
     borderRadius: radius.xl,
-    backgroundColor: colors.card,
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
     ...shadows.elevated,
@@ -237,6 +243,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     height: sizes.inputHeight,
   },
+  inputFocused: { borderColor: colors.primary, backgroundColor: colors.card },
   inputError: { borderColor: colors.error, backgroundColor: "#FEF2F2" },
   inputIcon: { marginRight: spacing.md },
   input: { flex: 1, color: colors.textPrimary, fontSize: rf(15) },
