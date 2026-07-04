@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -61,11 +61,30 @@ export default function TimelineScreen() {
     refresh,
   } = useTasks();
 
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+
+  const toggleProject = (projectName: string) => {
+    setExpandedProjects((prev) => ({
+      ...prev,
+      [projectName]: !prev[projectName],
+    }));
+  };
+
   useFocusEffect(
     useCallback(() => {
       refresh();
     }, [refresh]),
   );
+
+  // Group tasks by project
+  const groupedTasks = tasks.reduce<Record<string, typeof tasks>>((acc, task) => {
+    const projectName = task.project?.name || "Tanpa Projek";
+    if (!acc[projectName]) {
+      acc[projectName] = [];
+    }
+    acc[projectName].push(task);
+    return acc;
+  }, {});
 
   return (
     <View style={styles.container}>
@@ -156,79 +175,110 @@ export default function TimelineScreen() {
               <Text style={styles.emptyText}>Tidak ada tugas.</Text>
             </View>
           ) : (
-            tasks.map((task) => {
-              const st = STAGE_MAP[task.stage?.name ?? ""] ?? {
-                c: colors.textMuted,
-                b: "#F1F5F9",
-              };
-              const pr = PRIORITY_MAP[task.priority] ?? PRIORITY_MAP["0"];
-              const desc = stripHtml(task.description);
+            Object.entries(groupedTasks).map(([projectName, projectTasks]) => {
+              const isExpanded = !!expandedProjects[projectName];
               return (
-                <TouchableOpacity
-                  key={task.id}
-                  style={styles.taskCard}
-                  activeOpacity={0.7}
-                  onPress={() => router.push(`/task-detail?id=${task.id}`)}
-                >
-                  <View style={styles.cardTop}>
-                    <Text style={styles.projectName} numberOfLines={1}>
-                      {task.project?.name || ""}
+                <View key={projectName} style={styles.projectSection}>
+                  <TouchableOpacity
+                    style={styles.projectHeaderRow}
+                    activeOpacity={0.7}
+                    onPress={() => toggleProject(projectName)}
+                  >
+                    <Ionicons
+                      name="folder-open-outline"
+                      size={16}
+                      color={colors.primary}
+                      style={{ marginRight: spacing.sm }}
+                    />
+                    <Text style={styles.projectHeaderTitle} numberOfLines={1}>
+                      {projectName}
                     </Text>
-                    <View style={styles.cardBadges}>
-                      <View style={[styles.badge, { backgroundColor: st.b }]}>
-                        <Text style={[styles.badgeText, { color: st.c }]}>
-                          {task.stage?.name || "—"}
-                        </Text>
-                      </View>
-                      <View style={[styles.badge, { backgroundColor: pr.b }]}>
-                        <Text style={[styles.badgeText, { color: pr.c }]}>
-                          {pr.label}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  <Text style={styles.taskTitle}>{task.name}</Text>
-                  {desc ? (
-                    <Text style={styles.taskDesc} numberOfLines={2}>
-                      {desc}
-                    </Text>
-                  ) : null}
-                  <View style={styles.footer}>
-                    {task.date_deadline && (
-                      <View style={styles.footerItem}>
-                        <Ionicons
-                          name="calendar-outline"
-                          size={13}
-                          color={colors.textMuted}
-                        />
-                        <Text style={styles.footerText}>
-                          {task.date_deadline.substring(0, 10)}
-                        </Text>
-                      </View>
-                    )}
-                    {task.user_ids != null && task.user_ids.length > 0 && (
-                      <View style={styles.footerItem}>
-                        <Ionicons
-                          name="people-outline"
-                          size={13}
-                          color={colors.textMuted}
-                        />
-                        <Text style={styles.footerText} numberOfLines={1}>
-                          {task.user_ids.map((u) => u.name).join(", ")}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  {task.tag_ids != null && task.tag_ids.length > 0 && (
-                    <View style={styles.tagsRow}>
-                      {task.tag_ids.map((tag) => (
-                        <View key={tag.id} style={styles.tag}>
-                          <Text style={styles.tagText}>{tag.name}</Text>
-                        </View>
-                      ))}
+                    <Text style={styles.projectTaskCount}>({projectTasks.length})</Text>
+                    <Ionicons
+                      name={isExpanded ? "chevron-down-outline" : "chevron-forward-outline"}
+                      size={16}
+                      color={colors.textMuted}
+                      style={{ marginLeft: "auto" }}
+                    />
+                  </TouchableOpacity>
+
+                  {isExpanded && (
+                    <View style={styles.projectTaskList}>
+                      {projectTasks.map((task) => {
+                        const st = STAGE_MAP[task.stage?.name ?? ""] ?? {
+                          c: colors.textMuted,
+                          b: "#F1F5F9",
+                        };
+                        const pr = PRIORITY_MAP[task.priority] ?? PRIORITY_MAP["0"];
+                        const desc = stripHtml(task.description);
+                        return (
+                          <TouchableOpacity
+                            key={task.id}
+                            style={styles.taskCard}
+                            activeOpacity={0.7}
+                            onPress={() => router.push(`/task-detail?id=${task.id}`)}
+                          >
+                            <View style={styles.cardTop}>
+                              <View style={styles.cardBadges}>
+                                <View style={[styles.badge, { backgroundColor: st.b }]}>
+                                  <Text style={[styles.badgeText, { color: st.c }]}>
+                                    {task.stage?.name || "—"}
+                                  </Text>
+                                </View>
+                                <View style={[styles.badge, { backgroundColor: pr.b }]}>
+                                  <Text style={[styles.badgeText, { color: pr.c }]}>
+                                    {pr.label}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                            <Text style={styles.taskTitle}>{task.name}</Text>
+                            {desc ? (
+                              <Text style={styles.taskDesc} numberOfLines={2}>
+                                {desc}
+                              </Text>
+                            ) : null}
+                            <View style={styles.footer}>
+                              {task.date_deadline && (
+                                <View style={styles.footerItem}>
+                                  <Ionicons
+                                    name="calendar-outline"
+                                    size={13}
+                                    color={colors.textMuted}
+                                  />
+                                  <Text style={styles.footerText}>
+                                    {task.date_deadline.substring(0, 10)}
+                                  </Text>
+                                </View>
+                              )}
+                              {task.user_ids != null && task.user_ids.length > 0 && (
+                                <View style={styles.footerItem}>
+                                  <Ionicons
+                                    name="people-outline"
+                                    size={13}
+                                    color={colors.textMuted}
+                                  />
+                                  <Text style={styles.footerText} numberOfLines={1}>
+                                    {task.user_ids.map((u) => u.name).join(", ")}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            {task.tag_ids != null && task.tag_ids.length > 0 && (
+                              <View style={styles.tagsRow}>
+                                {task.tag_ids.map((tag) => (
+                                  <View key={tag.id} style={styles.tag}>
+                                    <Text style={styles.tagText}>{tag.name}</Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   )}
-                </TouchableOpacity>
+                </View>
               );
             })
           )}
@@ -318,6 +368,36 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, color: colors.textPrimary, fontSize: rf(14) },
 
+  projectSection: {
+    marginBottom: spacing.lg,
+  },
+  projectHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  projectHeaderTitle: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+    maxWidth: "70%",
+  },
+  projectTaskCount: {
+    fontSize: rf(13),
+    fontWeight: "600" as any,
+    color: colors.primary,
+    marginLeft: spacing.xs,
+  },
+  projectTaskList: {
+    paddingLeft: spacing.xs,
+  },
+
   taskCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -328,7 +408,7 @@ const styles = StyleSheet.create({
   },
   cardTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
     marginBottom: spacing.sm,
   },
