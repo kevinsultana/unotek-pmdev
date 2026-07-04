@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -126,8 +127,12 @@ export default function TaskCreateScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
-        <View style={styles.headerContent}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Buat Tugas Baru</Text>
+          <View style={styles.backBtn} />
         </View>
       </View>
 
@@ -237,50 +242,42 @@ export default function TaskCreateScreen() {
 
             {/* Deadline */}
             <Text style={styles.label}>Deadline</Text>
-            <TouchableOpacity
-              style={styles.selectBtn}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={styles.selectValue}>
-                {dateDeadline.toLocaleDateString("id-ID", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </Text>
-              <Ionicons
-                name="calendar-outline"
-                size={18}
-                color={colors.textMuted}
-              />
-            </TouchableOpacity>
+            {Platform.OS === "ios" ? (
+              <View style={styles.selectBtn}>
+                <Text style={styles.selectValue}>Pilih Tanggal</Text>
+                <DateTimePicker
+                  value={dateDeadline}
+                  mode="date"
+                  display="default"
+                  locale="id-ID"
+                  themeVariant="light"
+                  onChange={(_e, d) => {
+                    if (d) setDateDeadline(d);
+                  }}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.selectBtn}
+                activeOpacity={0.7}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.selectValue}>
+                  {dateDeadline.toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </Text>
+                <Ionicons
+                  name="calendar-outline"
+                  size={18}
+                  color={colors.textMuted}
+                />
+              </TouchableOpacity>
+            )}
 
-            {showDatePicker && Platform.OS === "ios" ? (
-              // <View style={{ zIndex: 9999, justifyContent: "flex-start" }}>
-              //   <TouchableOpacity
-              //     style={styles.pickerBg}
-              //     onPress={() => setShowDatePicker(false)}
-              //   />
-              //   <View style={styles.pickerContainer}>
-              //     <View style={styles.pickerHeader}>
-              //       <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-              //         <Text style={styles.pickerDone}>Selesai</Text>
-              //       </TouchableOpacity>
-              //     </View>
-
-              //   </View>
-              // </View>
-              <DateTimePicker
-                value={dateDeadline}
-                mode="date"
-                display="inline"
-                themeVariant="light"
-                onChange={(_e, d) => {
-                  if (d) setDateDeadline(d);
-                  setShowDatePicker(false);
-                }}
-              />
-            ) : showDatePicker ? (
+            {Platform.OS === "android" && showDatePicker && (
               <DateTimePicker
                 value={dateDeadline}
                 mode="date"
@@ -290,7 +287,7 @@ export default function TaskCreateScreen() {
                   setShowDatePicker(false);
                 }}
               />
-            ) : null}
+            )}
 
             {/* Estimated Hours */}
             <Text style={styles.label}>Estimasi Jam</Text>
@@ -393,8 +390,9 @@ function renderPickerModal<T extends { id: number }>(
   selectedId?: number,
 ) {
   return (
-    <Modal key={title} visible={visible} animationType="slide" transparent>
+    <Modal key={title} visible={visible} animationType="slide" transparent onRequestClose={() => close(false)}>
       <View style={modalStyles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => close(false)} />
         <View style={modalStyles.content}>
           <View style={modalStyles.header}>
             <Text style={modalStyles.title}>{title}</Text>
@@ -438,8 +436,9 @@ function renderTagModal(
   toggle: (t: TaskTagItem) => void,
 ) {
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={() => close(false)}>
       <View style={modalStyles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => close(false)} />
         <View style={modalStyles.content}>
           <View style={modalStyles.header}>
             <Text style={modalStyles.title}>Pilih Tags</Text>
@@ -505,12 +504,25 @@ const styles = StyleSheet.create({
     paddingBottom: hpx(12),
     zIndex: 1,
   },
-  headerContent: { alignItems: "center" },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backBtn: {
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerTitle: {
     fontSize: rf(17),
     fontWeight: "700" as any,
     color: "#FFFFFF",
+    flex: 1,
     textAlign: "center",
+    marginHorizontal: spacing.sm,
   },
 
   // Scroll

@@ -12,7 +12,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { attendanceService } from "../services/attendanceService";
@@ -141,59 +141,67 @@ export default function AttendanceHistoryScreen() {
 
       {/* Date filter */}
       <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={styles.dateBtn}
-          onPress={() => setShowPicker("from")}
-        >
-          <Text style={styles.dateBtnLabel}>Dari</Text>
-          <Text style={styles.dateBtnValue}>{toDisplay(dateFrom)}</Text>
-        </TouchableOpacity>
+        {Platform.OS === "ios" ? (
+          <View style={[styles.dateBtn]}>
+            <Text style={styles.dateBtnLabel}>Dari</Text>
+            <DateTimePicker
+              value={dateFrom}
+              mode="date"
+              display="default"
+              locale="id-ID"
+              themeVariant="light"
+              onChange={(_e, d) => {
+                if (d) setDateFrom(d);
+              }}
+            />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.dateBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              setTempPickerDate(dateFrom);
+              setShowPicker("from");
+            }}
+          >
+            <Text style={styles.dateBtnLabel}>Dari</Text>
+            <Text style={styles.dateBtnValue}>{toDisplay(dateFrom)}</Text>
+          </TouchableOpacity>
+        )}
         <Ionicons
           name="arrow-forward"
           size={14}
           color={colors.border}
           style={{ marginHorizontal: spacing.sm }}
         />
-        <TouchableOpacity
-          style={styles.dateBtn}
-          onPress={() => setShowPicker("to")}
-        >
-          <Text style={styles.dateBtnLabel}>Sampai</Text>
-          <Text style={styles.dateBtnValue}>{toDisplay(dateTo)}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* iOS Picker overlay */}
-      {showPicker && Platform.OS === "ios" ? (
-        <View style={StyleSheet.absoluteFill}>
-          <TouchableOpacity
-            style={styles.pickerBg}
-            onPress={() => setShowPicker(null)}
-          />
-          <View style={styles.pickerContainer}>
-            <View style={styles.pickerHeader}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (showPicker === "from") setDateFrom(tempPickerDate);
-                  else setDateTo(tempPickerDate);
-                  setShowPicker(null);
-                }}
-              >
-                <Text style={styles.pickerDone}>Selesai</Text>
-              </TouchableOpacity>
-            </View>
+        {Platform.OS === "ios" ? (
+          <View style={[styles.dateBtn]}>
+            <Text style={styles.dateBtnLabel}>Sampai</Text>
             <DateTimePicker
-              value={showPicker === "from" ? dateFrom : dateTo}
+              value={dateTo}
               mode="date"
-              display="inline"
+              display="default"
+              locale="id-ID"
               themeVariant="light"
               onChange={(_e, d) => {
-                if (d) setTempPickerDate(d);
+                if (d) setDateTo(d);
               }}
             />
           </View>
-        </View>
-      ) : null}
+        ) : (
+          <TouchableOpacity
+            style={styles.dateBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              setTempPickerDate(dateTo);
+              setShowPicker("to");
+            }}
+          >
+            <Text style={styles.dateBtnLabel}>Sampai</Text>
+            <Text style={styles.dateBtnValue}>{toDisplay(dateTo)}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* List */}
       <ScrollView
@@ -282,15 +290,17 @@ export default function AttendanceHistoryScreen() {
       </ScrollView>
 
       {/* Android date picker rendered outside ScrollView */}
-      {showPicker && Platform.OS !== "ios" ? (
-        <DateTimePicker
-          value={showPicker === "from" ? dateFrom : dateTo}
-          mode="date"
-          display="default"
-          onChange={handlePickerChange}
-        />
-      ) : null}
-    </View>
+      {
+        showPicker && Platform.OS !== "ios" ? (
+          <DateTimePicker
+            value={showPicker === "from" ? dateFrom : dateTo}
+            mode="date"
+            display="default"
+            onChange={handlePickerChange}
+          />
+        ) : null
+      }
+    </View >
   );
 }
 
@@ -421,5 +431,18 @@ const styles = StyleSheet.create({
     fontSize: rf(16),
     fontWeight: "700" as any,
     color: colors.primary,
+  },
+  doneBtn: {
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.lg,
+  },
+  doneBtnText: {
+    color: "#FFFFFF",
+    fontSize: rf(16),
+    fontWeight: "700" as any,
   },
 });
