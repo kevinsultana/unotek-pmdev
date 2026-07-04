@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -364,8 +365,9 @@ export default function LeaveAllocationsScreen() {
       </TouchableOpacity>
 
       {/* ── Create Modal ── */}
-      <Modal visible={isCreateModalVisible} animationType="slide" transparent>
+      <Modal visible={isCreateModalVisible} animationType="slide" transparent onRequestClose={() => setIsCreateModalVisible(false)}>
         <View style={modalStyles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsCreateModalVisible(false)} />
           <View
             style={[
               modalStyles.content,
@@ -796,9 +798,10 @@ const modalStyles = StyleSheet.create({
     height: sizes.selectHeight,
     justifyContent: "center",
     marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
   },
-  formValue: { color: colors.textPrimary, fontSize: rf(14) },
-  formPlaceholder: { color: colors.textMuted, fontSize: rf(14) },
+  formValue: { color: colors.textPrimary, fontSize: rf(14), paddingVertical: spacing.sm },
+  formPlaceholder: { color: colors.textMuted, fontSize: rf(14), paddingVertical: spacing.sm },
 
   submitBtn: {
     height: sizes.buttonMd,

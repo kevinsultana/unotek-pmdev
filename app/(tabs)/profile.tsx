@@ -51,7 +51,7 @@ export default function ProfileScreen() {
           setIsLoggingOut(true);
           try {
             await logout();
-          } catch {}
+          } catch { }
           router.replace("/");
         },
       },
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
   headerContent: { alignItems: "center" },
   headerTitle: {
-    fontSize: rf(18),
+    fontSize: rf(22),
     fontWeight: "700" as any,
     color: "#FFFFFF",
   },

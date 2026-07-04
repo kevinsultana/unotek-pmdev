@@ -256,28 +256,30 @@ export default function TaskCreateScreen() {
             </TouchableOpacity>
 
             {showDatePicker && Platform.OS === "ios" ? (
-              <View style={StyleSheet.absoluteFill}>
-                <TouchableOpacity
-                  style={styles.pickerBg}
-                  onPress={() => setShowDatePicker(false)}
-                />
-                <View style={styles.pickerContainer}>
-                  <View style={styles.pickerHeader}>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Text style={styles.pickerDone}>Selesai</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={dateDeadline}
-                    mode="date"
-                    display="inline"
-                    themeVariant="light"
-                    onChange={(_e, d) => {
-                      if (d) setDateDeadline(d);
-                    }}
-                  />
-                </View>
-              </View>
+              // <View style={{ zIndex: 9999, justifyContent: "flex-start" }}>
+              //   <TouchableOpacity
+              //     style={styles.pickerBg}
+              //     onPress={() => setShowDatePicker(false)}
+              //   />
+              //   <View style={styles.pickerContainer}>
+              //     <View style={styles.pickerHeader}>
+              //       <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+              //         <Text style={styles.pickerDone}>Selesai</Text>
+              //       </TouchableOpacity>
+              //     </View>
+
+              //   </View>
+              // </View>
+              <DateTimePicker
+                value={dateDeadline}
+                mode="date"
+                display="inline"
+                themeVariant="light"
+                onChange={(_e, d) => {
+                  if (d) setDateDeadline(d);
+                  setShowDatePicker(false);
+                }}
+              />
             ) : showDatePicker ? (
               <DateTimePicker
                 value={dateDeadline}
@@ -285,6 +287,7 @@ export default function TaskCreateScreen() {
                 display="default"
                 onChange={(_e, d) => {
                   if (d) setDateDeadline(d);
+                  setShowDatePicker(false);
                 }}
               />
             ) : null}

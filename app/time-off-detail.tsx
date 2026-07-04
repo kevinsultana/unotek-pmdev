@@ -12,9 +12,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
-import { Badge } from "../src/components/ui";
 import { timeOffService } from "../services/timeOffService";
+import { Badge } from "../src/components/ui";
+import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import type { TimeOff } from "../types/timeOff";
 
 const STATE_COLORS: Record<string, { c: string; b: string }> = {
@@ -195,16 +195,18 @@ export default function TimeOffDetailScreen() {
           <TouchableOpacity style={styles.cancelBtn} onPress={() => {
             Alert.alert("Batalkan Cuti", "Yakin ingin membatalkan pengajuan ini?", [
               { text: "Tidak", style: "cancel" },
-              { text: "Ya, Batalkan", style: "destructive", onPress: async () => {
-                setIsCancelling(true);
-                try {
-                  await timeOffService.cancel(data.id);
-                  const res = await timeOffService.getById(data.id);
-                  setData(res.data.data);
-                } catch (err: any) {
-                  Alert.alert("Gagal", err?.response?.data?.message || "Terjadi kesalahan.");
-                } finally { setIsCancelling(false); }
-              }},
+              {
+                text: "Ya, Batalkan", style: "destructive", onPress: async () => {
+                  setIsCancelling(true);
+                  try {
+                    await timeOffService.cancel(data.id);
+                    const res = await timeOffService.getById(data.id);
+                    setData(res.data.data);
+                  } catch (err: any) {
+                    Alert.alert("Gagal", err?.response?.data?.message || "Terjadi kesalahan.");
+                  } finally { setIsCancelling(false); }
+                }
+              },
             ]);
           }} disabled={isCancelling} activeOpacity={0.7}>
             {isCancelling ? (
@@ -262,7 +264,7 @@ const styles = StyleSheet.create({
   // Scroll
   scroll: { paddingHorizontal: spacing["2xl"], paddingBottom: hpx(40) },
   floatingCard: {
-    marginTop: -hpx(24),
+    marginTop: hpx(6),
     backgroundColor: colors.card,
     borderRadius: wpx(20),
     padding: spacing["2xl"],
