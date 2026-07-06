@@ -25,7 +25,7 @@ import {
   textPresets,
   wpx,
 } from "../../src/constants/theme";
-import type { Project } from "../../types/project";
+import type { Project, ProjectListParams } from "../../types/project";
 
 const STAGE_MAP: Record<string, { c: string; b: string }> = {
   Open: { c: "#F59E0B", b: "#FEF3C7" },
@@ -93,10 +93,36 @@ export default function TimelineScreen() {
   };
 
   const [activeTab, setActiveTab] = useState<"my" | "all" | "projects">("projects");
+  const [localProjectSearchQuery, setLocalProjectSearchQuery] = useState("");
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  // Debounced effect for tasks search
+  useEffect(() => {
+    if (!localSearchQuery.trim()) {
+      setSearchQuery("");
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSearchQuery(localSearchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localSearchQuery, setSearchQuery]);
+
+  // Debounced effect for projects search
+  useEffect(() => {
+    if (!localProjectSearchQuery.trim()) {
+      setProjectSearchQuery("");
+      return;
+    }
+    const timer = setTimeout(() => {
+      setProjectSearchQuery(localProjectSearchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localProjectSearchQuery]);
 
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
@@ -107,11 +133,15 @@ export default function TimelineScreen() {
     }));
   };
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (searchVal?: string) => {
     try {
       setProjectsError(null);
       setProjectsLoading(true);
-      const res = await projectService.list({ active: true });
+      const params: ProjectListParams = { active: true };
+      if (searchVal?.trim()) {
+        params.search = searchVal.trim();
+      }
+      const res = await projectService.list(params);
       setProjects(res.data.data || []);
     } catch (err: any) {
       setProjectsError(err?.response?.data?.message || "Gagal memuat daftar projek");
@@ -132,14 +162,20 @@ export default function TimelineScreen() {
     }
   }, [params.filter]);
 
+  useEffect(() => {
+    if (activeTab === "projects") {
+      fetchProjects(projectSearchQuery);
+    }
+  }, [projectSearchQuery, activeTab, fetchProjects]);
+
   useFocusEffect(
     useCallback(() => {
       if (activeTab === "projects") {
-        fetchProjects();
+        fetchProjects(projectSearchQuery);
       } else {
         refreshTasks();
       }
-    }, [activeTab, fetchProjects, refreshTasks]),
+    }, [activeTab, projectSearchQuery, fetchProjects, refreshTasks]),
   );
 
   const handleTabChange = (tab: "my" | "all" | "projects") => {
@@ -161,16 +197,7 @@ export default function TimelineScreen() {
     return acc;
   }, {});
 
-  const filteredProjects = projects.filter((p) => {
-    if (!projectSearchQuery) return true;
-    const q = projectSearchQuery.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.partner?.name?.toLowerCase().includes(q) ||
-      p.user?.name?.toLowerCase().includes(q) ||
-      p.stage_id?.name?.toLowerCase().includes(q)
-    );
-  });
+  const filteredProjects = projects;
 
   return (
     <View style={styles.container}>
@@ -223,11 +250,21 @@ export default function TimelineScreen() {
               style={styles.searchInput}
               placeholder={activeTab === "projects" ? "Cari projek, klien, PIC..." : "Cari tugas..."}
               placeholderTextColor={colors.textMuted}
-              value={activeTab === "projects" ? projectSearchQuery : searchQuery}
-              onChangeText={activeTab === "projects" ? setProjectSearchQuery : setSearchQuery}
+              value={activeTab === "projects" ? localProjectSearchQuery : localSearchQuery}
+              onChangeText={activeTab === "projects" ? setLocalProjectSearchQuery : setLocalSearchQuery}
             />
-            {(activeTab === "projects" ? projectSearchQuery : searchQuery) ? (
-              <TouchableOpacity onPress={() => activeTab === "projects" ? setProjectSearchQuery("") : setSearchQuery("")}>
+            {(activeTab === "projects" ? localProjectSearchQuery : localSearchQuery) ? (
+              <TouchableOpacity
+                onPress={() => {
+                  if (activeTab === "projects") {
+                    setLocalProjectSearchQuery("");
+                    setProjectSearchQuery("");
+                  } else {
+                    setLocalSearchQuery("");
+                    setSearchQuery("");
+                  }
+                }}
+              >
                 <Ionicons
                   name="close-circle"
                   size={18}
@@ -253,7 +290,7 @@ export default function TimelineScreen() {
                   color={colors.error}
                 />
                 <Text style={styles.emptyText}>{projectsError}</Text>
-                <TouchableOpacity style={styles.retryBtn} onPress={fetchProjects}>
+                <TouchableOpacity style={styles.retryBtn} onPress={() => fetchProjects(projectSearchQuery)}>
                   <Text style={styles.retryText}>Coba Lagi</Text>
                 </TouchableOpacity>
               </View>
