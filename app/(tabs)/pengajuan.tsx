@@ -1,16 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
+  ActivityIndicator,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { timeOffService } from "../../services/timeOffService";
@@ -36,6 +46,7 @@ interface Submission {
   amountOrDuration: string;
   date: string;
   status: "pending" | "approved" | "rejected" | "cancel";
+  photo_uri?: string | null;
 }
 
 const INITIAL_SUBMISSIONS: Submission[] = [
@@ -89,6 +100,76 @@ export default function PengajuanScreen() {
   const insets = useSafeAreaInsets();
   const [mockSubmissions, setMockSubmissions] = useState<Submission[]>([]);
 
+  // Keyboard active tracking
+  const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardActive(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardActive(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleBackdropPress = () => {
+    if (isKeyboardActive) {
+      Keyboard.dismiss();
+    } else {
+      resetForm();
+    }
+  };
+
+  // Date picker states
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [activeDateField, setActiveDateField] = useState<"cutiDateFrom" | "cutiDateTo" | "lemburDate" | "reimbDate" | null>(null);
+
+  const formatThousands = (val: string) => {
+    const clean = val.replace(/\D/g, "");
+    if (!clean) return "";
+    return Number(clean).toLocaleString("id-ID");
+  };
+
+  const formatDateString = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const toDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "Pilih Tanggal";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const onDateChange = (_event: DateTimePickerEvent, date?: Date) => {
+    setShowDatePicker(false);
+    if (date && activeDateField) {
+      const formatted = formatDateString(date);
+      if (activeDateField === "cutiDateFrom") setCutiDateFrom(formatted);
+      else if (activeDateField === "cutiDateTo") setCutiDateTo(formatted);
+      else if (activeDateField === "lemburDate") setLemburDate(formatted);
+      else if (activeDateField === "reimbDate") setReimbDate(formatted);
+    }
+    setActiveDateField(null);
+  };
+
   const [cutiRecords, setCutiRecords] = useState<TimeOff[]>([]);
   const [balances, setBalances] = useState<TimeOffBalanceItem[]>([]);
   const [isLoadingCuti, setIsLoadingCuti] = useState(false);
@@ -114,6 +195,39 @@ export default function PengajuanScreen() {
   const [reimbAmount, setReimbAmount] = useState("");
   const [reimbDate, setReimbDate] = useState("");
   const [reimbReason, setReimbReason] = useState("");
+  const [reimbPhotoUri, setReimbPhotoUri] = useState<string | null>(null);
+
+  const handlePickFromCamera = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showToast("error", "Izin Kamera", "Aplikasi membutuhkan akses kamera.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setReimbPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handlePickFromGallery = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showToast("error", "Izin Galeri", "Aplikasi membutuhkan akses galeri.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setReimbPhotoUri(result.assets[0].uri);
+    }
+  };
 
   const resetForm = () => {
     setSelectedTypeId(null);
@@ -127,6 +241,7 @@ export default function PengajuanScreen() {
     setReimbAmount("");
     setReimbDate("");
     setReimbReason("");
+    setReimbPhotoUri(null);
     setModalType(null);
   };
 
@@ -216,14 +331,16 @@ export default function PengajuanScreen() {
         showToast("error", "Validasi", "Harap isi semua kolom form.");
         return;
       }
+      const rawAmount = reimbAmount.replace(/\./g, "");
       const newEntry: Submission = {
         id: String(Date.now()),
         type: "Reimbursement",
         title: reimbTitle,
         details: reimbReason,
-        amountOrDuration: `Rp ${parseInt(reimbAmount).toLocaleString("id-ID")}`,
+        amountOrDuration: `Rp ${parseInt(rawAmount).toLocaleString("id-ID")}`,
         date: reimbDate,
         status: "pending",
+        photo_uri: reimbPhotoUri,
       };
       setMockSubmissions((prev) => [newEntry, ...prev]);
       showToast("success", "Berhasil", "Pengajuan reimbursement berhasil dikirim.");
@@ -403,6 +520,13 @@ export default function PengajuanScreen() {
                   </View>
                   <Text style={styles.itemTitle}>{item.title}</Text>
                   <Text style={styles.itemDetails}>{item.details}</Text>
+                  {item.photo_uri && (
+                    <View style={styles.attachmentPreviewContainer}>
+                      <Ionicons name="attach" size={14} color={colors.primary} />
+                      <Text style={styles.attachmentPreviewText}>Lampiran Bukti</Text>
+                      <Image source={{ uri: item.photo_uri }} style={styles.historyAttachmentThumb} />
+                    </View>
+                  )}
                   <View style={styles.cardFooter}>
                     <Text style={styles.itemVal}>{item.amountOrDuration}</Text>
                     <Text style={styles.itemDate}>{item.date}</Text>
@@ -416,185 +540,333 @@ export default function PengajuanScreen() {
 
       {/* ── Submission Modals ── */}
       <Modal visible={modalType !== null} animationType="slide" transparent onRequestClose={resetForm}>
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={resetForm} />
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {modalType === "cuti"
-                  ? "Form Cuti / Izin"
-                  : modalType === "lembur"
-                    ? "Form Pengajuan Lembur"
-                    : "Form Reimbursement"}
-              </Text>
-              <TouchableOpacity onPress={resetForm}>
-                <Ionicons name="close" size={22} color={colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* CUTI FORM */}
-            {modalType === "cuti" && (
-              <View style={styles.formContainer}>
-                {/* Sisa Alokasi Cuti */}
-                <View style={styles.balanceContainer}>
-                  <Text style={styles.balanceHeader}>Sisa Alokasi Cuti Anda</Text>
-                  {balances.length === 0 ? (
-                    <Text style={styles.noBalanceText}>Tidak ada alokasi cuti aktif.</Text>
-                  ) : (
-                    <View style={styles.balanceGrid}>
-                      {balances.map((b) => (
-                        <View key={b.leave_type.id} style={styles.balanceItem}>
-                          <Text style={styles.balanceName} numberOfLines={1}>{b.leave_type.name}</Text>
-                          <Text style={styles.balanceCount}>
-                            <Text style={styles.balanceCountNum}>{b.remaining}</Text> hari
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress} />
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {modalType === "cuti"
+                      ? "Form Cuti / Izin"
+                      : modalType === "lembur"
+                        ? "Form Pengajuan Lembur"
+                        : "Form Reimbursement"}
+                  </Text>
+                  <TouchableOpacity onPress={resetForm}>
+                    <Ionicons name="close" size={22} color={colors.textPrimary} />
+                  </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Pilih Tipe Cuti / Izin</Text>
-                {balances.length === 0 ? (
-                  <Text style={styles.noBalanceText}>Memuat tipe cuti...</Text>
-                ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeSelectorScroll}>
-                    {balances.map((b) => (
-                      <TouchableOpacity
-                        key={b.leave_type.id}
-                        style={[
-                          styles.dropdownBtn,
-                          selectedTypeId === b.leave_type.id && styles.dropdownBtnActive,
-                          { paddingHorizontal: spacing.md, marginRight: spacing.xs, flex: 0, minWidth: wpx(100) }
-                        ]}
-                        onPress={() => setSelectedTypeId(b.leave_type.id)}
-                      >
-                        <Text style={[styles.dropdownText, selectedTypeId === b.leave_type.id && styles.dropdownTextActive]}>
-                          {b.leave_type.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                {/* CUTI FORM */}
+                {modalType === "cuti" && (
+                  <View style={styles.formContainer}>
+                    {/* Sisa Alokasi Cuti */}
+                    <View style={styles.balanceContainer}>
+                      <Text style={styles.balanceHeader}>Sisa Alokasi Cuti Anda</Text>
+                      {balances.length === 0 ? (
+                        <Text style={styles.noBalanceText}>Tidak ada alokasi cuti aktif.</Text>
+                      ) : (
+                        <View style={styles.balanceGrid}>
+                          {balances.map((b) => (
+                            <View key={b.leave_type.id} style={styles.balanceItem}>
+                              <Text style={styles.balanceName} numberOfLines={1}>{b.leave_type.name}</Text>
+                              <Text style={styles.balanceCount}>
+                                <Text style={styles.balanceCountNum}>{b.remaining}</Text> hari
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={styles.fieldLabel}>Pilih Tipe Cuti / Izin</Text>
+                    {balances.length === 0 ? (
+                      <Text style={styles.noBalanceText}>Memuat tipe cuti...</Text>
+                    ) : (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeSelectorScroll}>
+                        {balances.map((b) => (
+                          <TouchableOpacity
+                            key={b.leave_type.id}
+                            style={[
+                              styles.dropdownBtn,
+                              selectedTypeId === b.leave_type.id && styles.dropdownBtnActive,
+                              { paddingHorizontal: spacing.md, marginRight: spacing.xs, flex: 0, minWidth: wpx(100) }
+                            ]}
+                            onPress={() => setSelectedTypeId(b.leave_type.id)}
+                          >
+                            <Text style={[styles.dropdownText, selectedTypeId === b.leave_type.id && styles.dropdownTextActive]}>
+                              {b.leave_type.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
+
+                    <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.xs }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>Tanggal Mulai</Text>
+                        {Platform.OS === "ios" ? (
+                          <View style={[styles.textInput, { justifyContent: "center", alignItems: "flex-start" }]}>
+                            <DateTimePicker
+                              value={cutiDateFrom ? new Date(cutiDateFrom) : new Date()}
+                              mode="date"
+                              display="default"
+                              locale="id-ID"
+                              themeVariant="light"
+                              onChange={(_e, d) => {
+                                if (d) setCutiDateFrom(formatDateString(d));
+                              }}
+                              style={{ marginLeft: -8 }}
+                            />
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.textInput, { justifyContent: "center" }]}
+                            onPress={() => {
+                              setActiveDateField("cutiDateFrom");
+                              setShowDatePicker(true);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.textInputValue, !cutiDateFrom && { color: colors.textMuted }]}>
+                              {toDisplayDate(cutiDateFrom)}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>Tanggal Selesai</Text>
+                        {Platform.OS === "ios" ? (
+                          <View style={[styles.textInput, { justifyContent: "center", alignItems: "flex-start" }]}>
+                            <DateTimePicker
+                              value={cutiDateTo ? new Date(cutiDateTo) : new Date()}
+                              mode="date"
+                              display="default"
+                              locale="id-ID"
+                              themeVariant="light"
+                              onChange={(_e, d) => {
+                                if (d) setCutiDateTo(formatDateString(d));
+                              }}
+                              style={{ marginLeft: -8 }}
+                            />
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.textInput, { justifyContent: "center" }]}
+                            onPress={() => {
+                              setActiveDateField("cutiDateTo");
+                              setShowDatePicker(true);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.textInputValue, !cutiDateTo && { color: colors.textMuted }]}>
+                              {toDisplayDate(cutiDateTo)}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+
+                    <Text style={styles.fieldLabel}>Alasan / Keterangan</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textArea]}
+                      multiline
+                      placeholder="Tulis alasan pengajuan cuti secara rinci..."
+                      placeholderTextColor={colors.textMuted}
+                      value={cutiReason}
+                      onChangeText={setCutiReason}
+                    />
+                  </View>
                 )}
 
-                <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.xs }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Tanggal Mulai</Text>
+                {/* LEMBUR FORM */}
+                {modalType === "lembur" && (
+                  <View style={styles.formContainer}>
+                    <Text style={styles.fieldLabel}>Tanggal Lembur</Text>
+                    {Platform.OS === "ios" ? (
+                      <View style={[styles.textInput, { justifyContent: "center", alignItems: "flex-start" }]}>
+                        <DateTimePicker
+                          value={lemburDate ? new Date(lemburDate) : new Date()}
+                          mode="date"
+                          display="default"
+                          locale="id-ID"
+                          themeVariant="light"
+                          onChange={(_e, d) => {
+                            if (d) setLemburDate(formatDateString(d));
+                          }}
+                          style={{ marginLeft: -8 }}
+                        />
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.textInput, { justifyContent: "center" }]}
+                        onPress={() => {
+                          setActiveDateField("lemburDate");
+                          setShowDatePicker(true);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.textInputValue, !lemburDate && { color: colors.textMuted }]}>
+                          {toDisplayDate(lemburDate)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <Text style={styles.fieldLabel}>Estimasi Durasi (Jam)</Text>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="YYYY-MM-DD"
+                      keyboardType="numeric"
+                      placeholder="Contoh: 4"
                       placeholderTextColor={colors.textMuted}
-                      value={cutiDateFrom}
-                      onChangeText={setCutiDateFrom}
+                      value={lemburHours}
+                      onChangeText={setLemburHours}
+                    />
+
+                    <Text style={styles.fieldLabel}>Deskripsi Pekerjaan Lembur</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textArea]}
+                      multiline
+                      placeholder="Detail task/pekerjaan yang diselesaikan..."
+                      placeholderTextColor={colors.textMuted}
+                      value={lemburReason}
+                      onChangeText={setLemburReason}
                     />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Tanggal Selesai</Text>
+                )}
+
+                {/* REIMBURSEMENT FORM */}
+                {modalType === "reimbursement" && (
+                  <View style={styles.formContainer}>
+                    <Text style={styles.fieldLabel}>Kategori / Judul Biaya</Text>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="YYYY-MM-DD"
+                      placeholder="Contoh: Pembelian tinta printer / Bensin dinas"
                       placeholderTextColor={colors.textMuted}
-                      value={cutiDateTo}
-                      onChangeText={setCutiDateTo}
+                      value={reimbTitle}
+                      onChangeText={setReimbTitle}
                     />
+
+                    <Text style={styles.fieldLabel}>Nominal Biaya (Rupiah)</Text>
+                    <View style={styles.amountInputContainer}>
+                      <Text style={styles.currencyPrefix}>Rp.</Text>
+                      <TextInput
+                        style={styles.amountInput}
+                        keyboardType="numeric"
+                        placeholder="Contoh: 150.000"
+                        placeholderTextColor={colors.textMuted}
+                        value={reimbAmount}
+                        onChangeText={(val) => setReimbAmount(formatThousands(val))}
+                      />
+                    </View>
+
+                    <Text style={styles.fieldLabel}>Tanggal Transaksi</Text>
+                    {Platform.OS === "ios" ? (
+                      <View style={[styles.textInput, { justifyContent: "center", alignItems: "flex-start" }]}>
+                        <DateTimePicker
+                          value={reimbDate ? new Date(reimbDate) : new Date()}
+                          mode="date"
+                          display="default"
+                          locale="id-ID"
+                          themeVariant="light"
+                          onChange={(_e, d) => {
+                            if (d) setReimbDate(formatDateString(d));
+                          }}
+                          style={{ marginLeft: -8 }}
+                        />
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.textInput, { justifyContent: "center" }]}
+                        onPress={() => {
+                          setActiveDateField("reimbDate");
+                          setShowDatePicker(true);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.textInputValue, !reimbDate && { color: colors.textMuted }]}>
+                          {toDisplayDate(reimbDate)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <Text style={styles.fieldLabel}>Keterangan Biaya</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textArea]}
+                      multiline
+                      placeholder="Detail transaksi, misal nama klien atau tujuan perjalanan..."
+                      placeholderTextColor={colors.textMuted}
+                      value={reimbReason}
+                      onChangeText={setReimbReason}
+                    />
+
+                    <Text style={styles.fieldLabel}>Lampiran Bukti (Foto)</Text>
+                    {reimbPhotoUri ? (
+                      <View style={styles.previewContainer}>
+                        <Image source={{ uri: reimbPhotoUri }} style={styles.previewImage} />
+                        <TouchableOpacity
+                          style={styles.removePhotoBtn}
+                          onPress={() => setReimbPhotoUri(null)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash-outline" size={16} color={colors.error} />
+                          <Text style={styles.removePhotoText}>Hapus Foto</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.photoActionsRow}>
+                        <TouchableOpacity
+                          style={styles.photoActionBtn}
+                          onPress={handlePickFromCamera}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="camera-outline" size={18} color={colors.primary} />
+                          <Text style={styles.photoActionText}>Kamera</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.photoActionBtn}
+                          onPress={handlePickFromGallery}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="image-outline" size={18} color={colors.primary} />
+                          <Text style={styles.photoActionText}>Galeri</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
-                </View>
+                )}
 
-                <Text style={styles.fieldLabel}>Alasan / Keterangan</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  multiline
-                  placeholder="Tulis alasan pengajuan cuti secara rinci..."
-                  placeholderTextColor={colors.textMuted}
-                  value={cutiReason}
-                  onChangeText={setCutiReason}
-                />
+                <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
+                  <Text style={styles.submitText}>Kirim Pengajuan</Text>
+                </TouchableOpacity>
               </View>
-            )}
-
-            {/* LEMBUR FORM */}
-            {modalType === "lembur" && (
-              <View style={styles.formContainer}>
-                <Text style={styles.fieldLabel}>Tanggal Lembur</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Format: YYYY-MM-DD (Contoh: 2026-07-06)"
-                  placeholderTextColor={colors.textMuted}
-                  value={lemburDate}
-                  onChangeText={setLemburDate}
-                />
-
-                <Text style={styles.fieldLabel}>Estimasi Durasi (Jam)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  keyboardType="numeric"
-                  placeholder="Contoh: 4"
-                  placeholderTextColor={colors.textMuted}
-                  value={lemburHours}
-                  onChangeText={setLemburHours}
-                />
-
-                <Text style={styles.fieldLabel}>Deskripsi Pekerjaan Lembur</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  multiline
-                  placeholder="Detail task/pekerjaan yang diselesaikan..."
-                  placeholderTextColor={colors.textMuted}
-                  value={lemburReason}
-                  onChangeText={setLemburReason}
-                />
-              </View>
-            )}
-
-            {/* REIMBURSEMENT FORM */}
-            {modalType === "reimbursement" && (
-              <View style={styles.formContainer}>
-                <Text style={styles.fieldLabel}>Kategori / Judul Biaya</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Contoh: Pembelian tinta printer / Bensin dinas"
-                  placeholderTextColor={colors.textMuted}
-                  value={reimbTitle}
-                  onChangeText={setReimbTitle}
-                />
-
-                <Text style={styles.fieldLabel}>Nominal Biaya (Rupiah)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  keyboardType="numeric"
-                  placeholder="Contoh: 150000"
-                  placeholderTextColor={colors.textMuted}
-                  value={reimbAmount}
-                  onChangeText={setReimbAmount}
-                />
-
-                <Text style={styles.fieldLabel}>Tanggal Transaksi</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Format: YYYY-MM-DD (Contoh: 2026-07-06)"
-                  placeholderTextColor={colors.textMuted}
-                  value={reimbDate}
-                  onChangeText={setReimbDate}
-                />
-
-                <Text style={styles.fieldLabel}>Keterangan Biaya</Text>
-                <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  multiline
-                  placeholder="Detail transaksi, misal nama klien atau tujuan perjalanan..."
-                  placeholderTextColor={colors.textMuted}
-                  value={reimbReason}
-                  onChangeText={setReimbReason}
-                />
-              </View>
-            )}
-
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
-              <Text style={styles.submitText}>Kirim Pengajuan</Text>
-            </TouchableOpacity>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
+
+      {/* Android date picker */}
+      {showDatePicker && Platform.OS !== "ios" && activeDateField && (
+        <DateTimePicker
+          value={
+            activeDateField === "cutiDateFrom" && cutiDateFrom
+              ? new Date(cutiDateFrom)
+              : activeDateField === "cutiDateTo" && cutiDateTo
+                ? new Date(cutiDateTo)
+                : activeDateField === "lemburDate" && lemburDate
+                  ? new Date(lemburDate)
+                  : activeDateField === "reimbDate" && reimbDate
+                    ? new Date(reimbDate)
+                    : new Date()
+          }
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+        />
+      )}
     </View>
   );
 }
@@ -816,6 +1088,33 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: rf(14),
   },
+  amountInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    height: sizes.buttonMd,
+  },
+  currencyPrefix: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+    marginRight: spacing.xs,
+  },
+  amountInput: {
+    flex: 1,
+    height: "100%",
+    color: colors.textPrimary,
+    fontSize: rf(14),
+    padding: 0,
+  },
+  textInputValue: {
+    color: colors.textPrimary,
+    fontSize: rf(14),
+  },
   textArea: {
     height: hpx(80),
     paddingTop: spacing.md,
@@ -914,5 +1213,77 @@ const styles = StyleSheet.create({
   },
   typeSelectorScroll: {
     paddingVertical: hpx(4),
+  },
+  previewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  previewImage: {
+    width: wpx(60),
+    height: hpx(60),
+    borderRadius: radius.sm,
+    backgroundColor: colors.border,
+  },
+  removePhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.sm,
+  },
+  removePhotoText: {
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+    color: colors.error,
+  },
+  photoActionsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  photoActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+    height: sizes.buttonMd,
+  },
+  photoActionText: {
+    fontSize: rf(13),
+    fontWeight: "600" as any,
+    color: colors.textPrimary,
+  },
+  attachmentPreviewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  attachmentPreviewText: {
+    fontSize: rf(12),
+    color: colors.textSecondary,
+    fontWeight: "600" as any,
+    marginRight: spacing.sm,
+  },
+  historyAttachmentThumb: {
+    width: wpx(32),
+    height: hpx(32),
+    borderRadius: radius.xs,
+    backgroundColor: colors.border,
   },
 });

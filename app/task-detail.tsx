@@ -11,8 +11,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import RenderHTML from "react-native-render-html";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { profileService } from "../services/profileService";
 import { taskService } from "../services/taskService";
@@ -112,11 +114,44 @@ function AvatarCircle({ name, bg }: { name: string; bg?: string }) {
   );
 }
 
+const tagsStyles = {
+  body: {
+    color: colors.textPrimary,
+    fontSize: rf(14),
+    lineHeight: rf(22),
+  },
+  p: {
+    color: colors.textPrimary,
+    fontSize: rf(14),
+    lineHeight: rf(22),
+    marginVertical: 4,
+  },
+  span: {
+    fontSize: rf(14),
+  },
+  ul: {
+    color: colors.textPrimary,
+    marginVertical: 4,
+    paddingLeft: spacing.lg,
+  },
+  ol: {
+    color: colors.textPrimary,
+    marginVertical: 4,
+    paddingLeft: spacing.lg,
+  },
+  li: {
+    color: colors.textPrimary,
+    fontSize: rf(14),
+    lineHeight: rf(22),
+  },
+};
+
 // ── Screen ─────────────────────────────────────────────────────────────────
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -364,10 +399,14 @@ export default function TaskDetailScreen() {
           </View>
 
           {/* ── Description ───────────────────────────────────────────── */}
-          {cleanDesc ? (
+          {task.description && cleanDesc ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Deskripsi</Text>
-              <Text style={styles.descText}>{cleanDesc}</Text>
+              <RenderHTML
+                contentWidth={width}
+                source={{ html: task.description }}
+                tagsStyles={tagsStyles}
+              />
             </View>
           ) : null}
 

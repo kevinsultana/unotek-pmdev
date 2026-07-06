@@ -317,50 +317,60 @@ export default function KehadiranScreen() {
         {/* Attendance action */}
         <View style={styles.actionCard}>
           <Text style={styles.actionTitle}>Presensi Hari Ini</Text>
-          <Text style={styles.actionDesc}>
-            {hasCheckedOutToday
-              ? "Presensi hari ini sudah lengkap."
-              : hasCheckedIn
-                ? "Anda sedang aktif bekerja. Lakukan Check Out jika jam kerja selesai."
-                : "Lakukan Check In dengan selfie & GPS untuk mulai bekerja."}
-          </Text>
-          {!hasCheckedOutToday && (
-            <TouchableOpacity
-              style={[
-                styles.attBtn,
-                hasCheckedIn ? styles.attBtnOut : styles.attBtnIn,
-              ]}
-              onPress={() =>
-                openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")
-              }
-              activeOpacity={0.85}
-            >
-              <Ionicons name="finger-print" size={wpx(22)} color="#FFFFFF" />
-              <Text style={styles.attBtnText}>
-                {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
+          {attLoading ? (
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+              style={{ marginVertical: spacing.xl }}
+            />
+          ) : (
+            <>
+              <Text style={styles.actionDesc}>
+                {hasCheckedOutToday
+                  ? "Presensi hari ini sudah lengkap."
+                  : hasCheckedIn
+                    ? "Anda sedang aktif bekerja. Lakukan Check Out jika jam kerja selesai."
+                    : "Lakukan Check In dengan selfie & GPS untuk mulai bekerja."}
               </Text>
-            </TouchableOpacity>
+              {!hasCheckedOutToday && (
+                <TouchableOpacity
+                  style={[
+                    styles.attBtn,
+                    hasCheckedIn ? styles.attBtnOut : styles.attBtnIn,
+                  ]}
+                  onPress={() =>
+                    openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="finger-print" size={wpx(22)} color="#FFFFFF" />
+                  <Text style={styles.attBtnText}>
+                    {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {todayRecords.map((record, idx) => {
+                const inTime = formatTime(record.check_in);
+                const outTime = formatTime(record.check_out);
+                return (
+                  <View
+                    key={record.id}
+                    style={[styles.recordRow, idx === 0 && { borderTopWidth: 0 }]}
+                  >
+                    <View style={styles.recordCol}>
+                      <Text style={styles.recordLabel}>Check In</Text>
+                      <Text style={styles.recordVal}>{inTime}</Text>
+                    </View>
+                    <View style={styles.recordDivider} />
+                    <View style={styles.recordCol}>
+                      <Text style={styles.recordLabel}>Check Out</Text>
+                      <Text style={styles.recordVal}>{outTime || "--:--"}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </>
           )}
-          {todayRecords.map((record, idx) => {
-            const inTime = formatTime(record.check_in);
-            const outTime = formatTime(record.check_out);
-            return (
-              <View
-                key={record.id}
-                style={[styles.recordRow, idx === 0 && { borderTopWidth: 0 }]}
-              >
-                <View style={styles.recordCol}>
-                  <Text style={styles.recordLabel}>Check In</Text>
-                  <Text style={styles.recordVal}>{inTime}</Text>
-                </View>
-                <View style={styles.recordDivider} />
-                <View style={styles.recordCol}>
-                  <Text style={styles.recordLabel}>Check Out</Text>
-                  <Text style={styles.recordVal}>{outTime || "--:--"}</Text>
-                </View>
-              </View>
-            );
-          })}
         </View>
 
         {/* Nav links */}
