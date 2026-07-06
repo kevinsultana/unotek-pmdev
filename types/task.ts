@@ -44,6 +44,7 @@ export interface Task {
   parent_id?: TaskParent | null;
   child_ids?: { id: number; name: string }[];
   tag_ids?: TaskTag[];
+  state?: string | null;
 }
 
 export interface CreateTaskRequest {
@@ -74,4 +75,5 @@ export interface TaskTagItem {
 
 export type UpdateTaskRequest = Partial<CreateTaskRequest> & {
   kanban_state?: string;
+  state?: string;
 };

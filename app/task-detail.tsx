@@ -4,17 +4,24 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  LayoutAnimation,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  UIManager,
   useWindowDimensions,
   View,
 } from "react-native";
 import RenderHTML from "react-native-render-html";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { profileService } from "../services/profileService";
 import { taskService } from "../services/taskService";
@@ -30,25 +37,61 @@ import {
   wpx,
 } from "../src/constants/theme";
 import type { ProfileResponse } from "../types/profile";
-import type { Task } from "../types/task";
+import type { Task, TaskStageItem } from "../types/task";
 import { showToast } from "../utils/toast";
 
-// ponytail: single stage colour map, also used in timeline.tsx
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export const STAGE_COLORS: Record<string, string> = {
+  New: "#F59E0B",
+  Baru: "#F59E0B",
   Open: "#F59E0B",
   "In Progress": colors.primary,
+  "Dalam Proses": colors.primary,
+  "Dalam Pengerjaan": colors.primary,
   "Ready to Test": "#7C3AED",
+  "Siap Diuji": "#7C3AED",
   Passed: "#059669",
+  Lulus: "#059669",
   Failed: colors.error,
+  Gagal: colors.error,
   Done: "#059669",
+  Selesai: "#059669",
+  "On Hold": "#D97706",
+  Hold: "#D97706",
+  Tertunda: "#D97706",
+  Cancelled: "#9CA3AF",
+  Batal: "#9CA3AF",
+  Dibatalkan: "#9CA3AF",
+  Backlog: "#6B7280",
 };
 const STAGE_BG: Record<string, string> = {
+  New: "#FEF3C7",
+  Baru: "#FEF3C7",
   Open: "#FEF3C7",
   "In Progress": colors.primaryLight,
+  "Dalam Proses": colors.primaryLight,
+  "Dalam Pengerjaan": colors.primaryLight,
   "Ready to Test": "#EDE9FE",
+  "Siap Diuji": "#EDE9FE",
   Passed: "#D1FAE5",
+  Lulus: "#D1FAE5",
   Failed: "#FEE2E2",
+  Gagal: "#FEE2E2",
   Done: "#D1FAE5",
+  Selesai: "#D1FAE5",
+  "On Hold": "#FEF3C7",
+  Hold: "#FEF3C7",
+  Tertunda: "#FEF3C7",
+  Cancelled: "#F3F4F6",
+  Batal: "#F3F4F6",
+  Dibatalkan: "#F3F4F6",
+  Backlog: "#F3F4F6",
 };
 
 const PRIORITY_MAP: Record<
@@ -146,6 +189,27 @@ const tagsStyles = {
   },
 };
 
+const formatDateString = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const toDisplayDate = (dateStr?: string | null) => {
+  if (!dateStr) return "Pilih Tanggal";
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
 // ── Screen ─────────────────────────────────────────────────────────────────
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -162,6 +226,32 @@ export default function TaskDetailScreen() {
   const [timesheetDesc, setTimesheetDesc] = useState("");
   const [timesheetHours, setTimesheetHours] = useState("");
   const [isSubmittingTimesheet, setIsSubmittingTimesheet] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Status/SpeedDial states
+  const [stages, setStages] = useState<TaskStageItem[]>([]);
+  const [taskStates, setTaskStates] = useState<{ id: string; name: string }[]>([]);
+  const [isSpeedDialOpen, setIsSpeedDialOpen] = useState(false);
+  const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
+  const [isStateModalVisible, setIsStateModalVisible] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isUpdatingState, setIsUpdatingState] = useState(false);
+
+  const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardActive(true));
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardActive(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const toggleSpeedDial = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsSpeedDialOpen(!isSpeedDialOpen);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -175,6 +265,19 @@ export default function TaskDetailScreen() {
         ]);
         setTask(taskRes.data.data);
         setProfile(profileRes.data.data);
+
+        try {
+          const [stagesRes, statesRes] = await Promise.all([
+            taskService.listStages({
+              project_id: taskRes.data.data.project?.id,
+            }),
+            taskService.listStates(),
+          ]);
+          setStages(stagesRes.data.data || []);
+          setTaskStates(statesRes.data.data || []);
+        } catch (stagesErr) {
+          console.log("Failed to load stages/states:", stagesErr);
+        }
       } catch (err: any) {
         setError(err?.response?.data?.message || "Gagal memuat detail tugas");
       } finally {
@@ -233,6 +336,40 @@ export default function TaskDetailScreen() {
     }
   };
 
+  const handleUpdateStatus = async (stageId: number) => {
+    setIsUpdatingStatus(true);
+    try {
+      await taskService.update(task!.id, { stage_id: stageId });
+      showToast("success", "Berhasil", "Status tugas berhasil diperbarui.");
+      setIsStatusModalVisible(false);
+      
+      // Refresh task detail
+      const taskRes = await taskService.getById(task!.id);
+      setTask(taskRes.data.data);
+    } catch (err: any) {
+      showToast("error", "Gagal", err?.response?.data?.message || "Gagal memperbarui status.");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleUpdateStage = async (stateVal: string) => {
+    setIsUpdatingState(true);
+    try {
+      await taskService.update(task!.id, { state: stateVal });
+      showToast("success", "Berhasil", "Tahap tugas (stage) berhasil diperbarui.");
+      setIsStateModalVisible(false);
+      
+      // Refresh task detail
+      const taskRes = await taskService.getById(task!.id);
+      setTask(taskRes.data.data);
+    } catch (err: any) {
+      showToast("error", "Gagal", err?.response?.data?.message || "Gagal memperbarui tahap.");
+    } finally {
+      setIsUpdatingState(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <View
@@ -275,8 +412,8 @@ export default function TaskDetailScreen() {
     );
   }
 
-  const st = STAGE_COLORS[task.stage?.name ?? ""];
-  const sbg = STAGE_BG[task.stage?.name ?? ""];
+  const st = STAGE_COLORS[task.stage?.name ?? ""] || "#4B5563";
+  const sbg = STAGE_BG[task.stage?.name ?? ""] || "#F3F4F6";
   const pr = PRIORITY_MAP[task.priority] ?? PRIORITY_MAP["0"];
   const cleanDesc = stripHtml(task.description);
 
@@ -307,10 +444,10 @@ export default function TaskDetailScreen() {
           {/* ── Hero ──────────────────────────────────────────────────── */}
           <View style={styles.hero}>
             <View style={styles.badgeRow}>
-              {st && sbg ? (
+              {task.stage?.name ? (
                 <View style={[styles.heroBadge, { backgroundColor: sbg }]}>
                   <Text style={[styles.heroBadgeText, { color: st }]}>
-                    {task.stage?.name}
+                    {task.stage.name}
                   </Text>
                 </View>
               ) : null}
@@ -446,16 +583,201 @@ export default function TaskDetailScreen() {
         <View style={{ height: hpx(80) }} />
       </ScrollView>
 
-      {/* Floating Action Button (FAB) untuk Timesheet */}
-      {task.user_ids?.some((u: any) => u?.id === profile?.user?.id) && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setIsTimesheetModalVisible(true)}
-          activeOpacity={0.85}
+      {/* Speed Dial Backdrop */}
+      {isSpeedDialOpen && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setIsSpeedDialOpen(false);
+          }}
         >
-          <Ionicons name="time" size={wpx(24)} color="#FFFFFF" />
-        </TouchableOpacity>
+          <View style={styles.backdrop} />
+        </Pressable>
       )}
+
+      {/* Speed Dial FAB Menu */}
+      {isAssignee && (
+        <View style={styles.speedDialContainer}>
+          {isSpeedDialOpen && (
+            <View style={styles.speedDialMenu}>
+              <View style={styles.speedDialItem}>
+                <View style={styles.speedDialLabelBg}>
+                  <Text style={styles.speedDialLabel}>Isi Timesheet</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.miniFab, { backgroundColor: colors.primary, marginRight: wpx(8) }]}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setIsSpeedDialOpen(false);
+                    setIsTimesheetModalVisible(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="time" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.speedDialItem}>
+                <View style={styles.speedDialLabelBg}>
+                  <Text style={styles.speedDialLabel}>Update Status</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.miniFab, { backgroundColor: "#10B981", marginRight: wpx(8) }]}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setIsSpeedDialOpen(false);
+                    setIsStatusModalVisible(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="sync" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.speedDialItem}>
+                <View style={styles.speedDialLabelBg}>
+                  <Text style={styles.speedDialLabel}>Update Stage</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.miniFab, { backgroundColor: "#F59E0B", marginRight: wpx(8) }]}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setIsSpeedDialOpen(false);
+                    setIsStateModalVisible(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="list-circle" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[styles.fab, isSpeedDialOpen && { backgroundColor: colors.textSecondary }]}
+            onPress={toggleSpeedDial}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={isSpeedDialOpen ? "close" : "add"} size={wpx(24)} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Update Status Modal */}
+      <Modal
+        visible={isStatusModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsStatusModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsStatusModalVisible(false)} />
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pilih Status Baru</Text>
+              <TouchableOpacity onPress={() => setIsStatusModalVisible(false)}>
+                <Ionicons name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {isUpdatingStatus ? (
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+                style={{ marginVertical: spacing["4xl"] }}
+              />
+            ) : (
+              <View style={styles.statusListContainer}>
+                {stages.map((stage) => {
+                  const isCurrent = task?.stage?.id === stage.id;
+                  const sColor = STAGE_COLORS[stage.name] || colors.textPrimary;
+                  return (
+                    <TouchableOpacity
+                      key={stage.id}
+                      style={[
+                        styles.statusRow,
+                        isCurrent && { borderColor: colors.primary, borderWidth: 1.5 },
+                      ]}
+                      onPress={() => handleUpdateStatus(stage.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.statusBadgeDot, { backgroundColor: sColor }]} />
+                      <Text style={[styles.statusRowText, { color: sColor }]}>
+                        {stage.name}
+                      </Text>
+                      {isCurrent && (
+                        <Ionicons
+                          name="checkmark"
+                          size={18}
+                          color={colors.primary}
+                          style={{ marginLeft: "auto" }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Update Stage Modal */}
+      <Modal
+        visible={isStateModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsStateModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsStateModalVisible(false)} />
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pilih Stage Baru</Text>
+              <TouchableOpacity onPress={() => setIsStateModalVisible(false)}>
+                <Ionicons name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {isUpdatingState ? (
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+                style={{ marginVertical: spacing["4xl"] }}
+              />
+            ) : (
+              <View style={styles.statusListContainer}>
+                {taskStates.map((stateItem) => {
+                  const isCurrent = task?.state === stateItem.id;
+                  const sColor = STAGE_COLORS[stateItem.name] || colors.textPrimary;
+                  return (
+                    <TouchableOpacity
+                      key={stateItem.id}
+                      style={[
+                        styles.statusRow,
+                        isCurrent && { borderColor: colors.primary, borderWidth: 1.5 },
+                      ]}
+                      onPress={() => handleUpdateStage(stateItem.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.statusBadgeDot, { backgroundColor: sColor }]} />
+                      <Text style={[styles.statusRowText, { color: sColor }]}>
+                        {stateItem.name}
+                      </Text>
+                      {isCurrent && (
+                        <Ionicons
+                          name="checkmark"
+                          size={18}
+                          color={colors.primary}
+                          style={{ marginLeft: "auto" }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Timesheet Modal */}
       <Modal
@@ -464,68 +786,115 @@ export default function TaskDetailScreen() {
         transparent
         onRequestClose={() => setIsTimesheetModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsTimesheetModalVisible(false)} />
-          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Post Timesheet</Text>
-              <TouchableOpacity onPress={() => setIsTimesheetModalVisible(false)}>
-                <Ionicons name="close" size={22} color={colors.textPrimary} />
-              </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback
+            onPress={() => {
+              if (isKeyboardActive) {
+                Keyboard.dismiss();
+              } else {
+                setIsTimesheetModalVisible(false);
+              }
+            }}
+          >
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Post Timesheet</Text>
+                    <TouchableOpacity onPress={() => setIsTimesheetModalVisible(false)}>
+                      <Ionicons name="close" size={22} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.formContainer}>
+                    <Text style={styles.fieldLabel}>Tanggal</Text>
+                    {Platform.OS === "ios" ? (
+                      <View style={[styles.textInput, { justifyContent: "center", alignItems: "flex-start" }]}>
+                        <DateTimePicker
+                          value={timesheetDate ? new Date(timesheetDate) : new Date()}
+                          mode="date"
+                          display="default"
+                          locale="id-ID"
+                          themeVariant="light"
+                          onChange={(_e, d) => {
+                            if (d) setTimesheetDate(formatDateString(d));
+                          }}
+                          style={{ marginLeft: -8 }}
+                        />
+                      </View>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.textInput, { justifyContent: "center" }]}
+                          onPress={() => setShowDatePicker(true)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ color: timesheetDate ? colors.textPrimary : colors.textMuted, fontSize: rf(14) }}>
+                            {toDisplayDate(timesheetDate)}
+                          </Text>
+                        </TouchableOpacity>
+                        {showDatePicker && (
+                          <DateTimePicker
+                            value={timesheetDate ? new Date(timesheetDate) : new Date()}
+                            mode="date"
+                            display="default"
+                            onChange={(_e, d) => {
+                              setShowDatePicker(false);
+                              if (d) setTimesheetDate(formatDateString(d));
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    <Text style={styles.fieldLabel}>Karyawan</Text>
+                    <TextInput
+                      style={[styles.textInput, { backgroundColor: colors.surface, color: colors.textMuted }]}
+                      value={profile?.employee?.name || profile?.user?.name || "Memuat..."}
+                      editable={false}
+                    />
+
+                    <Text style={styles.fieldLabel}>Deskripsi Pekerjaan</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textArea]}
+                      multiline
+                      placeholder="Apa yang Anda kerjakan?"
+                      placeholderTextColor={colors.textMuted}
+                      value={timesheetDesc}
+                      onChangeText={setTimesheetDesc}
+                    />
+
+                    <Text style={styles.fieldLabel}>Durasi (Jam spent)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      keyboardType="numeric"
+                      placeholder="Contoh: 2.5"
+                      placeholderTextColor={colors.textMuted}
+                      value={timesheetHours}
+                      onChangeText={setTimesheetHours}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.submitBtn, isSubmittingTimesheet && { opacity: 0.6 }]}
+                    onPress={handlePostTimesheet}
+                    disabled={isSubmittingTimesheet}
+                    activeOpacity={0.85}
+                  >
+                    {isSubmittingTimesheet ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.submitText}>Kirim Timesheet</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-
-            <View style={styles.formContainer}>
-              <Text style={styles.fieldLabel}>Tanggal</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.textMuted}
-                value={timesheetDate}
-                onChangeText={setTimesheetDate}
-              />
-
-              <Text style={styles.fieldLabel}>Karyawan</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.surface, color: colors.textMuted }]}
-                value={profile?.employee?.name || profile?.user?.name || "Memuat..."}
-                editable={false}
-              />
-
-              <Text style={styles.fieldLabel}>Deskripsi Pekerjaan</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                multiline
-                placeholder="Apa yang Anda kerjakan?"
-                placeholderTextColor={colors.textMuted}
-                value={timesheetDesc}
-                onChangeText={setTimesheetDesc}
-              />
-
-              <Text style={styles.fieldLabel}>Durasi (Jam spent)</Text>
-              <TextInput
-                style={styles.textInput}
-                keyboardType="numeric"
-                placeholder="Contoh: 2.5"
-                placeholderTextColor={colors.textMuted}
-                value={timesheetHours}
-                onChangeText={setTimesheetHours}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.submitBtn, isSubmittingTimesheet && { opacity: 0.6 }]}
-              onPress={handlePostTimesheet}
-              disabled={isSubmittingTimesheet}
-              activeOpacity={0.85}
-            >
-              {isSubmittingTimesheet ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.submitText}>Kirim Timesheet</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -663,9 +1032,6 @@ const styles = StyleSheet.create({
   },
   // FAB & Modal styles
   fab: {
-    position: "absolute",
-    right: spacing["2xl"],
-    bottom: spacing["2xl"],
     width: sizes.fabSize,
     height: sizes.fabSize,
     borderRadius: radius.full,
@@ -729,6 +1095,74 @@ const styles = StyleSheet.create({
   submitText: {
     color: "#FFFFFF",
     fontSize: rf(16),
+    fontWeight: "700" as any,
+  },
+
+  // Speed Dial styles
+  speedDialContainer: {
+    position: "absolute",
+    right: spacing["2xl"],
+    bottom: spacing["2xl"],
+    alignItems: "flex-end",
+    zIndex: 999,
+  },
+  speedDialMenu: {
+    alignItems: "flex-end",
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  speedDialItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  speedDialLabelBg: {
+    backgroundColor: "rgba(0,0,0,0.75)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: hpx(4),
+    borderRadius: radius.sm,
+  },
+  speedDialLabel: {
+    color: "#FFFFFF",
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+  },
+  miniFab: {
+    width: wpx(40),
+    height: hpx(40),
+    borderRadius: radius.full,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.elevated,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+  },
+
+  // Status List Modal styles
+  statusListContainer: {
+    gap: spacing.md,
+    marginVertical: spacing.md,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+  },
+  statusBadgeDot: {
+    width: wpx(8),
+    height: hpx(8),
+    borderRadius: radius.full,
+  },
+  statusRowText: {
+    fontSize: rf(14),
     fontWeight: "700" as any,
   },
 });

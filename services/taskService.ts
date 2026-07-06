@@ -45,6 +45,9 @@ export const taskService = {
   listStages: (params?: { project_id?: number }) =>
     api.get<ApiResponse<TaskStageItem[]>>("/tasks/stages", { params }),
 
+  listStates: () =>
+    api.get<ApiResponse<{ id: string; name: string }[]>>("/tasks/states"),
+
   listTags: () =>
     api.get<ApiResponse<TaskTagItem[]>>("/tasks/tags"),
 };
