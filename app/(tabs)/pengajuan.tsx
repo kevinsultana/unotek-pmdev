@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -11,9 +10,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { timeOffService } from "../../services/timeOffService";
 import {
   colors,
   hpx,
@@ -25,7 +25,6 @@ import {
   textPresets,
   wpx,
 } from "../../src/constants/theme";
-import { timeOffService } from "../../services/timeOffService";
 import type { TimeOff, TimeOffBalanceItem } from "../../types/timeOff";
 import { showToast } from "../../utils/toast";
 
@@ -86,6 +85,7 @@ const STATUS_MAP = {
 } as const;
 
 export default function PengajuanScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [mockSubmissions, setMockSubmissions] = useState<Submission[]>([]);
 
@@ -96,20 +96,20 @@ export default function PengajuanScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "approved" | "rejected" | "cancel">("all");
-  
+
   // Modal states
   const [modalType, setModalType] = useState<"cuti" | "lembur" | "reimbursement" | null>(null);
-  
+
   // Form fields
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
   const [cutiDateFrom, setCutiDateFrom] = useState("");
   const [cutiDateTo, setCutiDateTo] = useState("");
   const [cutiReason, setCutiReason] = useState("");
-  
+
   const [lemburDate, setLemburDate] = useState("");
   const [lemburHours, setLemburHours] = useState("");
   const [lemburReason, setLemburReason] = useState("");
-  
+
   const [reimbTitle, setReimbTitle] = useState("");
   const [reimbAmount, setReimbAmount] = useState("");
   const [reimbDate, setReimbDate] = useState("");
@@ -286,6 +286,17 @@ export default function PengajuanScreen() {
           <Text style={styles.sectionTitle}>Buat Pengajuan Baru</Text>
           <View style={styles.actionsGrid}>
             <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: "#DBEAFE" }]}
+              onPress={() => router.push("/kehadiran")}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconBg, { backgroundColor: "#DBEAFE" }]}>
+                <Ionicons name="finger-print-outline" size={20} color="#1E40AF" />
+              </View>
+              <Text style={styles.actionLabel}>Kehadiran</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.actionBtn, { borderColor: "#EDE9FE" }]}
               onPress={() => setModalType("cuti")}
               activeOpacity={0.7}
@@ -317,6 +328,8 @@ export default function PengajuanScreen() {
               </View>
               <Text style={styles.actionLabel}>Reimbursement</Text>
             </TouchableOpacity>
+
+
           </View>
         </View>
 
@@ -325,7 +338,7 @@ export default function PengajuanScreen() {
         {/* History List */}
         <View style={styles.historySection}>
           <Text style={styles.historyTitle}>Riwayat Pengajuan</Text>
-          
+
           {/* Status Filter Tabs */}
           <View style={styles.filterRow}>
             {(["all", "pending", "approved", "rejected", "cancel"] as const).map((filterVal) => (
@@ -402,7 +415,7 @@ export default function PengajuanScreen() {
       </ScrollView>
 
       {/* ── Submission Modals ── */}
-      <Modal visible={modalType !== null} animationType="slide" transparent>
+      <Modal visible={modalType !== null} animationType="slide" transparent onRequestClose={resetForm}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={resetForm} />
           <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
@@ -629,30 +642,33 @@ const styles = StyleSheet.create({
   },
   actionsGrid: {
     flexDirection: "row",
-    gap: spacing.md,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: spacing.sm,
   },
   actionBtn: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: radius.md,
-    padding: spacing.md,
+    width: "48%",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    borderWidth: 1.2,
+    borderRadius: radius.md,
+    paddingVertical: hpx(10),
+    paddingHorizontal: spacing.sm,
     backgroundColor: colors.card,
   },
   actionIconBg: {
-    width: wpx(38),
-    height: wpx(38),
+    width: wpx(32),
+    height: wpx(32),
     borderRadius: radius.full,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.sm,
   },
   actionLabel: {
-    fontSize: rf(11),
+    fontSize: rf(12),
     fontWeight: "700" as any,
     color: colors.textPrimary,
-    textAlign: "center",
+    marginLeft: spacing.sm,
+    flex: 1,
   },
 
   // History section
@@ -847,7 +863,7 @@ const styles = StyleSheet.create({
     fontWeight: "700" as any,
   },
 
-  
+
   balanceContainer: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

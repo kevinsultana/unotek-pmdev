@@ -19,7 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAttendance } from "../../hooks/useAttendance";
+import { useAttendance } from "../hooks/useAttendance";
 import {
   colors,
   hpx,
@@ -30,8 +30,8 @@ import {
   spacing,
   textPresets,
   wpx,
-} from "../../src/constants/theme";
-import { showToast } from "../../utils/toast";
+} from "../src/constants/theme";
+import { showToast } from "../utils/toast";
 
 export default function KehadiranScreen() {
   const router = useRouter();
@@ -235,7 +235,6 @@ export default function KehadiranScreen() {
       try {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.5,
-          // Removed skipProcessing: true to fix blank/white screen crash on Android
         });
         if (photo) {
           setPhotoUri(photo.uri);
@@ -305,8 +304,15 @@ export default function KehadiranScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Curved Header */}
+      {/* Curved Header with Back Button */}
       <View style={[styles.curvedHeader]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Presensi</Text>
           <Text style={styles.headerSub}>Absensi harian & pengajuan izin</Text>
@@ -403,8 +409,6 @@ export default function KehadiranScreen() {
             color={colors.textMuted}
           />
         </TouchableOpacity>
-
-
 
         <View style={{ height: hpx(24) }} />
       </ScrollView>
@@ -614,6 +618,17 @@ const styles = StyleSheet.create({
     fontSize: rf(13),
     color: "rgba(255,255,255,0.7)",
     marginTop: hpx(4),
+  },
+  backBtn: {
+    position: "absolute",
+    left: spacing["2xl"],
+    bottom: hpx(16),
+    width: sizes.headerBtnWidth,
+    height: sizes.headerBtn,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
   },
 
   scroll: {

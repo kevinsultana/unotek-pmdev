@@ -32,6 +32,7 @@ export default function RootLayout() {
           <Stack.Screen name="forgot-password" />
           <Stack.Screen name="project-detail" />
           <Stack.Screen name="attendance-history" />
+          <Stack.Screen name="kehadiran" />
           <Stack.Screen name="leave-allocations" />
           <Stack.Screen name="time-off-detail" />
           <Stack.Screen name="task-detail" />

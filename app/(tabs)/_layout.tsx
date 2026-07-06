@@ -39,7 +39,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           }
         };
 
-        if (route.name === "kehadiran") {
+        if (route.name === "event") {
           return (
             <TouchableOpacity
               key={route.key}
@@ -113,7 +113,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="home" options={{ title: "Home" }} />
       <Tabs.Screen name="timeline" options={{ title: "Task" }} />
-      <Tabs.Screen name="kehadiran" options={{ title: "Kehadiran" }} />
+      <Tabs.Screen name="event" options={{ title: "Event" }} />
       <Tabs.Screen name="pengajuan" options={{ title: "Pengajuan" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
