@@ -262,58 +262,73 @@ export default function ProjectDetailScreen() {
             <Text style={styles.sectionTitle}>Informasi Project</Text>
 
             {!!project.partner && (
-              <DetailRow icon="people-outline" label="Klien">
-                <View style={detailStyles.person}>
-                  <View style={detailStyles.avatar}>
-                    <Text style={detailStyles.avatarText}>
-                      {(project.partner.name || "").charAt(0).toUpperCase()}
-                    </Text>
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.fieldLabel}>Klien</Text>
+                <View style={styles.readOnlyField}>
+                  <View style={detailStyles.person}>
+                    <View style={detailStyles.avatar}>
+                      <Text style={detailStyles.avatarText}>
+                        {(project.partner.name || "").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={detailStyles.personName}>{project.partner.name || ""}</Text>
                   </View>
-                  <Text style={detailStyles.personName}>{project.partner.name || ""}</Text>
                 </View>
-              </DetailRow>
+              </View>
             )}
 
             {!!project.user && (
-              <DetailRow icon="person-outline" label="PIC">
-                <View style={detailStyles.person}>
-                  <View style={[detailStyles.avatar, { backgroundColor: "#D1FAE5" }]}>
-                    <Text style={[detailStyles.avatarText, { color: "#059669" }]}>
-                      {(project.user.name || "").charAt(0).toUpperCase()}
-                    </Text>
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.fieldLabel}>PIC</Text>
+                <View style={styles.readOnlyField}>
+                  <View style={detailStyles.person}>
+                    <View style={[detailStyles.avatar, { backgroundColor: "#D1FAE5" }]}>
+                      <Text style={[detailStyles.avatarText, { color: "#059669" }]}>
+                        {(project.user.name || "").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={detailStyles.personName}>{project.user.name || ""}</Text>
                   </View>
-                  <Text style={detailStyles.personName}>{project.user.name || ""}</Text>
                 </View>
-              </DetailRow>
+              </View>
             )}
 
             {!!project.company && (
-              <DetailRow icon="business-outline" label="Perusahaan">
-                <View style={detailStyles.person}>
-                  <View style={[detailStyles.avatar, { backgroundColor: "#FEF3C7" }]}>
-                    <Text style={[detailStyles.avatarText, { color: "#F59E0B" }]}>
-                      {(project.company.name || "").charAt(0).toUpperCase()}
-                    </Text>
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.fieldLabel}>Perusahaan</Text>
+                <View style={styles.readOnlyField}>
+                  <View style={detailStyles.person}>
+                    <View style={[detailStyles.avatar, { backgroundColor: "#FEF3C7" }]}>
+                      <Text style={[detailStyles.avatarText, { color: "#F59E0B" }]}>
+                        {(project.company.name || "").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={detailStyles.personName}>{project.company.name || ""}</Text>
                   </View>
-                  <Text style={detailStyles.personName}>{project.company.name || ""}</Text>
                 </View>
-              </DetailRow>
+              </View>
             )}
 
             {!!(project.date_start || project.date) && (
-              <DetailRow icon="calendar-outline" label="Periode">
-                <Text style={detailStyles.dateText}>
-                  {(project.date_start && project.date_start !== "false" ? project.date_start : "—")} → {(project.date && project.date !== "false" ? project.date : "—")}
-                </Text>
-              </DetailRow>
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.fieldLabel}>Periode</Text>
+                <View style={styles.readOnlyField}>
+                  <Text style={detailStyles.dateText}>
+                    {(project.date_start && project.date_start !== "false" ? project.date_start : "—")} → {(project.date && project.date !== "false" ? project.date : "—")}
+                  </Text>
+                </View>
+              </View>
             )}
 
-            <DetailRow icon="radio-button-on" label="Status">
-              <View style={detailStyles.statusRow}>
-                <View style={[detailStyles.statusDot, { backgroundColor: project.active ? colors.success : colors.error }]} />
-                <Text style={detailStyles.statusValue}>{project.active ? "Aktif" : "Tidak Aktif"}</Text>
+            <View style={{ marginBottom: spacing.md }}>
+              <Text style={styles.fieldLabel}>Status</Text>
+              <View style={styles.readOnlyField}>
+                <View style={detailStyles.statusRow}>
+                  <View style={[detailStyles.statusDot, { backgroundColor: project.active ? colors.success : colors.error }]} />
+                  <Text style={detailStyles.statusValue}>{project.active ? "Aktif" : "Tidak Aktif"}</Text>
+                </View>
               </View>
-            </DetailRow>
+            </View>
           </View>
         </View>
 
@@ -530,6 +545,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...textPresets.sectionHeader,
     marginBottom: spacing.lg + spacing.xs,
+  },
+  fieldLabel: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    marginTop: spacing.md,
+  },
+  readOnlyField: {
+    height: hpx(36),
+    justifyContent: "center",
   },
 });
 

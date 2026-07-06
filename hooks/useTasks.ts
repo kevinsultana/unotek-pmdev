@@ -27,7 +27,7 @@ export function useTasks() {
         per_page: number;
       } = {
         page: pageToFetch,
-        per_page: 25,
+        per_page: 20,
       };
 
       params.my_tasks = filter === "my";

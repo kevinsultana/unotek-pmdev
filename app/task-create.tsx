@@ -5,6 +5,8 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -13,6 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -136,17 +139,24 @@ export default function TaskCreateScreen() {
         </View>
       </View>
 
-      {isLoadingRef ? (
-        <ActivityIndicator
-          size="large"
-          color={colors.primary}
-          style={{ marginVertical: spacing["4xl"] }}
-        />
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          {isLoadingRef ? (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+              />
+            </View>
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.scroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
           <View style={styles.floatingCard}>
             {/* Nama Tugas */}
             <Text style={styles.label}>
@@ -342,6 +352,8 @@ export default function TaskCreateScreen() {
           <View style={{ height: hpx(24) }} />
         </ScrollView>
       )}
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
 
       {/* ── Modals ── */}
       {renderPickerModal(
