@@ -77,9 +77,9 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         if (route.name === "home")
           iconName = isFocused ? "home" : "home-outline";
         else if (route.name === "timeline")
-          iconName = isFocused ? "time" : "time-outline";
-        else if (route.name === "perusahaan")
-          iconName = isFocused ? "briefcase" : "briefcase-outline";
+          iconName = isFocused ? "checkbox" : "checkbox-outline";
+        else if (route.name === "pengajuan")
+          iconName = isFocused ? "document-text" : "document-text-outline";
         else if (route.name === "profile")
           iconName = isFocused ? "person" : "person-outline";
 
@@ -114,7 +114,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="home" options={{ title: "Home" }} />
       <Tabs.Screen name="timeline" options={{ title: "Task" }} />
       <Tabs.Screen name="kehadiran" options={{ title: "Kehadiran" }} />
-      <Tabs.Screen name="perusahaan" options={{ title: "Company" }} />
+      <Tabs.Screen name="pengajuan" options={{ title: "Pengajuan" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );

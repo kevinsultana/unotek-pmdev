@@ -40,9 +40,9 @@ const MENU_GRID = [
     bg: "#FEF3C7",
   },
   {
-    route: "/perusahaan",
-    icon: "business-outline",
-    label: "Company",
+    route: "/pengajuan",
+    icon: "document-text-outline",
+    label: "Pengajuan",
     color: "#059669",
     bg: "#D1FAE5",
   },

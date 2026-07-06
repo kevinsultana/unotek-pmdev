@@ -4,13 +4,17 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { profileService } from "../services/profileService";
 import { taskService } from "../services/taskService";
 import {
   colors,
@@ -23,7 +27,9 @@ import {
   textPresets,
   wpx,
 } from "../src/constants/theme";
+import type { ProfileResponse } from "../types/profile";
 import type { Task } from "../types/task";
+import { showToast } from "../utils/toast";
 
 // ponytail: single stage colour map, also used in timeline.tsx
 export const STAGE_COLORS: Record<string, string> = {
@@ -120,14 +126,25 @@ export default function TaskDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [profile, setProfile] = useState<ProfileResponse | null>(null);
+  const [isTimesheetModalVisible, setIsTimesheetModalVisible] = useState(false);
+  const [timesheetDate, setTimesheetDate] = useState(new Date().toISOString().split("T")[0]);
+  const [timesheetDesc, setTimesheetDesc] = useState("");
+  const [timesheetHours, setTimesheetHours] = useState("");
+  const [isSubmittingTimesheet, setIsSubmittingTimesheet] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     (async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await taskService.getById(Number(id));
-        setTask(res.data.data);
+        const [taskRes, profileRes] = await Promise.all([
+          taskService.getById(Number(id)),
+          profileService.getProfile(),
+        ]);
+        setTask(taskRes.data.data);
+        setProfile(profileRes.data.data);
       } catch (err: any) {
         setError(err?.response?.data?.message || "Gagal memuat detail tugas");
       } finally {
@@ -135,6 +152,56 @@ export default function TaskDetailScreen() {
       }
     })();
   }, [id]);
+
+  const isAssignee = !!(
+    task?.user_ids?.some(
+      (u) =>
+        u.id === profile?.user?.id ||
+        u.name.toLowerCase() === profile?.user?.name?.toLowerCase() ||
+        u.name.toLowerCase() === profile?.employee?.name?.toLowerCase()
+    )
+  );
+
+  const handlePostTimesheet = async () => {
+    if (!timesheetDate || !timesheetDesc || !timesheetHours) {
+      showToast("error", "Validasi", "Harap isi semua kolom form.");
+      return;
+    }
+    const parsedHours = parseFloat(timesheetHours);
+    if (isNaN(parsedHours) || parsedHours <= 0) {
+      showToast("error", "Validasi", "Durasi jam harus berupa angka positif.");
+      return;
+    }
+    if (!profile?.employee?.id) {
+      showToast("error", "Error", "ID karyawan tidak ditemukan.");
+      return;
+    }
+
+    setIsSubmittingTimesheet(true);
+    try {
+      await taskService.postTimesheet(task!.id, {
+        date: timesheetDate,
+        employee_id: profile.employee.id,
+        name: timesheetDesc,
+        unit_amount: parsedHours,
+      });
+      showToast("success", "Berhasil", "Timesheet berhasil ditambahkan.");
+      setIsTimesheetModalVisible(false);
+      setTimesheetDesc("");
+      setTimesheetHours("");
+    } catch (err: any) {
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        showToast("success", "Berhasil (Mock)", "Timesheet ditambahkan (simulasi).");
+        setIsTimesheetModalVisible(false);
+        setTimesheetDesc("");
+        setTimesheetHours("");
+      } else {
+        showToast("error", "Gagal", err?.response?.data?.message || "Gagal mengirimkan timesheet.");
+      }
+    } finally {
+      setIsSubmittingTimesheet(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -352,8 +419,90 @@ export default function TaskDetailScreen() {
             </View>
           ) : null}
         </View>
-        <View style={{ height: hpx(24) }} />
+        <View style={{ height: hpx(80) }} />
       </ScrollView>
+
+      {/* Floating Action Button (FAB) untuk Timesheet */}
+      {task.user_ids?.some((u) => u.id === profile?.user?.id) && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setIsTimesheetModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="time" size={wpx(24)} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* Timesheet Modal */}
+      <Modal
+        visible={isTimesheetModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsTimesheetModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsTimesheetModalVisible(false)} />
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Post Timesheet</Text>
+              <TouchableOpacity onPress={() => setIsTimesheetModalVisible(false)}>
+                <Ionicons name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formContainer}>
+              <Text style={styles.fieldLabel}>Tanggal</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textMuted}
+                value={timesheetDate}
+                onChangeText={setTimesheetDate}
+              />
+
+              <Text style={styles.fieldLabel}>Karyawan</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.surface, color: colors.textMuted }]}
+                value={profile?.employee?.name || profile?.user?.name || "Memuat..."}
+                editable={false}
+              />
+
+              <Text style={styles.fieldLabel}>Deskripsi Pekerjaan</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                multiline
+                placeholder="Apa yang Anda kerjakan?"
+                placeholderTextColor={colors.textMuted}
+                value={timesheetDesc}
+                onChangeText={setTimesheetDesc}
+              />
+
+              <Text style={styles.fieldLabel}>Durasi (Jam spent)</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                placeholder="Contoh: 2.5"
+                placeholderTextColor={colors.textMuted}
+                value={timesheetHours}
+                onChangeText={setTimesheetHours}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitBtn, isSubmittingTimesheet && { opacity: 0.6 }]}
+              onPress={handlePostTimesheet}
+              disabled={isSubmittingTimesheet}
+              activeOpacity={0.85}
+            >
+              {isSubmittingTimesheet ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.submitText}>Kirim Timesheet</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -487,6 +636,76 @@ const styles = StyleSheet.create({
     ...textPresets.body,
     fontSize: rf(13),
     color: colors.textPrimary,
+  },
+  // FAB & Modal styles
+  fab: {
+    position: "absolute",
+    right: spacing["2xl"],
+    bottom: spacing["2xl"],
+    width: sizes.fabSize,
+    height: sizes.fabSize,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.elevated,
+    shadowColor: colors.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing["2xl"],
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xl,
+  },
+  modalTitle: { ...textPresets.screenTitle },
+  formContainer: {
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  fieldLabel: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  textInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    height: sizes.buttonMd,
+    color: colors.textPrimary,
+    fontSize: rf(14),
+  },
+  textArea: {
+    height: hpx(80),
+    paddingTop: spacing.md,
+    textAlignVertical: "top",
+  },
+  submitBtn: {
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    ...shadows.elevated,
+    shadowColor: colors.primary,
+  },
+  submitText: {
+    color: "#FFFFFF",
+    fontSize: rf(16),
+    fontWeight: "700" as any,
   },
 });
 

@@ -12,9 +12,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { projectService } from "../services/projectService";
+import { taskService } from "../services/taskService";
 import { Badge } from "../src/components/ui";
 import { colors, hpx, radius, rf, shadows, sizes, spacing, textPresets, wpx } from "../src/constants/theme";
 import type { Project } from "../types/project";
+import type { Task } from "../types/task";
 
 // ponytail: shared status colour map — single source instead of switch-case per screen
 const STAGE_STYLES: Record<string, { color: string; bg: string }> = {
@@ -30,6 +32,15 @@ const STAGE_STYLES: Record<string, { color: string; bg: string }> = {
 function stageStyle(name?: string) {
   return STAGE_STYLES[name ?? ""] ?? { color: colors.textMuted, bg: "#F1F5F9" };
 }
+
+const TASK_STAGE_MAP: Record<string, { c: string; b: string }> = {
+  Open: { c: "#F59E0B", b: "#FEF3C7" },
+  "In Progress": { c: colors.primary, b: colors.primaryLight },
+  "Ready to Test": { c: "#7C3AED", b: "#EDE9FE" },
+  Passed: { c: "#059669", b: "#D1FAE5" },
+  Failed: { c: colors.error, b: "#FEE2E2" },
+  Done: { c: "#059669", b: "#D1FAE5" },
+};
 
 // ── Detail Row component ───────────────────────────────────────────────────
 function DetailRow({ icon, label, children }: { icon: keyof typeof Ionicons.glyphMap; label: string; children: React.ReactNode }) {
@@ -51,6 +62,33 @@ export default function ProjectDetailScreen() {
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [isTasksExpanded, setIsTasksExpanded] = useState(false);
+  const [projectTasks, setProjectTasks] = useState<Task[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+
+  const fetchProjectTasks = async () => {
+    if (!id) return;
+    try {
+      setIsLoadingTasks(true);
+      setTasksError(null);
+      const res = await taskService.list({ project_id: Number(id), page: 1, per_page: 20 });
+      setProjectTasks(res.data.data || []);
+    } catch (err: any) {
+      setTasksError(err?.response?.data?.message || "Gagal memuat tugas project");
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  };
+
+  const toggleTasksCollapse = () => {
+    const nextState = !isTasksExpanded;
+    setIsTasksExpanded(nextState);
+    if (nextState && projectTasks.length === 0) {
+      fetchProjectTasks();
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -132,16 +170,89 @@ export default function ProjectDetailScreen() {
             </View>
           </View>
 
-          {/* ── Task Count ────────────────────────────────────────────── */}
-          <View style={styles.taskCountCard}>
+          {/* ── Task Count (Pressable & Collapse Toggle) ────────────────── */}
+          <TouchableOpacity
+            style={styles.taskCountCard}
+            onPress={toggleTasksCollapse}
+            activeOpacity={0.7}
+          >
             <View style={[styles.taskCountIcon, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name="checkbox-outline" size={24} color={colors.primary} />
             </View>
             <View style={styles.taskCountText}>
               <Text style={styles.taskCountValue}>{project.task_count}</Text>
               <Text style={styles.taskCountLabel}>Total Tugas</Text>
+              <Text style={styles.taskCountSubLabel}>
+                {isTasksExpanded ? "Sembunyikan daftar tugas" : "Ketuk untuk melihat daftar tugas"}
+              </Text>
             </View>
-          </View>
+            <Ionicons
+              name={isTasksExpanded ? "chevron-down" : "chevron-forward"}
+              size={20}
+              color={colors.textMuted}
+              style={{ marginLeft: "auto", marginRight: spacing.sm }}
+            />
+          </TouchableOpacity>
+
+          {isTasksExpanded && (
+            <View style={styles.tasksSection}>
+              {isLoadingTasks ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: spacing.md }} />
+              ) : tasksError ? (
+                <View style={styles.centerMin}>
+                  <Text style={styles.errorText}>{tasksError}</Text>
+                </View>
+              ) : projectTasks.length === 0 ? (
+                <View style={styles.centerMin}>
+                  <Text style={styles.noTasksText}>Belum ada tugas di project ini.</Text>
+                </View>
+              ) : (
+                projectTasks.map((t) => {
+                  const stageStyle = TASK_STAGE_MAP[t.stage?.name ?? ""] ?? {
+                    c: colors.textMuted,
+                    b: "#F1F5F9",
+                  };
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={styles.taskItemCard}
+                      onPress={() => router.push(`/task-detail?id=${t.id}`)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.taskItemTop}>
+                        <Text style={styles.taskItemName} numberOfLines={1}>{t.name}</Text>
+                        <View style={[styles.taskItemStage, { backgroundColor: stageStyle.b }]}>
+                          <Text style={[styles.taskItemStageText, { color: stageStyle.c }]}>
+                            {t.stage?.name || "—"}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.taskItemBottom}>
+                        {t.user_ids != null && t.user_ids.length > 0 ? (
+                          <View style={styles.taskItemAssignees}>
+                            <Ionicons name="people-outline" size={12} color={colors.textMuted} />
+                            <Text style={styles.taskItemAssigneeText} numberOfLines={1}>
+                              {t.user_ids.map((u) => u.name).join(", ")}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.taskItemNoAssignee}>Belum ada assignee</Text>
+                        )}
+                        {t.date_deadline ? (
+                          <View style={styles.taskItemDeadline}>
+                            <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
+                            <Text style={styles.taskItemDeadlineText}>
+                              {t.date_deadline.substring(0, 10)}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+          )}
 
           {/* ── Detail Sections ───────────────────────────────────────── */}
           <View style={styles.sectionCard}>
@@ -306,6 +417,96 @@ const styles = StyleSheet.create({
   taskCountLabel: {
     ...textPresets.caption,
     marginTop: hpx(2),
+  },
+  taskCountSubLabel: {
+    ...textPresets.caption,
+    fontSize: rf(11),
+    color: colors.primary,
+    marginTop: hpx(2),
+    fontWeight: "600" as any,
+  },
+  tasksSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  centerMin: {
+    alignItems: "center",
+    paddingVertical: spacing.md,
+  },
+  errorText: {
+    ...textPresets.body,
+    color: colors.error,
+    fontSize: rf(12),
+  },
+  noTasksText: {
+    ...textPresets.body,
+    color: colors.textMuted,
+    fontSize: rf(12),
+  },
+  taskItemCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  taskItemTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  taskItemName: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  taskItemStage: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(2),
+    borderRadius: radius.xs,
+  },
+  taskItemStageText: {
+    fontSize: rf(10),
+    fontWeight: "700" as any,
+  },
+  taskItemBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  taskItemAssignees: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  taskItemAssigneeText: {
+    fontSize: rf(11),
+    color: colors.textSecondary,
+    maxWidth: "85%",
+  },
+  taskItemNoAssignee: {
+    fontSize: rf(11),
+    color: colors.textMuted,
+    fontStyle: "italic",
+  },
+  taskItemDeadline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  taskItemDeadlineText: {
+    fontSize: rf(11),
+    color: colors.textSecondary,
   },
 
   // Section

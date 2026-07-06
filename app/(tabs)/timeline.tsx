@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTasks } from "../../hooks/useTasks";
+import { projectService } from "../../services/projectService";
 import {
   colors,
   hpx,
@@ -24,6 +25,7 @@ import {
   textPresets,
   wpx,
 } from "../../src/constants/theme";
+import type { Project } from "../../types/project";
 
 const STAGE_MAP: Record<string, { c: string; b: string }> = {
   Open: { c: "#F59E0B", b: "#FEF3C7" },
@@ -38,6 +40,20 @@ const PRIORITY_MAP: Record<string, { label: string; c: string; b: string }> = {
   "1": { label: "Urgent", c: colors.error, b: "#FEE2E2" },
 };
 
+const STAGE_STYLES: Record<string, { c: string; b: string }> = {
+  Initiation: { c: "#F59E0B", b: "#FEF3C7" },
+  "Requirement Gathering": { c: "#F59E0B", b: "#FEF3C7" },
+  Implementation: { c: colors.primary, b: colors.primaryLight },
+  "Blueprint Approval": { c: colors.primary, b: colors.primaryLight },
+  UAT: { c: "#7C3AED", b: "#EDE9FE" },
+  "Go-Live Preparation": { c: "#059669", b: "#D1FAE5" },
+  "Hypercare Support": { c: "#059669", b: "#D1FAE5" },
+};
+
+function stageStyle(name?: string) {
+  return STAGE_STYLES[name ?? ""] ?? { c: colors.textMuted, b: "#F1F5F9" };
+}
+
 function stripHtml(html?: string | null) {
   if (!html) return "";
   return html
@@ -50,16 +66,24 @@ function stripHtml(html?: string | null) {
 export default function TimelineScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ filter?: string }>();
+
   const {
     tasks,
-    isLoading,
-    error,
-    filter,
-    setFilter,
+    isLoading: tasksLoading,
+    error: tasksError,
+    filter: tasksFilter,
+    setFilter: setTasksFilter,
     searchQuery,
     setSearchQuery,
-    refresh,
+    refresh: refreshTasks,
   } = useTasks();
+
+  const [activeTab, setActiveTab] = useState<"my" | "all" | "projects">("projects");
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
@@ -70,11 +94,49 @@ export default function TimelineScreen() {
     }));
   };
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      setProjectsError(null);
+      setProjectsLoading(true);
+      const res = await projectService.list({ active: true });
+      setProjects(res.data.data || []);
+    } catch (err: any) {
+      setProjectsError(err?.response?.data?.message || "Gagal memuat daftar projek");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (params.filter === "projects") {
+      setActiveTab("projects");
+    } else if (params.filter === "all") {
+      setActiveTab("all");
+      setTasksFilter("all");
+    } else if (params.filter === "my") {
+      setActiveTab("my");
+      setTasksFilter("my");
+    }
+  }, [params.filter]);
+
   useFocusEffect(
     useCallback(() => {
-      refresh();
-    }, [refresh]),
+      if (activeTab === "projects") {
+        fetchProjects();
+      } else {
+        refreshTasks();
+      }
+    }, [activeTab, fetchProjects, refreshTasks]),
   );
+
+  const handleTabChange = (tab: "my" | "all" | "projects") => {
+    setActiveTab(tab);
+    if (tab === "my") {
+      setTasksFilter("my");
+    } else if (tab === "all") {
+      setTasksFilter("all");
+    }
+  };
 
   // Group tasks by project
   const groupedTasks = tasks.reduce<Record<string, typeof tasks>>((acc, task) => {
@@ -86,6 +148,17 @@ export default function TimelineScreen() {
     return acc;
   }, {});
 
+  const filteredProjects = projects.filter((p) => {
+    if (!projectSearchQuery) return true;
+    const q = projectSearchQuery.toLowerCase();
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.partner?.name?.toLowerCase().includes(q) ||
+      p.user?.name?.toLowerCase().includes(q) ||
+      p.stage_id?.name?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -94,7 +167,7 @@ export default function TimelineScreen() {
       <View style={[styles.curvedHeader]}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Tugas</Text>
-          <Text style={styles.headerSub}>Daftar tugas yang didelegasikan</Text>
+          <Text style={styles.headerSub}>Daftar tugas & projek perusahaan</Text>
         </View>
       </View>
 
@@ -106,19 +179,19 @@ export default function TimelineScreen() {
         <View style={styles.floatingCard}>
           {/* Filter Toggle */}
           <View style={styles.toggleRow}>
-            {(["my", "all"] as const).map((f) => (
+            {(["projects", "my", "all",] as const).map((f) => (
               <TouchableOpacity
                 key={f}
-                style={[styles.toggleBtn, filter === f && styles.toggleActive]}
-                onPress={() => setFilter(f)}
+                style={[styles.toggleBtn, activeTab === f && styles.toggleActive]}
+                onPress={() => handleTabChange(f)}
               >
                 <Text
                   style={[
                     styles.toggleText,
-                    filter === f && styles.toggleTextActive,
+                    activeTab === f && styles.toggleTextActive,
                   ]}
                 >
-                  {f === "my" ? "Tugas Saya" : "Semua Tugas"}
+                  {f === "my" ? "Tugas Saya" : f === "all" ? "Semua Tugas" : "Projek"}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -133,13 +206,13 @@ export default function TimelineScreen() {
             />
             <TextInput
               style={styles.searchInput}
-              placeholder="Cari tugas..."
+              placeholder={activeTab === "projects" ? "Cari projek, klien, PIC..." : "Cari tugas..."}
               placeholderTextColor={colors.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+              value={activeTab === "projects" ? projectSearchQuery : searchQuery}
+              onChangeText={activeTab === "projects" ? setProjectSearchQuery : setSearchQuery}
             />
-            {searchQuery ? (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
+            {(activeTab === "projects" ? projectSearchQuery : searchQuery) ? (
+              <TouchableOpacity onPress={() => activeTab === "projects" ? setProjectSearchQuery("") : setSearchQuery("")}>
                 <Ionicons
                   name="close-circle"
                   size={18}
@@ -149,21 +222,127 @@ export default function TimelineScreen() {
             ) : null}
           </View>
 
-          {/* Task List */}
-          {isLoading ? (
+          {/* Render List */}
+          {activeTab === "projects" ? (
+            projectsLoading ? (
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+                style={{ marginVertical: hpx(40) }}
+              />
+            ) : projectsError ? (
+              <View style={styles.center}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={40}
+                  color={colors.error}
+                />
+                <Text style={styles.emptyText}>{projectsError}</Text>
+                <TouchableOpacity style={styles.retryBtn} onPress={fetchProjects}>
+                  <Text style={styles.retryText}>Coba Lagi</Text>
+                </TouchableOpacity>
+              </View>
+            ) : filteredProjects.length === 0 ? (
+              <View style={styles.center}>
+                <Ionicons
+                  name="folder-open-outline"
+                  size={40}
+                  color={colors.textMuted}
+                />
+                <Text style={styles.emptyText}>
+                  {projectSearchQuery ? "Projek tidak ditemukan." : "Belum ada projek."}
+                </Text>
+              </View>
+            ) : (
+              filteredProjects.map((project) => {
+                const st = stageStyle(project.stage_id?.name);
+                return (
+                  <TouchableOpacity
+                    key={project.id}
+                    style={styles.projectCard}
+                    activeOpacity={0.7}
+                    onPress={() => router.push(`/project-detail?id=${project.id}`)}
+                  >
+                    <View style={styles.p_cardTop}>
+                      <View style={styles.idBadge}>
+                        <Text style={styles.idText}>#{project.id}</Text>
+                      </View>
+                      {project.stage_id && (
+                        <View style={[styles.stageBadge, { backgroundColor: st.b }]}>
+                          <Text style={[styles.stageBadgeText, { color: st.c }]}>
+                            {project.stage_id.name}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.p_projectName}>{project.name}</Text>
+                    {project.description ? (
+                      <Text style={styles.projectDesc} numberOfLines={2}>
+                        {project.description}
+                      </Text>
+                    ) : null}
+                    <View style={styles.chips}>
+                      {project.partner && (
+                        <View style={styles.chip}>
+                          <Ionicons
+                            name="business-outline"
+                            size={12}
+                            color={colors.textSecondary}
+                          />
+                          <Text style={styles.chipText}>{project.partner.name}</Text>
+                        </View>
+                      )}
+                      {project.user && (
+                        <View style={styles.chip}>
+                          <Ionicons
+                            name="person-outline"
+                            size={12}
+                            color={colors.textSecondary}
+                          />
+                          <Text style={styles.chipText}>{project.user.name}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.p_footer}>
+                      <View style={styles.footerItem}>
+                        <Ionicons
+                          name="checkbox-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.p_footerText}>{project.task_count} tugas</Text>
+                      </View>
+                      {(project.date_start || project.date) && (
+                        <View style={styles.footerItem}>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={13}
+                            color={colors.textMuted}
+                          />
+                          <Text style={styles.footerDate}>
+                            {project.date_start || "—"} → {project.date || "—"}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )
+          ) : tasksLoading ? (
             <ActivityIndicator
               size="large"
               color={colors.primary}
               style={{ marginVertical: hpx(32) }}
             />
-          ) : error ? (
+          ) : tasksError ? (
             <View style={styles.center}>
               <Ionicons
                 name="alert-circle-outline"
                 size={40}
                 color={colors.error}
               />
-              <Text style={styles.emptyText}>{error}</Text>
+              <Text style={styles.emptyText}>{tasksError}</Text>
             </View>
           ) : tasks.length === 0 ? (
             <View style={styles.center}>
@@ -287,13 +466,15 @@ export default function TimelineScreen() {
       </ScrollView>
 
       {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push("/task-create")}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={wpx(24)} color="#FFFFFF" />
-      </TouchableOpacity>
+      {activeTab !== "projects" && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push("/task-create")}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={wpx(24)} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -470,4 +651,85 @@ const styles = StyleSheet.create({
     ...shadows.elevated,
     shadowColor: colors.primary,
   },
+  projectCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  p_cardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  idBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs - 1,
+    borderRadius: radius.sm,
+  },
+  idText: {
+    fontSize: rf(10),
+    fontWeight: "700" as any,
+    color: colors.textMuted,
+  },
+  stageBadge: {
+    paddingHorizontal: spacing.sm + 1,
+    paddingVertical: spacing.xs - 1,
+    borderRadius: radius.sm,
+  },
+  stageBadgeText: { fontSize: rf(10), fontWeight: "700" as any },
+  p_projectName: { ...textPresets.cardTitle, marginBottom: spacing.xs },
+  projectDesc: {
+    ...textPresets.body,
+    fontSize: rf(13),
+    lineHeight: rf(18),
+    marginBottom: spacing.md,
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm + 1,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+  },
+  chipText: {
+    fontSize: rf(11),
+    color: colors.textSecondary,
+    fontWeight: "500" as any,
+  },
+  p_footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  p_footerItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  p_footerText: {
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+    color: colors.primary,
+  },
+  footerDate: { fontSize: rf(10), color: colors.textMuted },
+  retryBtn: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+  },
+  retryText: { color: "#FFFFFF", fontSize: rf(14), fontWeight: "700" as any },
 });

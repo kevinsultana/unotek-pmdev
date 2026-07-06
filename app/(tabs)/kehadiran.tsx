@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -8,6 +9,7 @@ import {
   ActivityIndicator,
   Image,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -115,55 +117,102 @@ export default function KehadiranScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const result = await Location.reverseGeocodeAsync({
+        latitude: lat,
+        longitude: lng,
+      });
+      if (result?.length) {
+        const a = result[0];
+        setGpsAddress(
+          [a.name, a.street, a.district, a.city || a.subregion]
+            .filter(Boolean)
+            .join(", ") || "Lokasi tidak dikenal",
+        );
+      } else {
+        setGpsAddress("Alamat tidak ditemukan");
+      }
+    } catch {
+      setGpsAddress("Lokasi terdeteksi");
+    }
+  };
+
+  const fetchLocationData = async () => {
+    setGpsLoading(true);
+    setGpsAddress(null);
+    let latVal = 0;
+    let lngVal = 0;
+    let locationAcquired = false;
+
+    try {
+      // 1. Get last known location first (almost instantaneous cache hit)
+      const lastKnown = await Location.getLastKnownPositionAsync({});
+      if (lastKnown) {
+        latVal = lastKnown.coords.latitude;
+        lngVal = lastKnown.coords.longitude;
+        setGpsCoords({ lat: latVal.toFixed(6), lng: lngVal.toFixed(6) });
+        locationAcquired = true;
+        // Fetch address for last known coords asynchronously
+        reverseGeocode(latVal, lngVal);
+      }
+
+      // 2. Fetch fresh location with a 10s timeout so it won't hang indefinitely
+      const freshLocationPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error("Location timeout")), 10000)
+      );
+
+      const location = await Promise.race([freshLocationPromise, timeoutPromise]);
+      if (location) {
+        latVal = location.coords.latitude;
+        lngVal = location.coords.longitude;
+        setGpsCoords({ lat: latVal.toFixed(6), lng: lngVal.toFixed(6) });
+        locationAcquired = true;
+        await reverseGeocode(latVal, lngVal);
+      } else if (!locationAcquired) {
+        throw new Error("No location acquired");
+      }
+    } catch (error) {
+      console.log("GPS Error:", error);
+      // Only show error if we haven't acquired any coords at all
+      if (!locationAcquired) {
+        showToast("error", "Error GPS", "Gagal mendapatkan koordinat.");
+      }
+    } finally {
+      setGpsLoading(false);
+    }
+  };
+
   const openAttendanceFlow = async (type: "checkin" | "checkout") => {
     setAttendanceType(type);
+
+    // Request camera permission
+    const cameraPermissionResult = await requestCameraPermission();
+    if (!cameraPermissionResult.granted) {
+      showToast("error", "Izin Kamera", "Akses kamera diperlukan.");
+      return;
+    }
+
+    // Request location permission
+    const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+    if (locationStatus !== "granted") {
+      showToast("error", "Izin Lokasi", "Akses GPS diperlukan.");
+      return;
+    }
+
+    // Open modal and reset/initialize states
     setIsAttendanceModalVisible(true);
     setPhotoCaptured(false);
     setPhotoUri(null);
     setGpsCoords(null);
-
-    const cameraPermissionResult = await requestCameraPermission();
-    if (!cameraPermissionResult.granted) {
-      showToast("error", "Izin Kamera", "Akses kamera diperlukan.");
-      setIsAttendanceModalVisible(false);
-      return;
-    }
-    setGpsLoading(true);
     setGpsAddress(null);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        showToast("error", "Izin Lokasi", "Akses GPS diperlukan.");
-        setGpsLoading(false);
-        setIsAttendanceModalVisible(false);
-        return;
-      }
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const { latitude: lat, longitude: lng } = location.coords;
-      setGpsCoords({ lat: lat.toFixed(6), lng: lng.toFixed(6) });
-      try {
-        const reverseGeocode = await Location.reverseGeocodeAsync({
-          latitude: lat,
-          longitude: lng,
-        });
-        if (reverseGeocode?.length) {
-          const a = reverseGeocode[0];
-          setGpsAddress(
-            [a.name, a.street, a.district, a.city || a.subregion]
-              .filter(Boolean)
-              .join(", ") || "Lokasi tidak dikenal",
-          );
-        } else setGpsAddress("Alamat tidak ditemukan");
-      } catch {
-        setGpsAddress("Lokasi terdeteksi");
-      }
-    } catch {
-      showToast("error", "Error GPS", "Gagal mendapatkan koordinat.");
-    } finally {
-      setGpsLoading(false);
-    }
+
+    // Fetch GPS in background (do not await, so modal opens immediately)
+    fetchLocationData();
   };
 
   const handleCapturePhoto = async () => {
@@ -171,26 +220,49 @@ export default function KehadiranScreen() {
       try {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.5,
-          skipProcessing: true,
+          // Removed skipProcessing: true to fix blank/white screen crash on Android
         });
         if (photo) {
           setPhotoUri(photo.uri);
           setPhotoCaptured(true);
         }
-      } catch {
+      } catch (error) {
+        console.log("Capture photo error:", error);
         showToast("error", "Kamera", "Gagal menangkap gambar.");
       }
     }
   };
 
   const handleConfirmAttendance = async () => {
+    if (!photoUri) {
+      showToast("error", "Kamera", "Silakan ambil foto selfie terlebih dahulu.");
+      return;
+    }
+    if (!gpsCoords) {
+      showToast("error", "GPS", "Menunggu lokasi terdeteksi...");
+      return;
+    }
+
     setIsSubmittingAttendance(true);
     try {
+      // Read file as base64 string
+      const base64 = await FileSystem.readAsStringAsync(photoUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const photoBase64 = `data:image/jpeg;base64,${base64}`;
+
+      const payload = {
+        photo: photoBase64,
+        latitude: parseFloat(gpsCoords.lat),
+        longitude: parseFloat(gpsCoords.lng),
+        address: gpsAddress || undefined,
+      };
+
       if (attendanceType === "checkin") {
-        await checkIn({} as any);
+        await checkIn(payload);
         showToast("success", "Check In Sukses", "Anda berhasil absen masuk.");
       } else {
-        await checkOut({} as any);
+        await checkOut(payload);
         showToast("success", "Check Out Sukses", "Anda berhasil absen keluar.");
       }
       setIsAttendanceModalVisible(false);
@@ -312,26 +384,7 @@ export default function KehadiranScreen() {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push("/leave-allocations")}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.navIcon, { backgroundColor: "#D1FAE5" }]}>
-            <Ionicons name="umbrella-outline" size={wpx(20)} color="#059669" />
-          </View>
-          <View style={styles.navText}>
-            <Text style={styles.navTitle}>Alokasi Cuti</Text>
-            <Text style={styles.navDesc}>
-              Detail sisa cuti & tipe cuti tersedia
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={wpx(16)}
-            color={colors.textMuted}
-          />
-        </TouchableOpacity>
+
 
         <View style={{ height: hpx(24) }} />
       </ScrollView>
@@ -341,8 +394,13 @@ export default function KehadiranScreen() {
         visible={isAttendanceModalVisible}
         animationType="slide"
         transparent
+        onRequestClose={() => setIsAttendanceModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setIsAttendanceModalVisible(false)}
+          />
           <View
             style={[
               styles.modalContent,
@@ -432,10 +490,10 @@ export default function KehadiranScreen() {
             <TouchableOpacity
               style={[
                 styles.submitBtn,
-                isSubmittingAttendance && { opacity: 0.6 },
+                (isSubmittingAttendance || !photoCaptured || !gpsCoords) && { opacity: 0.6 },
               ]}
               onPress={handleConfirmAttendance}
-              disabled={isSubmittingAttendance}
+              disabled={isSubmittingAttendance || !photoCaptured || !gpsCoords}
               activeOpacity={0.85}
             >
               {isSubmittingAttendance ? (

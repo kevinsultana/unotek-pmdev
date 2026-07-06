@@ -32,6 +32,16 @@ export const taskService = {
   delete: (id: number) =>
     api.delete<ApiResponse<null>>(`/tasks/${id}`),
 
+  postTimesheet: (
+    taskId: number,
+    data: {
+      date: string;
+      employee_id: number;
+      name: string;
+      unit_amount: number;
+    },
+  ) => api.post<ApiResponse<any>>(`/tasks/${taskId}/timesheets`, data),
+
   listStages: (params?: { project_id?: number }) =>
     api.get<ApiResponse<TaskStageItem[]>>("/tasks/stages", { params }),
 
