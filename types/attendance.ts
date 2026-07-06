@@ -9,6 +9,7 @@ export interface AttendanceStatus {
     check_in: string;
     check_out: string | null;
     worked_hours: number | null;
+    attendance_type?: "wfo" | "wfh" | "wfa" | null;
   }>;
   total_worked_hours: number;
 }
@@ -23,14 +24,25 @@ export interface AttendanceRecord {
   longitude?: number;
   address?: string;
   worked_hours?: number;
+  attendance_type?: "wfo" | "wfh" | "wfa" | null;
+  number?: string;
+  check_in_latitude?: number | null;
+  check_in_longitude?: number | null;
+  check_in_photo_url?: string | null;
+  check_out_latitude?: number | null;
+  check_out_longitude?: number | null;
+  check_out_photo_url?: string | null;
 }
 
 export interface CheckInRequest {
-  photo?: string;
+  attendance_type: "wfo" | "wfh" | "wfa";
   latitude?: number;
   longitude?: number;
-  address?: string;
-  work_type?: "WFA" | "WFO" | "WFH";
+  photo_id?: number | null;
 }
 
-export type CheckOutRequest = CheckInRequest;
+export interface CheckOutRequest {
+  latitude?: number;
+  longitude?: number;
+  photo_id?: number | null;
+}

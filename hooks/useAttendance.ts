@@ -35,23 +35,29 @@ export function useAttendance() {
 
   const checkIn = useCallback(
     async (data: {
-      photo?: string;
+      photoUri?: string | null;
       latitude: number;
       longitude: number;
-      address?: string;
-      work_type?: "WFA" | "WFO" | "WFH";
+      work_type: "WFA" | "WFO" | "WFH";
     }) => {
+      let photo_id: number | null = null;
+      if (data.photoUri) {
+        const formData = new FormData();
+        formData.append("photo", {
+          uri: data.photoUri,
+          name: "photo.jpg",
+          type: "image/jpeg",
+        } as any);
+        const uploadRes = await attendanceService.uploadPhoto(formData);
+        photo_id = uploadRes.data.data.photo_id;
+      }
+
       const res = await attendanceService.checkIn({
-        photo: data.photo,
+        attendance_type: data.work_type.toLowerCase() as "wfo" | "wfh" | "wfa",
         latitude: data.latitude,
         longitude: data.longitude,
-        address: data.address,
-        work_type: data.work_type,
+        photo_id,
       });
-      console.log(
-        "POST /attendance/check-in response:",
-        JSON.stringify(res.data, null, 2),
-      );
       await fetchStatus();
       return res.data;
     },
@@ -60,16 +66,26 @@ export function useAttendance() {
 
   const checkOut = useCallback(
     async (data: {
-      photo?: string;
+      photoUri?: string | null;
       latitude: number;
       longitude: number;
-      address?: string;
     }) => {
+      let photo_id: number | null = null;
+      if (data.photoUri) {
+        const formData = new FormData();
+        formData.append("photo", {
+          uri: data.photoUri,
+          name: "photo.jpg",
+          type: "image/jpeg",
+        } as any);
+        const uploadRes = await attendanceService.uploadPhoto(formData);
+        photo_id = uploadRes.data.data.photo_id;
+      }
+
       const res = await attendanceService.checkOut({
-        photo: data.photo,
         latitude: data.latitude,
         longitude: data.longitude,
-        address: data.address,
+        photo_id,
       });
       await fetchStatus();
       return res.data;

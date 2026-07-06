@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import * as Location from "expo-location";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
@@ -57,6 +58,95 @@ function fmtTime(iso?: string) {
   } catch {
     return iso;
   }
+}
+
+function fmtRecordDate(iso?: string) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("id-ID", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function getTypeBadgeBg(type?: string | null) {
+  if (!type) return "#F1F5F9";
+  const t = type.toLowerCase();
+  if (t === "wfo") return colors.primaryLight;
+  if (t === "wfh") return "#EDE9FE";
+  if (t === "wfa") return "#FEF3C7";
+  return "#F1F5F9";
+}
+
+function getTypeBadgeColor(type?: string | null) {
+  if (!type) return colors.textSecondary;
+  const t = type.toLowerCase();
+  if (t === "wfo") return colors.primary;
+  if (t === "wfh") return "#7C3AED";
+  if (t === "wfa") return "#D97706";
+  return colors.textSecondary;
+}
+
+function AttendanceAddressText({ lat, lng }: { lat?: number | null; lng?: number | null }) {
+  const [address, setAddress] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (lat == null || lng == null) {
+      setAddress("Lokasi tidak terekam");
+      return;
+    }
+
+    let isMounted = true;
+    const getAddress = async () => {
+      setLoading(true);
+      try {
+        const result = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lng,
+        });
+        if (isMounted) {
+          if (result?.length) {
+            const a = result[0];
+            const addr = [a.name, a.street, a.district, a.city || a.subregion]
+              .filter(Boolean)
+              .join(", ") || "Lokasi tidak dikenal";
+            setAddress(addr);
+          } else {
+            setAddress(`Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setAddress(`Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    getAddress();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lat, lng]);
+
+  if (loading) {
+    return <Text style={styles.addressLoading}>Mencari alamat…</Text>;
+  }
+
+  return (
+    <Text style={styles.addressText} numberOfLines={2}>
+      {address}
+    </Text>
+  );
 }
 
 export default function AttendanceHistoryScreen() {
@@ -247,9 +337,18 @@ export default function AttendanceHistoryScreen() {
               {records.map((rec) => (
                 <View key={rec.id} style={styles.recordCard}>
                   <View style={styles.recordHeader}>
-                    <Text style={styles.recordDate}>
-                      {fmtTime(rec.check_in)}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                      <Text style={styles.recordDate}>
+                        {fmtRecordDate(rec.check_in)}
+                      </Text>
+                      {rec.attendance_type && (
+                        <View style={[styles.typeBadge, { backgroundColor: getTypeBadgeBg(rec.attendance_type) }]}>
+                          <Text style={[styles.typeBadgeText, { color: getTypeBadgeColor(rec.attendance_type) }]}>
+                            {rec.attendance_type.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.recordHours}>
                       {rec.worked_hours != null
                         ? `${Math.floor(rec.worked_hours)}j ${Math.round((rec.worked_hours - Math.floor(rec.worked_hours)) * 60)}m`
@@ -262,6 +361,15 @@ export default function AttendanceHistoryScreen() {
                       <Text style={styles.recordValue}>
                         {fmtTime(rec.check_in)}
                       </Text>
+                      {rec.check_in_latitude != null && (
+                        <View style={styles.addressRow}>
+                          <Ionicons name="location-outline" size={10} color={colors.textMuted} />
+                          <AttendanceAddressText
+                            lat={rec.check_in_latitude}
+                            lng={rec.check_in_longitude}
+                          />
+                        </View>
+                      )}
                     </View>
                     <View style={styles.recordDivider} />
                     <View style={styles.recordCol}>
@@ -269,6 +377,15 @@ export default function AttendanceHistoryScreen() {
                       <Text style={styles.recordValue}>
                         {fmtTime(rec.check_out)}
                       </Text>
+                      {rec.check_out && rec.check_out_latitude != null && (
+                        <View style={styles.addressRow}>
+                          <Ionicons name="location-outline" size={10} color={colors.textMuted} />
+                          <AttendanceAddressText
+                            lat={rec.check_out_latitude}
+                            lng={rec.check_out_longitude}
+                          />
+                        </View>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -390,6 +507,17 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   recordDate: { ...textPresets.cardTitle, fontSize: rf(13) },
+  typeBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(2),
+    borderRadius: radius.xs,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  typeBadgeText: {
+    fontSize: rf(10),
+    fontWeight: "800" as any,
+  },
   recordHours: {
     fontSize: rf(12),
     fontWeight: "600" as any,
@@ -404,6 +532,26 @@ const styles = StyleSheet.create({
     height: hpx(30),
     backgroundColor: colors.border,
     marginHorizontal: spacing.md,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: wpx(2),
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  addressText: {
+    fontSize: rf(9),
+    color: colors.textSecondary,
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  addressLoading: {
+    fontSize: rf(9),
+    color: colors.textMuted,
+    fontStyle: "italic",
+    textAlign: "center",
   },
 
   endText: {

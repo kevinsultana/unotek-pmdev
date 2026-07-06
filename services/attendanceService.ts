@@ -9,6 +9,17 @@ import type {
 import type { PaginationParams } from "../types/api";
 
 export const attendanceService = {
+  uploadPhoto: (formData: FormData) =>
+    api.post<ApiResponse<{ photo_id: number; photo_url?: string }>>(
+      "/attendance/upload-photo",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      },
+    ),
+
   checkIn: (data: CheckInRequest) =>
     api.post<ApiResponse<{ message: string; time: string }>>(
       "/attendance/check-in",

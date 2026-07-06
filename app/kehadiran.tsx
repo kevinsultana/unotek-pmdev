@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Location from "expo-location";
-import * as SecureStore from "expo-secure-store";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -89,18 +88,9 @@ export default function KehadiranScreen() {
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
 
   const [selectedWorkType, setSelectedWorkType] = useState<"WFO" | "WFH" | "WFA">("WFO");
-  const [activeWorkType, setActiveWorkType] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const val = await SecureStore.getItemAsync("attendance_work_type");
-        setActiveWorkType(val);
-      } catch {
-        setActiveWorkType(null);
-      }
-    })();
-  }, [hasCheckedIn]);
+  const activeWorkType = lastRecord?.attendance_type
+    ? (lastRecord.attendance_type.toUpperCase() as "WFO" | "WFH" | "WFA")
+    : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -259,29 +249,20 @@ export default function KehadiranScreen() {
 
     setIsSubmittingAttendance(true);
     try {
-      // Read file as base64 string
-      const base64 = await FileSystem.readAsStringAsync(photoUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const photoBase64 = `data:image/jpeg;base64,${base64}`;
-
-      const payload = {
-        photo: photoBase64,
-        latitude: parseFloat(gpsCoords.lat),
-        longitude: parseFloat(gpsCoords.lng),
-        address: gpsAddress || undefined,
-        work_type: attendanceType === "checkin" ? selectedWorkType : undefined,
-      };
-
       if (attendanceType === "checkin") {
-        await checkIn(payload);
-        await SecureStore.setItemAsync("attendance_work_type", selectedWorkType);
-        setActiveWorkType(selectedWorkType);
+        await checkIn({
+          photoUri,
+          latitude: parseFloat(gpsCoords.lat),
+          longitude: parseFloat(gpsCoords.lng),
+          work_type: selectedWorkType,
+        });
         showToast("success", "Check In Sukses", `Anda berhasil absen masuk (${selectedWorkType}).`);
       } else {
-        await checkOut(payload);
-        await SecureStore.deleteItemAsync("attendance_work_type");
-        setActiveWorkType(null);
+        await checkOut({
+          photoUri,
+          latitude: parseFloat(gpsCoords.lat),
+          longitude: parseFloat(gpsCoords.lng),
+        });
         showToast("success", "Check Out Sukses", "Anda berhasil absen keluar.");
       }
       setIsAttendanceModalVisible(false);
