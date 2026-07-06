@@ -45,6 +45,7 @@ export interface Task {
   child_ids?: { id: number; name: string }[];
   tag_ids?: TaskTag[];
   state?: string | null;
+  planned_hours?: number | null;
 }
 
 export interface CreateTaskRequest {

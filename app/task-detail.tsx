@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
@@ -21,7 +22,6 @@ import {
   View,
 } from "react-native";
 import RenderHTML from "react-native-render-html";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { profileService } from "../services/profileService";
 import { taskService } from "../services/taskService";
@@ -238,6 +238,11 @@ export default function TaskDetailScreen() {
   const [isUpdatingState, setIsUpdatingState] = useState(false);
 
   const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+  const [isUpdateTaskModalVisible, setIsUpdateTaskModalVisible] = useState(false);
+  const [editTaskName, setEditTaskName] = useState("");
+  const [editTaskPriority, setEditTaskPriority] = useState("0");
+  const [editTaskPlannedHours, setEditTaskPlannedHours] = useState("");
+  const [isUpdatingTask, setIsUpdatingTask] = useState(false);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardActive(true));
@@ -336,13 +341,54 @@ export default function TaskDetailScreen() {
     }
   };
 
+  const handleOpenUpdateTask = () => {
+    if (task) {
+      setEditTaskName(task.name);
+      setEditTaskPriority(task.priority || "0");
+      setEditTaskPlannedHours(task.planned_hours ? String(task.planned_hours) : "");
+    }
+    setIsUpdateTaskModalVisible(true);
+  };
+
+  const handleUpdateTask = async () => {
+    if (!editTaskName.trim()) {
+      showToast("error", "Validasi", "Nama tugas tidak boleh kosong.");
+      return;
+    }
+
+    setIsUpdatingTask(true);
+    try {
+      const plannedHoursNum = editTaskPlannedHours.trim()
+        ? parseFloat(editTaskPlannedHours)
+        : undefined;
+
+      await taskService.update(task!.id, {
+        name: editTaskName.trim(),
+        priority: editTaskPriority,
+        planned_hours: plannedHoursNum !== undefined && !isNaN(plannedHoursNum) ? plannedHoursNum : undefined,
+      });
+
+      showToast("success", "Berhasil", "Detail tugas berhasil diperbarui.");
+      setIsUpdateTaskModalVisible(false);
+
+      // Refresh task detail
+      const taskRes = await taskService.getById(task!.id);
+      setTask(taskRes.data.data);
+    } catch (err: any) {
+      showToast("error", "Gagal", err?.response?.data?.message || "Gagal memperbarui tugas.");
+      console.log("UPDATE TASK ERROR:", JSON.stringify(err?.response?.data, null, 2));
+    } finally {
+      setIsUpdatingTask(false);
+    }
+  };
+
   const handleUpdateStatus = async (stageId: number) => {
     setIsUpdatingStatus(true);
     try {
       await taskService.update(task!.id, { stage_id: stageId });
       showToast("success", "Berhasil", "Status tugas berhasil diperbarui.");
       setIsStatusModalVisible(false);
-      
+
       // Refresh task detail
       const taskRes = await taskService.getById(task!.id);
       setTask(taskRes.data.data);
@@ -359,7 +405,7 @@ export default function TaskDetailScreen() {
       await taskService.update(task!.id, { state: stateVal });
       showToast("success", "Berhasil", "Tahap tugas (stage) berhasil diperbarui.");
       setIsStateModalVisible(false);
-      
+
       // Refresh task detail
       const taskRes = await taskService.getById(task!.id);
       setTask(taskRes.data.data);
@@ -649,6 +695,22 @@ export default function TaskDetailScreen() {
                   <Ionicons name="list-circle" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
+              <View style={styles.speedDialItem}>
+                <View style={styles.speedDialLabelBg}>
+                  <Text style={styles.speedDialLabel}>Update Task</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.miniFab, { backgroundColor: "#6366F1", marginRight: wpx(8) }]}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setIsSpeedDialOpen(false);
+                    handleOpenUpdateTask();
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="create" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           <TouchableOpacity
@@ -896,6 +958,109 @@ export default function TaskDetailScreen() {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Update Task Modal */}
+      <Modal
+        visible={isUpdateTaskModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsUpdateTaskModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback
+            onPress={() => {
+              if (isKeyboardActive) {
+                Keyboard.dismiss();
+              } else {
+                setIsUpdateTaskModalVisible(false);
+              }
+            }}
+          >
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Update Detail Tugas</Text>
+                    <TouchableOpacity onPress={() => setIsUpdateTaskModalVisible(false)}>
+                      <Ionicons name="close" size={22} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {isUpdatingTask ? (
+                    <ActivityIndicator
+                      size="large"
+                      color={colors.primary}
+                      style={{ marginVertical: spacing["4xl"] }}
+                    />
+                  ) : (
+                    <View style={styles.formContainer}>
+                      <Text style={styles.fieldLabel}>Nama Tugas</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Masukkan nama tugas..."
+                        placeholderTextColor={colors.textMuted}
+                        value={editTaskName}
+                        onChangeText={setEditTaskName}
+                      />
+
+                      <Text style={styles.fieldLabel}>Prioritas</Text>
+                      <View style={{ flexDirection: "row", gap: spacing.md }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.prioritySelectBtn,
+                            editTaskPriority === "0" && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                          ]}
+                          onPress={() => setEditTaskPriority("0")}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.prioritySelectText, editTaskPriority === "0" && { color: colors.primary }]}>
+                            Normal
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.prioritySelectBtn,
+                            editTaskPriority === "1" && { borderColor: colors.error, backgroundColor: "#FEE2E2" },
+                          ]}
+                          onPress={() => setEditTaskPriority("1")}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.prioritySelectText, editTaskPriority === "1" && { color: colors.error }]}>
+                            Urgent
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={styles.fieldLabel}>Estimasi Waktu (Planned Hours)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        keyboardType="numeric"
+                        placeholder="Contoh: 16"
+                        placeholderTextColor={colors.textMuted}
+                        value={editTaskPlannedHours}
+                        onChangeText={setEditTaskPlannedHours}
+                      />
+                    </View>
+                  )}
+
+                  {!isUpdatingTask && (
+                    <TouchableOpacity
+                      style={styles.submitBtn}
+                      onPress={handleUpdateTask}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.submitText}>Simpan Perubahan</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -904,6 +1069,21 @@ export default function TaskDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  prioritySelectBtn: {
+    flex: 1,
+    height: sizes.buttonMd,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+  },
+  prioritySelectText: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
   emptyText: { ...textPresets.body, marginTop: spacing.md },
 
   // Curved header

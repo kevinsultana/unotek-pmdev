@@ -71,13 +71,26 @@ export default function TimelineScreen() {
   const {
     tasks,
     isLoading: tasksLoading,
+    isLoadMore,
     error: tasksError,
     filter: tasksFilter,
     setFilter: setTasksFilter,
     searchQuery,
     setSearchQuery,
     refresh: refreshTasks,
+    loadMore,
   } = useTasks();
+
+  const isCloseToBottom = ({ layoutMeasurement, contentOffset, contentSize }: any) => {
+    const paddingToBottom = 50;
+    return layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+  };
+
+  const handleScroll = (event: any) => {
+    if (activeTab !== "projects" && isCloseToBottom(event.nativeEvent)) {
+      loadMore();
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<"my" | "all" | "projects">("projects");
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
@@ -174,6 +187,8 @@ export default function TimelineScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         {/* Floating Card */}
         <View style={styles.floatingCard}>
@@ -460,6 +475,13 @@ export default function TimelineScreen() {
                 </View>
               );
             })
+          )}
+          {isLoadMore && (
+            <ActivityIndicator
+              size="small"
+              color={colors.primary}
+              style={{ marginVertical: spacing.md }}
+            />
           )}
         </View>
         <View style={{ height: hpx(80) }} />
