@@ -30,6 +30,7 @@ export interface CheckInRequest {
   latitude?: number;
   longitude?: number;
   address?: string;
+  work_type?: "WFA" | "WFO" | "WFH";
 }
 
 export type CheckOutRequest = CheckInRequest;

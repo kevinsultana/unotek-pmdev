@@ -39,12 +39,14 @@ export function useAttendance() {
       latitude: number;
       longitude: number;
       address?: string;
+      work_type?: "WFA" | "WFO" | "WFH";
     }) => {
       const res = await attendanceService.checkIn({
         photo: data.photo,
         latitude: data.latitude,
         longitude: data.longitude,
         address: data.address,
+        work_type: data.work_type,
       });
       console.log(
         "POST /attendance/check-in response:",

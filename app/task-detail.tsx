@@ -86,21 +86,16 @@ function stripHtml(html?: string | null) {
 
 // ── Shared sub-components ──────────────────────────────────────────────────
 function DetailRow({
-  icon,
   label,
-  children,
+  value,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  children: React.ReactNode;
+  value: string;
 }) {
   return (
-    <View style={detailStyles.row}>
-      <View style={detailStyles.rowLeft}>
-        <Ionicons name={icon} size={18} color={colors.textMuted} />
-        <Text style={detailStyles.rowLabel}>{label}</Text>
-      </View>
-      <View style={detailStyles.rowRight}>{children}</View>
+    <View style={detailStyles.infoBlock}>
+      <Text style={detailStyles.infoLabel}>{label}</Text>
+      <Text style={detailStyles.infoValue}>{value}</Text>
     </View>
   );
 }
@@ -299,23 +294,13 @@ export default function TaskDetailScreen() {
             <Text style={styles.sectionTitle}>Informasi</Text>
 
             {task.project && (
-              <DetailRow icon="folder-outline" label="Project">
-                <Text style={detailStyles.valueText}>{task.project.name}</Text>
-              </DetailRow>
+              <DetailRow label="Project" value={task.project.name} />
             )}
             {task.partner_id && (
-              <DetailRow icon="business-outline" label="Klien">
-                <Text style={detailStyles.valueText}>
-                  {task.partner_id.name}
-                </Text>
-              </DetailRow>
+              <DetailRow label="Klien" value={task.partner_id.name} />
             )}
             {task.parent_id && (
-              <DetailRow icon="git-branch-outline" label="Parent Task">
-                <Text style={detailStyles.valueText}>
-                  {task.parent_id.name}
-                </Text>
-              </DetailRow>
+              <DetailRow label="Parent Task" value={task.parent_id.name} />
             )}
           </View>
 
@@ -423,7 +408,7 @@ export default function TaskDetailScreen() {
       </ScrollView>
 
       {/* Floating Action Button (FAB) untuk Timesheet */}
-      {task.user_ids?.some((u) => u.id === profile?.user?.id) && (
+      {task.user_ids?.some((u: any) => u?.id === profile?.user?.id) && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => setIsTimesheetModalVisible(true)}
@@ -711,6 +696,22 @@ const styles = StyleSheet.create({
 
 // ── DetailRow sub-styles ───────────────────────────────────────────────────
 const detailStyles = StyleSheet.create({
+  infoBlock: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  infoLabel: {
+    ...textPresets.body,
+    fontSize: rf(12),
+    color: colors.textSecondary,
+    marginBottom: hpx(4),
+  },
+  infoValue: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
+    color: colors.textPrimary,
+  },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -720,9 +721,6 @@ const detailStyles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   rowLeft: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rowLabel: { ...textPresets.body, color: colors.textSecondary },
-  rowRight: { flex: 1, alignItems: "flex-end" },
-  valueText: { ...textPresets.cardTitle, fontSize: rf(14) },
 
   // Avatar
   avatar: {

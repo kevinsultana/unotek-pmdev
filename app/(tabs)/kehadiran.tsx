@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -86,6 +87,20 @@ export default function KehadiranScreen() {
   const [gpsAddress, setGpsAddress] = useState<string | null>(null);
   const [photoCaptured, setPhotoCaptured] = useState(false);
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
+
+  const [selectedWorkType, setSelectedWorkType] = useState<"WFO" | "WFH" | "WFA">("WFO");
+  const [activeWorkType, setActiveWorkType] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const val = await SecureStore.getItemAsync("attendance_work_type");
+        setActiveWorkType(val);
+      } catch {
+        setActiveWorkType(null);
+      }
+    })();
+  }, [hasCheckedIn]);
 
   useFocusEffect(
     useCallback(() => {
@@ -256,13 +271,18 @@ export default function KehadiranScreen() {
         latitude: parseFloat(gpsCoords.lat),
         longitude: parseFloat(gpsCoords.lng),
         address: gpsAddress || undefined,
+        work_type: attendanceType === "checkin" ? selectedWorkType : undefined,
       };
 
       if (attendanceType === "checkin") {
         await checkIn(payload);
-        showToast("success", "Check In Sukses", "Anda berhasil absen masuk.");
+        await SecureStore.setItemAsync("attendance_work_type", selectedWorkType);
+        setActiveWorkType(selectedWorkType);
+        showToast("success", "Check In Sukses", `Anda berhasil absen masuk (${selectedWorkType}).`);
       } else {
         await checkOut(payload);
+        await SecureStore.deleteItemAsync("attendance_work_type");
+        setActiveWorkType(null);
         showToast("success", "Check Out Sukses", "Anda berhasil absen keluar.");
       }
       setIsAttendanceModalVisible(false);
@@ -460,6 +480,71 @@ export default function KehadiranScreen() {
                 </>
               )}
             </View>
+
+            {/* Work Type Selection (Check-In) / Display (Check-Out) */}
+            {attendanceType === "checkin" ? (
+              <View style={styles.workTypeContainer}>
+                <Text style={styles.workTypeTitle}>Pilih Tipe Kerja</Text>
+                <View style={styles.workTypeRow}>
+                  {(["WFO", "WFH", "WFA"] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.workTypeButton,
+                        selectedWorkType === type && styles.workTypeButtonActive,
+                      ]}
+                      onPress={() => setSelectedWorkType(type)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={
+                          type === "WFO"
+                            ? "business-outline"
+                            : type === "WFH"
+                              ? "home-outline"
+                              : "airplane-outline"
+                        }
+                        size={16}
+                        color={selectedWorkType === type ? "#FFFFFF" : colors.textPrimary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.workTypeButtonText,
+                          selectedWorkType === type && styles.workTypeButtonTextActive,
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.workTypeDisplayContainer}>
+                <Text style={styles.workTypeDisplayTitle}>Tipe Kerja Saat Check-In</Text>
+                <View style={styles.workTypeDisplayBox}>
+                  <Ionicons
+                    name={
+                      activeWorkType === "WFO"
+                        ? "business"
+                        : activeWorkType === "WFH"
+                          ? "home"
+                          : activeWorkType === "WFA"
+                            ? "airplane"
+                            : "help-circle-outline"
+                    }
+                    size={18}
+                    color={colors.primary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={styles.workTypeDisplayText}>
+                    {activeWorkType || "—"} (Ditentukan saat Check-In)
+                  </Text>
+                </View>
+              </View>
+            )}
+
             <View style={styles.gpsBox}>
               <View style={styles.gpsRow}>
                 <Ionicons
@@ -740,4 +825,65 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: { color: "#FFFFFF", fontSize: rf(16), fontWeight: "700" as any },
+
+  // Work type styles
+  workTypeContainer: {
+    marginBottom: spacing.lg,
+  },
+  workTypeTitle: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
+    marginBottom: spacing.sm,
+    color: colors.textPrimary,
+  },
+  workTypeRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  workTypeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+  },
+  workTypeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  workTypeButtonText: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  workTypeButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  workTypeDisplayContainer: {
+    marginBottom: spacing.lg,
+    backgroundColor: "#F8FAFC",
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  workTypeDisplayTitle: {
+    fontSize: rf(11),
+    fontWeight: "700" as any,
+    color: colors.textSecondary,
+    marginBottom: hpx(6),
+  },
+  workTypeDisplayBox: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  workTypeDisplayText: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
 });

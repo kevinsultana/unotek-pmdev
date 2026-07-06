@@ -230,10 +230,13 @@ export default function ProjectDetailScreen() {
                       <View style={styles.taskItemBottom}>
                         {t.user_ids != null && t.user_ids.length > 0 ? (
                           <View style={styles.taskItemAssignees}>
-                            <Ionicons name="people-outline" size={12} color={colors.textMuted} />
-                            <Text style={styles.taskItemAssigneeText} numberOfLines={1}>
-                              {t.user_ids.map((u) => u.name).join(", ")}
-                            </Text>
+                            {t.user_ids.map((u) => (
+                              <View key={u.id} style={styles.assigneeTag}>
+                                <Text style={styles.assigneeTagText} numberOfLines={1}>
+                                  {u.name}
+                                </Text>
+                              </View>
+                            ))}
                           </View>
                         ) : (
                           <Text style={styles.taskItemNoAssignee}>Belum ada assignee</Text>
@@ -484,15 +487,24 @@ const styles = StyleSheet.create({
   },
   taskItemAssignees: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: spacing.xs,
     flex: 1,
     marginRight: spacing.sm,
   },
-  taskItemAssigneeText: {
-    fontSize: rf(11),
+  assigneeTag: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(2),
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  assigneeTagText: {
+    fontSize: rf(10),
     color: colors.textSecondary,
-    maxWidth: "85%",
+    fontWeight: "600" as any,
   },
   taskItemNoAssignee: {
     fontSize: rf(11),
