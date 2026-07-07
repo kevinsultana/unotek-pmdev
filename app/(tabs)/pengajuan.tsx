@@ -2,12 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";
-import * as ImagePicker from "expo-image-picker";
 import {
-  ActivityIndicator,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -20,7 +19,7 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { timeOffService } from "../../services/timeOffService";
@@ -48,45 +47,6 @@ interface Submission {
   status: "pending" | "approved" | "rejected" | "cancel";
   photo_uri?: string | null;
 }
-
-const INITIAL_SUBMISSIONS: Submission[] = [
-  {
-    id: "1",
-    type: "Cuti",
-    title: "Cuti Tahunan",
-    details: "Acara pernikahan adik kandung",
-    amountOrDuration: "3 hari",
-    date: "2026-07-10 s/d 2026-07-12",
-    status: "pending",
-  },
-  {
-    id: "2",
-    type: "Lembur",
-    title: "Lembur Akhir Pekan",
-    details: "Migrasi database produksi & deploy ke VPS baru",
-    amountOrDuration: "5 jam",
-    date: "2026-07-04",
-    status: "approved",
-  },
-  {
-    id: "3",
-    type: "Reimbursement",
-    title: "Transportasi Dinas",
-    details: "Kunjungan klien ke Bekasi & tol Jakarta-Cikampek",
-    amountOrDuration: "Rp 250.000",
-    date: "2026-07-02",
-    status: "approved",
-  },
-  {
-    id: "4",
-    type: "Reimbursement",
-    title: "Konsumsi Rapat",
-    details: "Makan siang dengan Tim Vendor (struk tidak lengkap)",
-    amountOrDuration: "Rp 180.000",
-    date: "2026-06-30",
-    status: "rejected",
-  },
-];
 
 const STATUS_MAP = {
   pending: { label: "Pending", c: "#F59E0B", b: "#FEF3C7", icon: "time-outline" },
@@ -128,7 +88,7 @@ export default function PengajuanScreen() {
 
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [activeDateField, setActiveDateField] = useState<"cutiDateFrom" | "cutiDateTo" | "lemburDate" | "reimbDate" | null>(null);
+  const [activeDateField, setActiveDateField] = useState<"cutiDateFrom" | "cutiDateTo" | "lemburDate" | null>(null);
 
   const formatThousands = (val: string) => {
     const clean = val.replace(/\D/g, "");
@@ -165,7 +125,6 @@ export default function PengajuanScreen() {
       if (activeDateField === "cutiDateFrom") setCutiDateFrom(formatted);
       else if (activeDateField === "cutiDateTo") setCutiDateTo(formatted);
       else if (activeDateField === "lemburDate") setLemburDate(formatted);
-      else if (activeDateField === "reimbDate") setReimbDate(formatted);
     }
     setActiveDateField(null);
   };
@@ -179,7 +138,7 @@ export default function PengajuanScreen() {
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "approved" | "rejected" | "cancel">("all");
 
   // Modal states
-  const [modalType, setModalType] = useState<"cuti" | "lembur" | "reimbursement" | null>(null);
+  const [modalType, setModalType] = useState<"cuti" | "lembur" | null>(null);
 
   // Form fields
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
@@ -191,43 +150,7 @@ export default function PengajuanScreen() {
   const [lemburHours, setLemburHours] = useState("");
   const [lemburReason, setLemburReason] = useState("");
 
-  const [reimbTitle, setReimbTitle] = useState("");
-  const [reimbAmount, setReimbAmount] = useState("");
-  const [reimbDate, setReimbDate] = useState("");
-  const [reimbReason, setReimbReason] = useState("");
-  const [reimbPhotoUri, setReimbPhotoUri] = useState<string | null>(null);
 
-  const handlePickFromCamera = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      showToast("error", "Izin Kamera", "Aplikasi membutuhkan akses kamera.");
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      setReimbPhotoUri(result.assets[0].uri);
-    }
-  };
-
-  const handlePickFromGallery = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showToast("error", "Izin Galeri", "Aplikasi membutuhkan akses galeri.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      setReimbPhotoUri(result.assets[0].uri);
-    }
-  };
 
   const resetForm = () => {
     setSelectedTypeId(null);
@@ -237,11 +160,6 @@ export default function PengajuanScreen() {
     setLemburDate("");
     setLemburHours("");
     setLemburReason("");
-    setReimbTitle("");
-    setReimbAmount("");
-    setReimbDate("");
-    setReimbReason("");
-    setReimbPhotoUri(null);
     setModalType(null);
   };
 
@@ -324,26 +242,6 @@ export default function PengajuanScreen() {
       };
       setMockSubmissions((prev) => [newEntry, ...prev]);
       showToast("success", "Berhasil", "Pengajuan lembur berhasil dikirim.");
-      resetForm();
-    } else {
-      // reimbursement
-      if (!reimbTitle || !reimbAmount || !reimbDate || !reimbReason) {
-        showToast("error", "Validasi", "Harap isi semua kolom form.");
-        return;
-      }
-      const rawAmount = reimbAmount.replace(/\./g, "");
-      const newEntry: Submission = {
-        id: String(Date.now()),
-        type: "Reimbursement",
-        title: reimbTitle,
-        details: reimbReason,
-        amountOrDuration: `Rp ${parseInt(rawAmount).toLocaleString("id-ID")}`,
-        date: reimbDate,
-        status: "pending",
-        photo_uri: reimbPhotoUri,
-      };
-      setMockSubmissions((prev) => [newEntry, ...prev]);
-      showToast("success", "Berhasil", "Pengajuan reimbursement berhasil dikirim.");
       resetForm();
     }
   };
@@ -437,7 +335,7 @@ export default function PengajuanScreen() {
 
             <TouchableOpacity
               style={[styles.actionBtn, { borderColor: "#D1FAE5" }]}
-              onPress={() => setModalType("reimbursement")}
+              onPress={() => router.push("/reimbursement")}
               activeOpacity={0.7}
             >
               <View style={[styles.actionIconBg, { backgroundColor: "#D1FAE5" }]}>
@@ -738,106 +636,7 @@ export default function PengajuanScreen() {
                   </View>
                 )}
 
-                {/* REIMBURSEMENT FORM */}
-                {modalType === "reimbursement" && (
-                  <View style={styles.formContainer}>
-                    <Text style={styles.fieldLabel}>Kategori / Judul Biaya</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Contoh: Pembelian tinta printer / Bensin dinas"
-                      placeholderTextColor={colors.textMuted}
-                      value={reimbTitle}
-                      onChangeText={setReimbTitle}
-                    />
 
-                    <Text style={styles.fieldLabel}>Nominal Biaya (Rupiah)</Text>
-                    <View style={styles.amountInputContainer}>
-                      <Text style={styles.currencyPrefix}>Rp.</Text>
-                      <TextInput
-                        style={styles.amountInput}
-                        keyboardType="numeric"
-                        placeholder="Contoh: 150.000"
-                        placeholderTextColor={colors.textMuted}
-                        value={reimbAmount}
-                        onChangeText={(val) => setReimbAmount(formatThousands(val))}
-                      />
-                    </View>
-
-                    <Text style={styles.fieldLabel}>Tanggal Transaksi</Text>
-                    {Platform.OS === "ios" ? (
-                      <View style={[styles.textInput, { justifyContent: "center", alignItems: "flex-start" }]}>
-                        <DateTimePicker
-                          value={reimbDate ? new Date(reimbDate) : new Date()}
-                          mode="date"
-                          display="default"
-                          locale="id-ID"
-                          themeVariant="light"
-                          onChange={(_e, d) => {
-                            if (d) setReimbDate(formatDateString(d));
-                          }}
-                          style={{ marginLeft: -8 }}
-                        />
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.textInput, { justifyContent: "center" }]}
-                        onPress={() => {
-                          setActiveDateField("reimbDate");
-                          setShowDatePicker(true);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.textInputValue, !reimbDate && { color: colors.textMuted }]}>
-                          {toDisplayDate(reimbDate)}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-
-                    <Text style={styles.fieldLabel}>Keterangan Biaya</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.textArea]}
-                      multiline
-                      placeholder="Detail transaksi, misal nama klien atau tujuan perjalanan..."
-                      placeholderTextColor={colors.textMuted}
-                      value={reimbReason}
-                      onChangeText={setReimbReason}
-                    />
-
-                    <Text style={styles.fieldLabel}>Lampiran Bukti (Foto)</Text>
-                    {reimbPhotoUri ? (
-                      <View style={styles.previewContainer}>
-                        <Image source={{ uri: reimbPhotoUri }} style={styles.previewImage} />
-                        <TouchableOpacity
-                          style={styles.removePhotoBtn}
-                          onPress={() => setReimbPhotoUri(null)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="trash-outline" size={16} color={colors.error} />
-                          <Text style={styles.removePhotoText}>Hapus Foto</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <View style={styles.photoActionsRow}>
-                        <TouchableOpacity
-                          style={styles.photoActionBtn}
-                          onPress={handlePickFromCamera}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="camera-outline" size={18} color={colors.primary} />
-                          <Text style={styles.photoActionText}>Kamera</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.photoActionBtn}
-                          onPress={handlePickFromGallery}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="image-outline" size={18} color={colors.primary} />
-                          <Text style={styles.photoActionText}>Galeri</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                )}
 
                 <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.85}>
                   <Text style={styles.submitText}>Kirim Pengajuan</Text>
@@ -858,9 +657,7 @@ export default function PengajuanScreen() {
                 ? new Date(cutiDateTo)
                 : activeDateField === "lemburDate" && lemburDate
                   ? new Date(lemburDate)
-                  : activeDateField === "reimbDate" && reimbDate
-                    ? new Date(reimbDate)
-                    : new Date()
+                  : new Date()
           }
           mode="date"
           display="default"
