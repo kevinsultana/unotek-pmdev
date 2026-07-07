@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { Stack, useRouter, useFocusEffect } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -17,7 +17,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { expenseService } from "../services/expenseService";
@@ -35,14 +36,18 @@ import {
 import type { Expense, ExpenseCategory } from "../types/expense";
 import { showToast } from "../utils/toast";
 
-const STATUS_MAP = {
+const STATUS_MAP: Record<
+  string,
+  { label: string; c: string; b: string; icon: string }
+> = {
   draft: { label: "Draft", c: "#6B7280", b: "#F3F4F6", icon: "document-text-outline" },
   reported: { label: "Submitted", c: "#F59E0B", b: "#FEF3C7", icon: "paper-plane-outline" },
+  submitted: { label: "Submitted", c: "#F59E0B", b: "#FEF3C7", icon: "paper-plane-outline" },
   approved: { label: "Approved", c: "#2563EB", b: "#DBEAFE", icon: "checkmark-done-circle-outline" },
   posted: { label: "Posted", c: "#7C3AED", b: "#EDE9FE", icon: "journal-outline" },
   done: { label: "Paid", c: "#059669", b: "#D1FAE5", icon: "checkmark-circle-outline" },
   refused: { label: "Refused", c: colors.error, b: "#FEE2E2", icon: "close-circle-outline" },
-} as const;
+};
 
 export default function ReimbursementScreen() {
   const router = useRouter();
@@ -53,6 +58,12 @@ export default function ReimbursementScreen() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Detail Modal States
+  const [selectedDetail, setSelectedDetail] = useState<Expense | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [activePreviewUri, setActivePreviewUri] = useState<string | null>(null);
 
   // Filters
   const now = new Date();
@@ -185,6 +196,20 @@ export default function ReimbursementScreen() {
       pathname: "/reimbursement-form",
       params: { id: item.id },
     });
+  };
+
+  const handleShowDetail = async (id: number) => {
+    setIsDetailLoading(true);
+    setShowDetailModal(true);
+    try {
+      const res = await expenseService.getById(id);
+      setSelectedDetail(res.data.data);
+    } catch (err: any) {
+      showToast("error", "Gagal", err?.response?.data?.message || "Gagal memuat detail reimbursement");
+      setShowDetailModal(false);
+    } finally {
+      setIsDetailLoading(false);
+    }
   };
 
   const handleDelete = (id: number) => {
@@ -363,7 +388,12 @@ export default function ReimbursementScreen() {
             expenses.map((item) => {
               const statusConfig = STATUS_MAP[item.state] || STATUS_MAP.draft;
               return (
-                <View key={item.id} style={styles.card}>
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.card}
+                  onPress={() => item.state !== "draft" && handleShowDetail(item.id)}
+                  activeOpacity={item.state !== "draft" ? 0.75 : 1}
+                >
                   <View style={styles.cardHeader}>
                     <View style={styles.categoryBadge}>
                       <Ionicons name="receipt-outline" size={12} color={colors.primary} style={{ marginRight: 4 }} />
@@ -432,7 +462,7 @@ export default function ReimbursementScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
@@ -505,6 +535,147 @@ export default function ReimbursementScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Detail Reimbursement Modal */}
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowDetailModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDetailModal(false)} />
+          <View style={styles.detailModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Detail Reimbursement</Text>
+              <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {isDetailLoading ? (
+              <View style={{ paddingVertical: spacing.xl, alignItems: "center" }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ marginTop: spacing.sm, color: colors.textMuted }}>Memuat detail...</Text>
+              </View>
+            ) : selectedDetail ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScroll}>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Judul Pengajuan</Text>
+                  <Text style={styles.detailValue}>{selectedDetail.name}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Nominal Biaya</Text>
+                  <Text style={styles.detailValueHighlight}>
+                    Rp {selectedDetail.total_amount_currency.toLocaleString("id-ID")}
+                  </Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Kategori</Text>
+                  <View style={[styles.categoryBadge, { alignSelf: "flex-start", marginTop: 4 }]}>
+                    <Text style={styles.categoryText}>{selectedDetail.product?.name || "Expense"}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Status</Text>
+                  {(() => {
+                    const detailStatus = STATUS_MAP[selectedDetail.state] || STATUS_MAP.draft;
+                    return (
+                      <View style={[styles.statusBadge, { backgroundColor: detailStatus.b, alignSelf: "flex-start", marginTop: 4 }]}>
+                        <Ionicons name={detailStatus.icon as any} size={11} color={detailStatus.c} style={{ marginRight: 3 }} />
+                        <Text style={[styles.statusText, { color: detailStatus.c }]}>{detailStatus.label}</Text>
+                      </View>
+                    );
+                  })()}
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Tanggal Transaksi</Text>
+                  <Text style={styles.detailValue}>{toDisplayDate(selectedDetail.date)}</Text>
+                </View>
+
+                {selectedDetail.description ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Keterangan Tambahan</Text>
+                    <Text style={styles.detailValueDesc}>{selectedDetail.description}</Text>
+                  </View>
+                ) : null}
+
+                {/* Attachments Section */}
+                {selectedDetail.attachments && selectedDetail.attachments.length > 0 ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Lampiran Bukti ({selectedDetail.attachments.length})</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.detailPhotosScroll}>
+                      {selectedDetail.attachments.map((att) => (
+                        <TouchableOpacity
+                          key={att.id}
+                          onPress={() => setActivePreviewUri(att.url)}
+                          activeOpacity={0.8}
+                          style={styles.detailPhotoContainer}
+                        >
+                          <Image source={{ uri: att.url }} style={styles.detailPhotoThumbnail} />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </ScrollView>
+            ) : (
+              <View style={{ paddingVertical: spacing.xl, alignItems: "center" }}>
+                <Text style={{ color: colors.textMuted }}>Gagal mengambil detail.</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Full Screen Image Viewer inside the Modal context to avoid multiple modals conflict on iOS */}
+          {Platform.OS === "ios" && activePreviewUri !== null && (
+            <View style={[StyleSheet.absoluteFillObject, styles.fullscreenImageContainer, { zIndex: 9999 }]}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setActivePreviewUri(null)} />
+              <TouchableOpacity
+                style={styles.closeImageBtn}
+                onPress={() => setActivePreviewUri(null)}
+              >
+                <Ionicons name="close" size={30} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Image
+                source={{ uri: activePreviewUri }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* Full Screen Image Viewer Modal for Android only */}
+      {Platform.OS !== "ios" && (
+        <Modal
+          visible={activePreviewUri !== null}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setActivePreviewUri(null)}
+        >
+          <View style={styles.fullscreenImageContainer}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setActivePreviewUri(null)} />
+            <TouchableOpacity
+              style={styles.closeImageBtn}
+              onPress={() => setActivePreviewUri(null)}
+            >
+              <Ionicons name="close" size={30} color="#FFFFFF" />
+            </TouchableOpacity>
+            {activePreviewUri ? (
+              <Image
+                source={{ uri: activePreviewUri }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1044,5 +1215,81 @@ const styles = StyleSheet.create({
   filterIconBtnActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+  },
+  detailModalContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    maxHeight: "85%",
+  },
+  detailScroll: {
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  detailRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  detailLabel: {
+    fontSize: rf(12),
+    color: colors.textMuted,
+    fontWeight: "600" as any,
+    textTransform: "uppercase",
+  },
+  detailValue: {
+    fontSize: rf(14),
+    color: colors.textPrimary,
+    fontWeight: "700" as any,
+    marginTop: 2,
+  },
+  detailValueHighlight: {
+    fontSize: rf(16),
+    color: colors.primary,
+    fontWeight: "800" as any,
+    marginTop: 2,
+  },
+  detailValueDesc: {
+    fontSize: rf(13),
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  detailPhotosScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+  },
+  detailPhotoContainer: {
+    width: wpx(70),
+    height: hpx(70),
+  },
+  detailPhotoThumbnail: {
+    width: wpx(64),
+    height: hpx(64),
+    borderRadius: radius.md,
+    backgroundColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  fullscreenImageContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeImageBtn: {
+    position: "absolute",
+    top: 50,
+    right: spacing.xl,
+    zIndex: 10,
+    padding: spacing.xs,
+  },
+  fullscreenImage: {
+    width: "100%",
+    height: "80%",
   },
 });

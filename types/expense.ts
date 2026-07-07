@@ -25,7 +25,7 @@ export interface Expense {
     id: number;
     name: string;
   } | null;
-  state: "draft" | "reported" | "approved" | "done" | "refused";
+  state: "draft" | "submitted" | "approved" | "done" | "refused";
   state_label?: string;
   attachment_ids?: number[];
   attachments?: ExpenseAttachment[];
