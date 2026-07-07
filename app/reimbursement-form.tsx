@@ -9,6 +9,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +19,6 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { expenseService } from "../services/expenseService";
@@ -30,8 +30,7 @@ import {
   shadows,
   sizes,
   spacing,
-  textPresets,
-  wpx,
+  wpx
 } from "../src/constants/theme";
 import type { ExpenseCategory } from "../types/expense";
 import { showToast } from "../utils/toast";
@@ -246,7 +245,7 @@ export default function ReimbursementFormScreen() {
       }
 
       // Navigate back to the list and refresh
-      router.replace("/reimbursement");
+      router.back();
     } catch (err: any) {
       showToast(
         "error",
@@ -291,169 +290,167 @@ export default function ReimbursementFormScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                styles.formScroll,
-                { paddingBottom: Math.max(insets.bottom, spacing.xl) },
-              ]}
-              keyboardShouldPersistTaps="handled"
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.formScroll,
+              { paddingBottom: Math.max(insets.bottom, spacing.xl) },
+            ]}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.fieldLabel}>Kategori Biaya *</Text>
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setShowCategoryPicker(true)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.fieldLabel}>Kategori Biaya *</Text>
+              <Text
+                style={
+                  formCategory
+                    ? styles.selectValue
+                    : styles.selectPlaceholder
+                }
+              >
+                {formCategory?.name || "Pilih Kategori Biaya"}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={colors.textMuted}
+              />
+            </TouchableOpacity>
+
+            <Text style={styles.fieldLabel}>Judul Pengajuan *</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Contoh: Bensin dinas meeting client"
+              placeholderTextColor={colors.textMuted}
+              value={formTitle}
+              onChangeText={setFormTitle}
+            />
+
+            <Text style={styles.fieldLabel}>Nominal Biaya (Rupiah) *</Text>
+            <View style={styles.amountInputContainer}>
+              <Text style={styles.currencyPrefix}>Rp.</Text>
+              <TextInput
+                style={styles.amountInput}
+                keyboardType="numeric"
+                placeholder="Contoh: 150.000"
+                placeholderTextColor={colors.textMuted}
+                value={formAmount}
+                onChangeText={(val) => setFormAmount(formatThousands(val))}
+              />
+            </View>
+
+            <Text style={styles.fieldLabel}>Tanggal Transaksi *</Text>
+            {Platform.OS === "ios" ? (
+              <View
+                style={[
+                  styles.textInput,
+                  { justifyContent: "center", alignItems: "flex-start" },
+                ]}
+              >
+                <DateTimePicker
+                  value={formDate ? new Date(formDate) : new Date()}
+                  mode="date"
+                  display="default"
+                  locale="id-ID"
+                  themeVariant="light"
+                  onChange={(_e, d) => d && setFormDate(formatDateString(d))}
+                  style={{ marginLeft: -8 }}
+                />
+              </View>
+            ) : (
               <TouchableOpacity
-                style={styles.selectBtn}
-                onPress={() => setShowCategoryPicker(true)}
+                style={[styles.textInput, { justifyContent: "center" }]}
+                onPress={() => setActiveFormFieldDate(true)}
                 activeOpacity={0.7}
               >
                 <Text
-                  style={
-                    formCategory
-                      ? styles.selectValue
-                      : styles.selectPlaceholder
-                  }
-                >
-                  {formCategory?.name || "Pilih Kategori Biaya"}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={18}
-                  color={colors.textMuted}
-                />
-              </TouchableOpacity>
-
-              <Text style={styles.fieldLabel}>Judul Pengajuan *</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Contoh: Bensin dinas meeting client"
-                placeholderTextColor={colors.textMuted}
-                value={formTitle}
-                onChangeText={setFormTitle}
-              />
-
-              <Text style={styles.fieldLabel}>Nominal Biaya (Rupiah) *</Text>
-              <View style={styles.amountInputContainer}>
-                <Text style={styles.currencyPrefix}>Rp.</Text>
-                <TextInput
-                  style={styles.amountInput}
-                  keyboardType="numeric"
-                  placeholder="Contoh: 150.000"
-                  placeholderTextColor={colors.textMuted}
-                  value={formAmount}
-                  onChangeText={(val) => setFormAmount(formatThousands(val))}
-                />
-              </View>
-
-              <Text style={styles.fieldLabel}>Tanggal Transaksi *</Text>
-              {Platform.OS === "ios" ? (
-                <View
                   style={[
-                    styles.textInput,
-                    { justifyContent: "center", alignItems: "flex-start" },
+                    styles.textInputValue,
+                    !formDate && { color: colors.textMuted },
                   ]}
                 >
-                  <DateTimePicker
-                    value={formDate ? new Date(formDate) : new Date()}
-                    mode="date"
-                    display="default"
-                    locale="id-ID"
-                    themeVariant="light"
-                    onChange={(_e, d) => d && setFormDate(formatDateString(d))}
-                    style={{ marginLeft: -8 }}
-                  />
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.textInput, { justifyContent: "center" }]}
-                  onPress={() => setActiveFormFieldDate(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.textInputValue,
-                      !formDate && { color: colors.textMuted },
-                    ]}
+                  {toDisplayDate(formDate)}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={styles.fieldLabel}>Keterangan Tambahan</Text>
+            <TextInput
+              style={[styles.textInput, styles.textArea]}
+              multiline
+              placeholder="Detail tujuan pengeluaran..."
+              placeholderTextColor={colors.textMuted}
+              value={formDescription}
+              onChangeText={setFormDescription}
+            />
+
+            <Text style={styles.fieldLabel}>Lampiran Bukti (Foto - Maksimal 5)</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.photosScroll}
+            >
+              {formPhotos.map((photo, index) => (
+                <View key={index} style={styles.photoContainer}>
+                  <TouchableOpacity
+                    onPress={() => setActivePreviewUri(photo.uri)}
+                    activeOpacity={0.8}
                   >
-                    {toDisplayDate(formDate)}
-                  </Text>
-                </TouchableOpacity>
+                    <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.photoDeleteBadge}
+                    onPress={() => handleRemovePhoto(index)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close-circle" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {formPhotos.length < 5 && (
+                <View style={styles.addPhotoButtonsContainer}>
+                  <TouchableOpacity
+                    style={styles.photoAddBox}
+                    onPress={handlePickFromCamera}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="camera-outline" size={20} color={colors.primary} />
+                    <Text style={styles.photoAddBoxText}>Kamera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.photoAddBox}
+                    onPress={handlePickFromGallery}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="image-outline" size={20} color={colors.primary} />
+                    <Text style={styles.photoAddBoxText}>Galeri</Text>
+                  </TouchableOpacity>
+                </View>
               )}
-
-              <Text style={styles.fieldLabel}>Keterangan Tambahan</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                multiline
-                placeholder="Detail tujuan pengeluaran..."
-                placeholderTextColor={colors.textMuted}
-                value={formDescription}
-                onChangeText={setFormDescription}
-              />
-
-              <Text style={styles.fieldLabel}>Lampiran Bukti (Foto - Maksimal 5)</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.photosScroll}
-              >
-                {formPhotos.map((photo, index) => (
-                  <View key={index} style={styles.photoContainer}>
-                    <TouchableOpacity
-                      onPress={() => setActivePreviewUri(photo.uri)}
-                      activeOpacity={0.8}
-                    >
-                      <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.photoDeleteBadge}
-                      onPress={() => handleRemovePhoto(index)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="close-circle" size={18} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                
-                {formPhotos.length < 5 && (
-                  <View style={styles.addPhotoButtonsContainer}>
-                    <TouchableOpacity
-                      style={styles.photoAddBox}
-                      onPress={handlePickFromCamera}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="camera-outline" size={20} color={colors.primary} />
-                      <Text style={styles.photoAddBoxText}>Kamera</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.photoAddBox}
-                      onPress={handlePickFromGallery}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="image-outline" size={20} color={colors.primary} />
-                      <Text style={styles.photoAddBoxText}>Galeri</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </ScrollView>
-
-              {/* Submit Buttons */}
-              <View style={styles.buttonsRow}>
-                <TouchableOpacity
-                  style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
-                  onPress={handleSave}
-                  disabled={isSubmitting}
-                  activeOpacity={0.8}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>
-                      {expenseId ? "Simpan Perubahan" : "Simpan Draft"}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
             </ScrollView>
-          </TouchableWithoutFeedback>
+
+            {/* Submit Buttons */}
+            <View style={styles.buttonsRow}>
+              <TouchableOpacity
+                style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={isSubmitting}
+                activeOpacity={0.8}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>
+                    {expenseId ? "Simpan Perubahan" : "Simpan Draft"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       )}
 
@@ -522,7 +519,7 @@ export default function ReimbursementFormScreen() {
                       style={[
                         styles.categoryItemText,
                         formCategory?.id === c.id &&
-                          styles.categoryItemTextActive,
+                        styles.categoryItemTextActive,
                       ]}
                     >
                       {c.name}

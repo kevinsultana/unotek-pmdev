@@ -2,16 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
-  Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -21,8 +17,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { expenseService } from "../services/expenseService";
@@ -119,9 +114,11 @@ export default function ReimbursementScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchExpenses();
-  }, [fetchExpenses]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchExpenses(false);
+    }, [fetchExpenses])
+  );
 
   useEffect(() => {
     loadCategories();
@@ -727,7 +724,7 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: spacing.xl,
-    bottom: spacing["2xl"],
+    bottom: spacing["5xl"],
     width: wpx(52),
     height: wpx(52),
     borderRadius: radius.full,
