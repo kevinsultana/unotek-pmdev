@@ -1,12 +1,13 @@
-import { api } from "./api";
 import type { ApiResponse } from "../types/api";
 import type {
-  Task,
   CreateTaskRequest,
-  UpdateTaskRequest,
+  Task,
   TaskStageItem,
   TaskTagItem,
+  Timesheet,
+  UpdateTaskRequest,
 } from "../types/task";
+import { api } from "./api";
 
 export const taskService = {
   list: (params?: {
@@ -36,7 +37,6 @@ export const taskService = {
     taskId: number,
     data: {
       date: string;
-      employee_id: number;
       name: string;
       unit_amount: number;
     },
@@ -50,4 +50,29 @@ export const taskService = {
 
   listTags: () =>
     api.get<ApiResponse<TaskTagItem[]>>("/tasks/tags"),
+
+  listTimesheets: (params?: {
+    page?: number;
+    per_page?: number;
+    task_id?: number;
+    project_id?: number;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+  }) => api.get<{
+    success: boolean;
+    data: Timesheet[];
+    pagination: { page: number; per_page: number; total: number; total_pages: number };
+  }>("/timesheets", { params }),
+
+  getTimesheet: (id: number) =>
+    api.get<ApiResponse<Timesheet>>(`/timesheets/${id}`),
+
+  updateTimesheet: (
+    id: number,
+    data: { name?: string; unit_amount?: number; date?: string },
+  ) => api.put<ApiResponse<Timesheet>>(`/timesheets/${id}`, data),
+
+  deleteTimesheet: (id: number) =>
+    api.delete<ApiResponse<null>>(`/timesheets/${id}`),
 };

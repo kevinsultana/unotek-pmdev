@@ -47,6 +47,7 @@ export interface Task {
   state?: string | null;
   planned_hours?: number | null;
   number?: string;
+  allow_timesheets?: boolean;
 }
 
 export interface CreateTaskRequest {
@@ -79,3 +80,16 @@ export type UpdateTaskRequest = Partial<CreateTaskRequest> & {
   kanban_state?: string;
   state?: string;
 };
+
+export interface Timesheet {
+  id: number;
+  number?: string;
+  name: string;
+  unit_amount: number;
+  date: string;
+  employee?: { id: number; name: string } | null;
+  project?: { id: number; name: string } | null;
+  task?: { id: number; name: string } | null;
+  create_date?: string;
+  write_date?: string;
+}

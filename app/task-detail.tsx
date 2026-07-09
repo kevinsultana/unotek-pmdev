@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
@@ -37,7 +38,7 @@ import {
   wpx,
 } from "../src/constants/theme";
 import type { ProfileResponse } from "../types/profile";
-import type { Task, TaskStageItem } from "../types/task";
+import type { Task, TaskStageItem, Timesheet } from "../types/task";
 import { showToast } from "../utils/toast";
 
 if (
@@ -227,6 +228,8 @@ export default function TaskDetailScreen() {
   const [timesheetHours, setTimesheetHours] = useState("");
   const [isSubmittingTimesheet, setIsSubmittingTimesheet] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
+  const [isLoadingTimesheets, setIsLoadingTimesheets] = useState(true);
 
   // Status/SpeedDial states
   const [stages, setStages] = useState<TaskStageItem[]>([]);
@@ -258,38 +261,55 @@ export default function TaskDetailScreen() {
     setIsSpeedDialOpen(!isSpeedDialOpen);
   };
 
-  useEffect(() => {
-    if (!id) return;
-    (async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const [taskRes, profileRes] = await Promise.all([
-          taskService.getById(Number(id)),
-          profileService.getProfile(),
-        ]);
-        setTask(taskRes.data.data);
-        setProfile(profileRes.data.data);
+  const fetchTimesheets = async (taskId: number) => {
+    setIsLoadingTimesheets(true);
+    try {
+      const res = await taskService.listTimesheets({ task_id: taskId });
+      setTimesheets(res.data.data || []);
+    } catch (err) {
+      console.log("Failed to load timesheets:", err);
+    } finally {
+      setIsLoadingTimesheets(false);
+    }
+  };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!id) return;
+      (async () => {
         try {
-          const [stagesRes, statesRes] = await Promise.all([
-            taskService.listStages({
-              project_id: taskRes.data.data.project?.id,
-            }),
-            taskService.listStates(),
+          setIsLoading(true);
+          setError(null);
+          const [taskRes, profileRes] = await Promise.all([
+            taskService.getById(Number(id)),
+            profileService.getProfile(),
           ]);
-          setStages(stagesRes.data.data || []);
-          setTaskStates(statesRes.data.data || []);
-        } catch (stagesErr) {
-          console.log("Failed to load stages/states:", stagesErr);
+          setTask(taskRes.data.data);
+          setProfile(profileRes.data.data);
+
+          // Fetch timesheets
+          await fetchTimesheets(taskRes.data.data.id);
+
+          try {
+            const [stagesRes, statesRes] = await Promise.all([
+              taskService.listStages({
+                project_id: taskRes.data.data.project?.id,
+              }),
+              taskService.listStates(),
+            ]);
+            setStages(stagesRes.data.data || []);
+            setTaskStates(statesRes.data.data || []);
+          } catch (stagesErr) {
+            console.log("Failed to load stages/states:", stagesErr);
+          }
+        } catch (err: any) {
+          setError(err?.response?.data?.message || "Gagal memuat detail tugas");
+        } finally {
+          setIsLoading(false);
         }
-      } catch (err: any) {
-        setError(err?.response?.data?.message || "Gagal memuat detail tugas");
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, [id]);
+      })();
+    }, [id])
+  );
 
   const isAssignee = !!(
     task?.user_ids?.some(
@@ -319,7 +339,6 @@ export default function TaskDetailScreen() {
     try {
       await taskService.postTimesheet(task!.id, {
         date: timesheetDate,
-        employee_id: profile.employee.id,
         name: timesheetDesc,
         unit_amount: parsedHours,
       });
@@ -327,14 +346,17 @@ export default function TaskDetailScreen() {
       setIsTimesheetModalVisible(false);
       setTimesheetDesc("");
       setTimesheetHours("");
+      await fetchTimesheets(task!.id);
     } catch (err: any) {
       if (err?.response?.status === 404 || err?.response?.status === 405) {
         showToast("success", "Berhasil (Mock)", "Timesheet ditambahkan (simulasi).");
         setIsTimesheetModalVisible(false);
         setTimesheetDesc("");
         setTimesheetHours("");
+        await fetchTimesheets(task!.id);
       } else {
         showToast("error", "Gagal", err?.response?.data?.message || "Gagal mengirimkan timesheet.");
+        console.log(err?.response?.data)
       }
     } finally {
       setIsSubmittingTimesheet(false);
@@ -416,6 +438,13 @@ export default function TaskDetailScreen() {
     }
   };
 
+  const handleCopyTaskNumber = async () => {
+    if (task?.number) {
+      await Clipboard.setStringAsync(task.number);
+      showToast("success", "Disalin", `Nomor tugas #${task.number} berhasil disalin ke clipboard.`);
+    }
+  };
+
   if (isLoading) {
     return (
       <View
@@ -462,6 +491,14 @@ export default function TaskDetailScreen() {
   const sbg = STAGE_BG[task.stage?.name ?? ""] || "#F3F4F6";
   const pr = PRIORITY_MAP[task.priority] ?? PRIORITY_MAP["0"];
   const cleanDesc = stripHtml(task.description);
+  const totalTimesheetHours = timesheets.reduce((acc, curr) => acc + (curr.unit_amount || 0), 0);
+
+  const getEmployeeName = (emp: any) => {
+    if (!emp) return "Karyawan";
+    if (Array.isArray(emp)) return emp[1] || "Karyawan";
+    if (typeof emp === "object") return emp.name || "Karyawan";
+    return String(emp);
+  };
 
   return (
     <View style={styles.container}>
@@ -504,8 +541,40 @@ export default function TaskDetailScreen() {
               </View>
             </View>
             <Text style={styles.heroTitle}>{task.name}</Text>
-            <Text style={styles.heroId}>#{task.id}</Text>
+            {task.number ? (
+              <TouchableOpacity
+                onPress={handleCopyTaskNumber}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  alignSelf: "flex-start",
+                  gap: spacing.xs,
+                }}
+              >
+                <Text style={styles.heroId}>{task.number}</Text>
+                <Ionicons
+                  name="copy-outline"
+                  size={rf(12)}
+                  color={colors.textMuted}
+                />
+              </TouchableOpacity>
+            ) : null}
           </View>
+
+          {/* ── Tags ──────────────────────────────────────────────────── */}
+          {task.tag_ids?.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tags</Text>
+              <View style={styles.tagsRow}>
+                {task.tag_ids.map((tag) => (
+                  <View key={tag.id} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           {/* ── Relations ─────────────────────────────────────────────── */}
           <View style={styles.section}>
@@ -549,15 +618,16 @@ export default function TaskDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tanggal</Text>
             <View style={styles.dateRow}>
+
               <View style={styles.dateBox}>
                 <Ionicons
-                  name="calendar-outline"
+                  name="time-outline"
                   size={18}
-                  color={colors.amber}
+                  color={colors.success}
                 />
-                <Text style={styles.dateLabel}>Deadline</Text>
+                <Text style={styles.dateLabel}>Assign</Text>
                 <Text style={styles.dateValue}>
-                  {fmtDate(task.date_deadline)}
+                  {fmtDate(task.date_assign)}
                 </Text>
               </View>
               <View style={styles.dateArrow}>
@@ -569,13 +639,13 @@ export default function TaskDetailScreen() {
               </View>
               <View style={styles.dateBox}>
                 <Ionicons
-                  name="time-outline"
+                  name="calendar-outline"
                   size={18}
-                  color={colors.success}
+                  color={colors.amber}
                 />
-                <Text style={styles.dateLabel}>Assign</Text>
+                <Text style={styles.dateLabel}>Deadline</Text>
                 <Text style={styles.dateValue}>
-                  {fmtDate(task.date_assign)}
+                  {fmtDate(task.date_deadline)}
                 </Text>
               </View>
             </View>
@@ -593,17 +663,85 @@ export default function TaskDetailScreen() {
             </View>
           ) : null}
 
-          {/* ── Tags ──────────────────────────────────────────────────── */}
-          {task.tag_ids?.length ? (
+          {/* ── Timesheet ─────────────────────────────────────────────── */}
+          {task.allow_timesheets ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Tags</Text>
-              <View style={styles.tagsRow}>
-                {task.tag_ids.map((tag) => (
-                  <View key={tag.id} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag.name}</Text>
-                  </View>
-                ))}
+              <View style={styles.sectionHeaderRow}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+                  Timesheet Kerja ({timesheets.length})
+                </Text>
+                {!isLoadingTimesheets && timesheets.length > 0 && (
+                  <Text style={styles.timesheetTotalText}>
+                    Total: {totalTimesheetHours} jam
+                  </Text>
+                )}
               </View>
+
+              {isLoadingTimesheets ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.primary}
+                  style={{ marginVertical: spacing.md }}
+                />
+              ) : timesheets.length === 0 ? (
+                <View style={styles.emptyTimesheetContainer}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={24}
+                    color={colors.textMuted}
+                  />
+                  <Text style={styles.emptyTimesheetText}>
+                    Belum ada catatan timesheet untuk tugas ini.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.timesheetListContainer}>
+                  {timesheets.map((ts) => {
+                    const empName = getEmployeeName(ts.employee);
+                    return (
+                      <TouchableOpacity
+                        key={ts.id}
+                        style={styles.timesheetRow}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/timesheet-detail",
+                            params: { id: ts.id },
+                          })
+                        }
+                      >
+                        <View style={styles.timesheetLeft}>
+                          <View style={styles.timesheetInfo}>
+                            <Text
+                              style={styles.timesheetName}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {ts.name}
+                            </Text>
+                            <View style={styles.timesheetMeta}>
+                              <Text style={styles.timesheetEmployee}>
+                                {empName}
+                              </Text>
+                              <View style={styles.timesheetDot} />
+                              <Text style={styles.timesheetDate}>
+                                {fmtDate(ts.date)}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                        <View style={styles.timesheetRight}>
+                          <View style={styles.timesheetHoursBadge}>
+                            <Text style={styles.timesheetHoursText}>
+                              {ts.unit_amount} jam
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           ) : null}
 
@@ -647,22 +785,24 @@ export default function TaskDetailScreen() {
         <View style={styles.speedDialContainer}>
           {isSpeedDialOpen && (
             <View style={styles.speedDialMenu}>
-              <View style={styles.speedDialItem}>
-                <View style={styles.speedDialLabelBg}>
-                  <Text style={styles.speedDialLabel}>Isi Timesheet</Text>
+              {task.allow_timesheets && (
+                <View style={styles.speedDialItem}>
+                  <View style={styles.speedDialLabelBg}>
+                    <Text style={styles.speedDialLabel}>Isi Timesheet</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.miniFab, { backgroundColor: colors.primary, marginRight: wpx(8) }]}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      setIsSpeedDialOpen(false);
+                      setIsTimesheetModalVisible(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="time" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[styles.miniFab, { backgroundColor: colors.primary, marginRight: wpx(8) }]}
-                  onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setIsSpeedDialOpen(false);
-                    setIsTimesheetModalVisible(true);
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="time" size={16} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+              )}
               <View style={styles.speedDialItem}>
                 <View style={styles.speedDialLabelBg}>
                   <Text style={styles.speedDialLabel}>Update Status</Text>
@@ -1157,6 +1297,109 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...textPresets.sectionHeader,
     marginBottom: spacing.lg + spacing.xs,
+  },
+
+  // Timesheets styles
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  timesheetTotalText: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  emptyTimesheetContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+  },
+  emptyTimesheetText: {
+    ...textPresets.body,
+    fontSize: rf(13),
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  timesheetListContainer: {
+    gap: spacing.md,
+  },
+  timesheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  timesheetLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  timesheetAvatar: {
+    width: wpx(32),
+    height: hpx(32),
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  timesheetAvatarText: {
+    fontSize: rf(12),
+    fontWeight: "800" as any,
+    color: colors.primary,
+  },
+  timesheetInfo: {
+    flex: 1,
+    gap: hpx(2),
+  },
+  timesheetName: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
+    color: colors.textPrimary,
+  },
+  timesheetMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  timesheetEmployee: {
+    ...textPresets.caption,
+    fontSize: rf(12),
+    color: colors.textSecondary,
+    fontWeight: "500" as any,
+  },
+  timesheetDot: {
+    width: wpx(4),
+    height: hpx(4),
+    borderRadius: radius.full,
+    backgroundColor: colors.textMuted,
+  },
+  timesheetDate: {
+    ...textPresets.caption,
+    fontSize: rf(11),
+    color: colors.textMuted,
+  },
+  timesheetRight: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: spacing.sm,
+  },
+  timesheetHoursBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs - 2,
+    borderRadius: radius.sm,
+  },
+  timesheetHoursText: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.primary,
   },
 
   // Dates
