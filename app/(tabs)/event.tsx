@@ -1,14 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  RefreshControl,
+  useWindowDimensions,
+  Linking,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import RenderHTML from "react-native-render-html";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   colors,
   hpx,
@@ -20,64 +28,10 @@ import {
   textPresets,
   wpx,
 } from "../../src/constants/theme";
-
-interface CompanyEvent {
-  id: string;
-  title: string;
-  category: "internal" | "webinar" | "gathering" | "libur";
-  date: string;
-  time: string;
-  location: string;
-  speaker?: string;
-  description: string;
-  status: "upcoming" | "active" | "completed";
-}
-
-const MOCK_EVENTS: CompanyEvent[] = [
-  {
-    id: "1",
-    title: "Town Hall Meeting Q3 2026",
-    category: "internal",
-    date: "10 Juli 2026",
-    time: "09:00 - 11:30 WIB",
-    location: "Meeting Room Utama & Zoom",
-    speaker: "Direksi & HR Manager",
-    description: "Evaluasi kinerja tengah tahun kuartal kedua, penyampaian target kuartal ketiga, serta sesi Q&A bersama seluruh karyawan.",
-    status: "upcoming",
-  },
-  {
-    id: "2",
-    title: "Webinar: React Native & Expo v54 Best Practices",
-    category: "webinar",
-    date: "15 Juli 2026",
-    time: "14:00 - 16:00 WIB",
-    location: "Zoom Meeting (Online)",
-    speaker: "Kevin Sultana (Lead Mobile Developer)",
-    description: "Kupas tuntas fitur terbaru Expo v54, optimasi performa aplikasi, serta sharing session implementasi real-time update.",
-    status: "upcoming",
-  },
-  {
-    id: "3",
-    title: "Company Fun Gathering 2026",
-    category: "gathering",
-    date: "25 Agustus 2026",
-    time: "08:00 WIB - Selesai",
-    location: "Dufan, Ancol (Jakarta)",
-    speaker: "Panitia Corporate Event",
-    description: "Acara kebersamaan tahunan karyawan UNOTEK dengan tema 'Together We Grow'. Siapkan kaos seragam Anda dan nikmati berbagai wahana menarik!",
-    status: "upcoming",
-  },
-  {
-    id: "4",
-    title: "Hari Raya Idul Adha 1447 H",
-    category: "libur",
-    date: "16 Juni 2026",
-    time: "Allday (Hari Libur)",
-    location: "Nasional (Libur Resmi)",
-    description: "Hari Libur Nasional Idul Adha. Seluruh aktivitas kantor diliburkan dan akan kembali aktif pada hari kerja berikutnya.",
-    status: "completed",
-  },
-];
+import { calendarEventService } from "../../services/calendarEventService";
+import { profileService } from "../../services/profileService";
+import type { CalendarEvent } from "../../types/calendarEvent";
+import { showToast } from "../../utils/toast";
 
 const CATEGORY_MAP = {
   all: { label: "Semua", c: colors.primary, b: colors.primaryLight },
@@ -87,14 +41,218 @@ const CATEGORY_MAP = {
   libur: { label: "Libur", c: colors.error, b: "#FEE2E2", icon: "calendar-outline" },
 } as const;
 
+// Helper to format date as YYYY-MM-DD
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+// Helper to format date as DD/MM/YYYY for UI display
+const toDisplay = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 export default function EventScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const router = useRouter();
+  
   const [activeCategory, setActiveCategory] = useState<keyof typeof CATEGORY_MAP>("all");
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
-  const filteredEvents = MOCK_EVENTS.filter((item) => {
-    if (activeCategory === "all") return true;
-    return item.category === activeCategory;
+  // Date filters (Default range: from 7 days ago to 30 days ahead)
+  const [dateFrom, setDateFrom] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d;
   });
+  const [dateTo, setDateTo] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d;
+  });
+  const [showPicker, setShowPicker] = useState<"from" | "to" | null>(null);
+
+  // Local state to mock confirmation transitions
+  const [confirmedEventIds, setConfirmedEventIds] = useState<Record<number, boolean>>({});
+
+  const fetchEvents = useCallback(async (showIndicator = true) => {
+    if (showIndicator) setIsLoading(true);
+    try {
+      const response = await calendarEventService.list({
+        date_from: toISODate(dateFrom),
+        date_to: toISODate(dateTo),
+        per_page: 100,
+      });
+      if (response.data?.success) {
+        setEvents(response.data.data);
+      } else {
+        showToast("error", "Gagal memuat event");
+      }
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      showToast("error", "Terjadi kesalahan koneksi");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const response = await profileService.getProfile();
+      if (response.data?.success && response.data.data?.user) {
+        setCurrentUserEmail(response.data.data.user.email);
+      }
+    } catch (error) {
+      console.error("Error fetching user profile for event filter:", error);
+    }
+  }, []);
+
+  // Fetch events when the screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchEvents();
+    }, [fetchEvents])
+  );
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  const onRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchEvents(false);
+  }, [fetchEvents]);
+
+  const handlePickerChange = (_e: DateTimePickerEvent, d?: Date) => {
+    setShowPicker(null);
+    if (d) {
+      if (showPicker === "from") {
+        setDateFrom(d);
+      } else if (showPicker === "to") {
+        setDateTo(d);
+      }
+    }
+  };
+
+  // Dynamically categorize the event based on its contents
+  const getEventCategory = useCallback((event: CalendarEvent): "internal" | "webinar" | "gathering" | "libur" => {
+    const nameLower = (event.name || "").toLowerCase();
+    const descLower = (event.description || "").toLowerCase();
+    
+    if (
+      nameLower.includes("libur") || 
+      nameLower.includes("hari raya") || 
+      nameLower.includes("cuti bersama") || 
+      (event.allday && nameLower.includes("idul"))
+    ) {
+      return "libur";
+    }
+    
+    if (event.videocall_location || nameLower.includes("webinar") || descLower.includes("webinar") || nameLower.includes("zoom")) {
+      return "webinar";
+    }
+    
+    if (event.privacy === "private" || event.privacy === "confidential") {
+      return "internal";
+    }
+    
+    if (nameLower.includes("gathering") || nameLower.includes("fun") || nameLower.includes("kebersamaan") || nameLower.includes("meetup")) {
+      return "gathering";
+    }
+    
+    return "internal";
+  }, []);
+
+  const getEventDatePart = (startStr: string) => {
+    if (!startStr) return "";
+    return startStr.replace("T", " ").split(" ")[0];
+  };
+
+  const formatEventDate = (startStr: string) => {
+    try {
+      if (!startStr) return "";
+      const datePart = getEventDatePart(startStr);
+      const parts = datePart.split("-");
+      if (parts.length !== 3) return startStr;
+      
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      const months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      ];
+      
+      return `${day} ${months[monthIdx]} ${year}`;
+    } catch (e) {
+      return startStr;
+    }
+  };
+
+  const formatEventTime = (event: CalendarEvent) => {
+    if (event.allday) return "Allday (Hari Libur)";
+    try {
+      if (!event.start || !event.stop) return "";
+      const startParts = event.start.replace("T", " ").split(" ");
+      const stopParts = event.stop.replace("T", " ").split(" ");
+      
+      if (startParts.length < 2 || stopParts.length < 2) return "";
+      
+      const startTime = startParts[1].substring(0, 5);
+      const stopTime = stopParts[1].substring(0, 5);
+      
+      return `${startTime} - ${stopTime} WIB`;
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const handleConfirmPresence = (eventId: number) => {
+    setConfirmedEventIds(prev => ({ ...prev, [eventId]: true }));
+    showToast("success", "Kehadiran Anda berhasil dikonfirmasi!");
+  };
+
+  // Filter out events with 'confidential' privacy
+  const nonConfidentialEvents = events.filter(event => event.privacy !== "confidential");
+
+  // Sort events chronologically
+  const sortedEvents = [...nonConfidentialEvents].sort((a, b) => a.start.localeCompare(b.start));
+
+  // Filter events by category
+  const filteredEvents = sortedEvents.filter((event) => {
+    const category = getEventCategory(event);
+    if (activeCategory === "all") return true;
+    return category === activeCategory;
+  });
+
+  // Tags styling for RenderHTML
+  const htmlTagsStyles = {
+    body: {
+      color: colors.textSecondary,
+      fontSize: rf(13),
+      lineHeight: rf(18),
+      margin: 0,
+    },
+    p: {
+      margin: 0,
+      marginBottom: hpx(6),
+    },
+    strong: {
+      fontWeight: "bold" as any,
+      color: colors.textPrimary,
+    },
+  };
 
   return (
     <View style={styles.container}>
@@ -108,36 +266,75 @@ export default function EventScreen() {
         </View>
       </View>
 
-      {/* Horizontal Date Strip (Decorative mockup of a calendar week) */}
-      <View style={styles.calendarStripContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calendarScroll}>
-          {[
-            { day: "Sen", date: "6", active: true },
-            { day: "Sel", date: "7" },
-            { day: "Rab", date: "8" },
-            { day: "Kam", date: "9" },
-            { day: "Jum", date: "10" },
-            { day: "Sab", date: "11" },
-            { day: "Min", date: "12" },
-          ].map((item, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.calendarDayCard,
-                item.active && styles.calendarDayCardActive,
-              ]}
-            >
-              <Text style={[styles.calendarDayText, item.active && styles.calendarDayTextActive]}>
-                {item.day}
-              </Text>
-              <Text style={[styles.calendarDateText, item.active && styles.calendarDateTextActive]}>
-                {item.date}
-              </Text>
-              {item.active && <View style={styles.activeDot} />}
-            </View>
-          ))}
-        </ScrollView>
+      {/* Date filter "Dari" & "Ke" (Sampai) */}
+      <View style={styles.filterRow}>
+        {Platform.OS === "ios" ? (
+          <View style={styles.dateBtn}>
+            <Text style={styles.dateBtnLabel}>Dari</Text>
+            <DateTimePicker
+              value={dateFrom}
+              mode="date"
+              display="default"
+              locale="id-ID"
+              themeVariant="light"
+              onChange={(_e, d) => {
+                if (d) setDateFrom(d);
+              }}
+            />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.dateBtn}
+            activeOpacity={0.7}
+            onPress={() => setShowPicker("from")}
+          >
+            <Text style={styles.dateBtnLabel}>Dari</Text>
+            <Text style={styles.dateBtnValue}>{toDisplay(dateFrom)}</Text>
+          </TouchableOpacity>
+        )}
+        
+        <Ionicons
+          name="arrow-forward"
+          size={14}
+          color={colors.border}
+          style={{ marginHorizontal: spacing.sm }}
+        />
+
+        {Platform.OS === "ios" ? (
+          <View style={styles.dateBtn}>
+            <Text style={styles.dateBtnLabel}>Sampai</Text>
+            <DateTimePicker
+              value={dateTo}
+              mode="date"
+              display="default"
+              locale="id-ID"
+              themeVariant="light"
+              onChange={(_e, d) => {
+                if (d) setDateTo(d);
+              }}
+            />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.dateBtn}
+            activeOpacity={0.7}
+            onPress={() => setShowPicker("to")}
+          >
+            <Text style={styles.dateBtnLabel}>Sampai</Text>
+            <Text style={styles.dateBtnValue}>{toDisplay(dateTo)}</Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Android DateTimePicker Modals */}
+      {Platform.OS !== "ios" && showPicker && (
+        <DateTimePicker
+          value={showPicker === "from" ? dateFrom : dateTo}
+          mode="date"
+          display="default"
+          onChange={handlePickerChange}
+        />
+      )}
 
       {/* Category Tabs */}
       <View style={styles.tabContainer}>
@@ -164,65 +361,155 @@ export default function EventScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {filteredEvents.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-clear-outline" size={48} color={colors.textMuted} />
-            <Text style={styles.emptyText}>Tidak ada event untuk kategori ini.</Text>
-          </View>
-        ) : (
-          filteredEvents.map((item) => {
-            const config = CATEGORY_MAP[item.category];
-            return (
-              <View key={item.id} style={styles.eventCard}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.badge, { backgroundColor: config.b }]}>
-                    <Ionicons name={config.icon} size={12} color={catConfigColor(item.category)} style={{ marginRight: 4 }} />
-                    <Text style={[styles.badgeText, { color: catConfigColor(item.category) }]}>
-                      {config.label}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Memuat agenda event...</Text>
+        </View>
+      ) : (
+        <ScrollView 
+          contentContainerStyle={styles.scroll} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+          }
+        >
+          {filteredEvents.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-clear-outline" size={48} color={colors.textMuted} />
+              <Text style={styles.emptyText}>Tidak ada event untuk tanggal ini.</Text>
+            </View>
+          ) : (
+            filteredEvents.map((item) => {
+              const category = getEventCategory(item);
+              const config = CATEGORY_MAP[category];
+
+              // Find logged-in user attendee state
+              const myAttendee = item.attendee_ids?.find(
+                (att) => att.partner?.email === currentUserEmail
+              );
+              
+              const isConfirmedLocally = confirmedEventIds[item.id];
+              const myState = isConfirmedLocally ? "accepted" : (myAttendee?.state || "needsAction");
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.eventCard}
+                  activeOpacity={0.9}
+                  onPress={() => router.push({ pathname: "/event-detail", params: { id: item.id } })}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.badge, { backgroundColor: config.b }]}>
+                      <Ionicons name={config.icon} size={12} color={catConfigColor(category)} style={{ marginRight: 4 }} />
+                      <Text style={[styles.badgeText, { color: catConfigColor(category) }]}>
+                        {config.label}
+                      </Text>
+                    </View>
+                    <Text style={styles.eventDateText}>
+                      {formatEventDate(item.start)}
                     </Text>
                   </View>
-                  <Text style={styles.eventDateText}>{item.date}</Text>
-                </View>
 
-                <Text style={styles.eventTitle}>{item.title}</Text>
-                <Text style={styles.eventDesc}>{item.description}</Text>
+                  <Text style={styles.eventTitle}>{item.name}</Text>
+                  
+                  {item.description ? (
+                    <View style={styles.htmlContainer} pointerEvents="none">
+                      <RenderHTML
+                        contentWidth={width - wpx(72)}
+                        source={{ html: item.description }}
+                        tagsStyles={htmlTagsStyles}
+                      />
+                    </View>
+                  ) : null}
 
-                {item.speaker && (
+                  {/* Organizer info */}
+                  {item.user && (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="person-circle-outline" size={16} color={colors.textSecondary} />
+                      <Text style={styles.infoText}>Organizer: {item.user.name}</Text>
+                    </View>
+                  )}
+
                   <View style={styles.infoRow}>
-                    <Ionicons name="person-circle-outline" size={16} color={colors.textSecondary} />
-                    <Text style={styles.infoText}>{item.speaker}</Text>
+                    <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                    <Text style={styles.infoText}>{formatEventTime(item)}</Text>
                   </View>
-                )}
 
-                <View style={styles.infoRow}>
-                  <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.infoText}>{item.time}</Text>
-                </View>
+                  {item.location && (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                      <Text style={styles.infoText}>{item.location}</Text>
+                    </View>
+                  )}
 
-                <View style={styles.infoRow}>
-                  <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.infoText}>{item.location}</Text>
-                </View>
+                  {/* Attendee / Invite List summary */}
+                  {item.partner_ids && item.partner_ids.length > 0 && (
+                    <View style={styles.attendeeListRow}>
+                      <Ionicons name="people-outline" size={16} color={colors.textSecondary} />
+                      <Text style={styles.attendeeListText} numberOfLines={1}>
+                        Peserta: {item.partner_ids.map(p => p.name).join(", ")}
+                      </Text>
+                    </View>
+                  )}
 
-                {item.category === "webinar" && (
-                  <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
-                    <Ionicons name="videocam" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.actionBtnText}>Gabung Zoom Meeting</Text>
-                  </TouchableOpacity>
-                )}
+                  {/* Invitation status badge */}
+                  {currentUserEmail && myAttendee && (
+                    <View style={styles.statusRow}>
+                      <Text style={styles.statusLabelText}>Status Anda:</Text>
+                      <View style={[
+                        styles.statusBadge,
+                        myState === "accepted" && styles.statusBadgeAccepted,
+                        myState === "needsAction" && styles.statusBadgePending,
+                        myState === "declined" && styles.statusBadgeDeclined,
+                      ]}>
+                        <Text style={[
+                          styles.statusBadgeText,
+                          myState === "accepted" && styles.statusBadgeTextAccepted,
+                          myState === "needsAction" && styles.statusBadgeTextPending,
+                          myState === "declined" && styles.statusBadgeTextDeclined,
+                        ]}>
+                          {myState === "accepted" ? "Hadir" : myState === "declined" ? "Absen" : "Undangan"}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
 
-                {item.category === "internal" && (
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: "#7C3AED" }]} activeOpacity={0.8}>
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.actionBtnText}>Konfirmasi Hadir</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+                  {/* Dynamic Action Buttons */}
+                  {category === "webinar" && (
+                    <TouchableOpacity 
+                      style={styles.actionBtn} 
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        const url = item.videocall_location || "https://zoom.us";
+                        Linking.openURL(url).catch(() => {
+                          showToast("error", "Tidak dapat membuka tautan webinar");
+                        });
+                      }}
+                    >
+                      <Ionicons name="videocam" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.actionBtnText}>
+                        {item.videocall_location ? "Gabung Webinar" : "Buka Zoom"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {category === "internal" && myState === "needsAction" && (
+                    <TouchableOpacity 
+                      style={[styles.actionBtn, { backgroundColor: "#7C3AED", shadowColor: "#7C3AED" }]} 
+                      activeOpacity={0.8}
+                      onPress={() => handleConfirmPresence(item.id)}
+                    >
+                      <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.actionBtnText}>Konfirmasi Hadir</Text>
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -256,56 +543,39 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Calendar Strip
-  calendarStripContainer: {
-    backgroundColor: colors.card,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    ...shadows.card,
-  },
-  calendarScroll: {
+  // Date Filter Row
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: spacing["2xl"],
-    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    zIndex: 2,
   },
-  calendarDayCard: {
-    width: wpx(46),
-    height: hpx(64),
+  dateBtn: {
+    flex: 1,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
+    flexDirection: Platform.OS === "ios" ? "row" : "column",
+    alignItems: Platform.OS === "ios" ? "center" : "flex-start",
+    justifyContent: Platform.OS === "ios" ? "space-between" : "center",
+    height: hpx(52),
   },
-  calendarDayCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
-  },
-  calendarDayText: {
-    fontSize: rf(10),
+  dateBtnLabel: { 
+    fontSize: rf(11),
     fontWeight: "600" as any,
     color: colors.textMuted,
+    marginBottom: Platform.OS === "ios" ? 0 : hpx(2) 
   },
-  calendarDayTextActive: {
-    color: colors.primary,
+  dateBtnValue: { 
+    fontSize: rf(13),
     fontWeight: "700" as any,
-  },
-  calendarDateText: {
-    fontSize: rf(16),
-    fontWeight: "800" as any,
-    color: colors.textPrimary,
-    marginTop: hpx(2),
-  },
-  calendarDateTextActive: {
-    color: colors.primary,
-  },
-  activeDot: {
-    width: wpx(4),
-    height: wpx(4),
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    marginTop: hpx(2),
+    color: colors.textPrimary 
   },
 
   // Category Tabs
@@ -328,6 +598,19 @@ const styles = StyleSheet.create({
     fontSize: rf(12),
     fontWeight: "600" as any,
     color: colors.textSecondary,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: hpx(40),
+  },
+  loadingText: {
+    fontSize: rf(13),
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+    fontWeight: "500" as any,
   },
 
   scroll: {
@@ -372,12 +655,9 @@ const styles = StyleSheet.create({
     fontSize: rf(16),
     fontWeight: "800" as any,
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
-  eventDesc: {
-    fontSize: rf(13),
-    color: colors.textSecondary,
-    lineHeight: rf(18),
+  htmlContainer: {
     marginBottom: spacing.md,
   },
   infoRow: {
@@ -390,6 +670,59 @@ const styles = StyleSheet.create({
     fontSize: rf(12),
     color: colors.textSecondary,
     fontWeight: "500" as any,
+  },
+  attendeeListRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: hpx(6),
+    paddingRight: wpx(20),
+  },
+  attendeeListText: {
+    fontSize: rf(12),
+    color: colors.textSecondary,
+    fontWeight: "500" as any,
+  },
+
+  // Status Row
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: hpx(8),
+    marginBottom: hpx(2),
+  },
+  statusLabelText: {
+    fontSize: rf(12),
+    color: colors.textMuted,
+    fontWeight: "500" as any,
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(2),
+    borderRadius: radius.full,
+  },
+  statusBadgeAccepted: {
+    backgroundColor: "#D1FAE5",
+  },
+  statusBadgePending: {
+    backgroundColor: "#FEF3C7",
+  },
+  statusBadgeDeclined: {
+    backgroundColor: "#FEE2E2",
+  },
+  statusBadgeText: {
+    fontSize: rf(10),
+    fontWeight: "700" as any,
+  },
+  statusBadgeTextAccepted: {
+    color: "#059669",
+  },
+  statusBadgeTextPending: {
+    color: "#D97706",
+  },
+  statusBadgeTextDeclined: {
+    color: colors.error,
   },
 
   actionBtn: {
