@@ -182,7 +182,7 @@ export default function LoginScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Butuh bantuan login? Hubungi HRD</Text>
-            <Text style={styles.versionText}>unotek-pmdev v1.3.0</Text>
+            <Text style={styles.versionText}>unotek-pmdev v1.4.0</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
