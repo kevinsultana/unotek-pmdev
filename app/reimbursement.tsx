@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -18,7 +19,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { expenseService } from "../services/expenseService";
@@ -59,6 +59,10 @@ export default function ReimbursementScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Batch Select States
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
   // Detail Modal States
   const [selectedDetail, setSelectedDetail] = useState<Expense | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -80,6 +84,12 @@ export default function ReimbursementScreen() {
   // Date Pickers
   const [showDatePicker, setShowDatePicker] = useState<"from" | "to" | null>(null);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+
+  // Derived Values
+  const draftExpensesCount = expenses.filter((e) => e.state === "draft").length;
+  const selectedExpensesAmount = expenses
+    .filter((e) => selectedIds.includes(e.id))
+    .reduce((sum, item) => sum + (item.total_amount_currency || 0), 0);
 
   // Load Data
   const fetchExpenses = useCallback(async (showIndicator = true) => {
@@ -170,23 +180,203 @@ export default function ReimbursementScreen() {
     return Number(clean).toLocaleString("id-ID");
   };
 
-  const handleSubmitExpense = async (item: Expense) => {
-    const hasAttachments =
-      (item.attachments && item.attachments.length > 0) ||
-      (item.attachment_ids && item.attachment_ids.length > 0);
+  // Batch Select Helpers
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
 
-    if (!hasAttachments) {
-      showToast("error", "Validasi", "Wajib melampirkan foto bukti untuk mengirim pengajuan.");
-      return;
+  const handleSelectAll = () => {
+    const drafts = expenses.filter((item) => item.state === "draft");
+    const draftIds = drafts.map((item) => item.id);
+    const allSelected = drafts.length > 0 && drafts.every((d) => selectedIds.includes(d.id));
+
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(draftIds);
     }
+  };
+
+  const exitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedIds([]);
+  };
+
+  const handleCardPress = (item: Expense) => {
+    if (isSelectMode) {
+      if (item.state === "draft") {
+        toggleSelect(item.id);
+      }
+    } else {
+      if (item.state !== "draft") {
+        handleShowDetail(item.id);
+      }
+    }
+  };
+
+  const handleCardLongPress = (item: Expense) => {
+    if (!isSelectMode && item.state === "draft") {
+      setIsSelectMode(true);
+      setSelectedIds([item.id]);
+    }
+  };
+
+  const validateExpenseAttachments = async (expenseId: number): Promise<{ isValid: boolean; invalidNames: string[] }> => {
+    try {
+      const res = await expenseService.getById(expenseId);
+      const detail = res.data.data;
+      if (!detail) {
+        return { isValid: false, invalidNames: ["Gagal mengambil detail pengajuan"] };
+      }
+
+      if (detail.lines && detail.lines.length > 0) {
+        const lineChecks = await Promise.all(
+          detail.lines.map(async (line) => {
+            try {
+              const attRes = await expenseService.listLineAttachments(line.id);
+              const hasAtt = attRes.data.data && attRes.data.data.length > 0;
+              return { name: line.name, hasAtt };
+            } catch {
+              return { name: line.name, hasAtt: false };
+            }
+          })
+        );
+        const invalidLines = lineChecks.filter(c => !c.hasAtt);
+        if (invalidLines.length > 0) {
+          return { isValid: false, invalidNames: invalidLines.map(c => c.name) };
+        }
+      } else {
+        const hasHeaderAtt =
+          (detail.attachments && detail.attachments.length > 0) ||
+          (detail.attachment_ids && detail.attachment_ids.length > 0);
+        if (!hasHeaderAtt) {
+          return { isValid: false, invalidNames: [detail.name] };
+        }
+      }
+      return { isValid: true, invalidNames: [] };
+    } catch {
+      return { isValid: false, invalidNames: ["Kesalahan validasi sistem"] };
+    }
+  };
+
+  const handleSubmitExpense = async (item: Expense) => {
     setIsLoading(true);
     try {
+      const validation = await validateExpenseAttachments(item.id);
+      if (!validation.isValid) {
+        const names = validation.invalidNames.join(", ");
+        showToast(
+          "error",
+          "Validasi",
+          `Item berikut belum memiliki lampiran bukti: ${names}`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       await expenseService.submit(item.id);
       showToast("success", "Berhasil", "Reimbursement berhasil dikirim.");
       fetchExpenses();
     } catch (err: any) {
       showToast("error", "Gagal", err?.response?.data?.message || "Gagal mengirim pengajuan");
+      console.log(err)
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBatchSubmit = async () => {
+    if (selectedIds.length === 0) {
+      showToast("error", "Validasi", "Pilih minimal satu reimbursement.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const validationResults = await Promise.all(
+        selectedIds.map(async (id) => {
+          const expense = expenses.find(e => e.id === id);
+          const name = expense ? expense.name : `ID ${id}`;
+          const res = await validateExpenseAttachments(id);
+          return { id, name, ...res };
+        })
+      );
+
+      const invalidResults = validationResults.filter(r => !r.isValid);
+      if (invalidResults.length > 0) {
+        const errorsList = invalidResults.map(r => {
+          return `${r.name} (${r.invalidNames.join(", ")})`;
+        }).join("; ");
+
+        showToast(
+          "error",
+          "Validasi",
+          `Pengajuan berikut belum lengkap: ${errorsList}`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(false);
+      Alert.alert(
+        "Kirim Pengajuan",
+        `Apakah Anda yakin ingin mengirim ${selectedIds.length} pengajuan reimbursement terpilih?`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Kirim",
+            onPress: async () => {
+              setIsLoading(true);
+              let successCount = 0;
+              let failCount = 0;
+              const errors: string[] = [];
+
+              try {
+                for (const id of selectedIds) {
+                  try {
+                    await expenseService.submit(id);
+                    successCount++;
+                  } catch (err: any) {
+                    failCount++;
+                    const errMsg = err?.response?.data?.message || `ID ${id} gagal dikirim`;
+                    errors.push(errMsg);
+                  }
+                }
+
+                if (successCount > 0) {
+                  showToast(
+                    "success",
+                    "Berhasil",
+                    `${successCount} reimbursement berhasil dikirim.`
+                  );
+                }
+                if (failCount > 0) {
+                  showToast(
+                    "error",
+                    "Gagal",
+                    `${failCount} reimbursement gagal dikirim. ${errors[0] || ""}`
+                  );
+                }
+
+                exitSelectMode();
+                fetchExpenses();
+              } catch (err: any) {
+                showToast("error", "Error", "Terjadi kesalahan sistem saat batch submit.");
+              } finally {
+                setIsLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      showToast("error", "Error", "Gagal memproses validasi batch submit.");
       setIsLoading(false);
     }
   };
@@ -203,7 +393,24 @@ export default function ReimbursementScreen() {
     setShowDetailModal(true);
     try {
       const res = await expenseService.getById(id);
-      setSelectedDetail(res.data.data);
+      const detail = res.data.data;
+      if (detail && detail.lines && detail.lines.length > 0) {
+        const linesWithAtts = await Promise.all(
+          detail.lines.map(async (line) => {
+            try {
+              const attRes = await expenseService.listLineAttachments(line.id);
+              return {
+                ...line,
+                attachments: attRes.data.data || [],
+              };
+            } catch {
+              return line;
+            }
+          })
+        );
+        detail.lines = linesWithAtts;
+      }
+      setSelectedDetail(detail);
     } catch (err: any) {
       showToast("error", "Gagal", err?.response?.data?.message || "Gagal memuat detail reimbursement");
       setShowDetailModal(false);
@@ -251,21 +458,52 @@ export default function ReimbursementScreen() {
       {/* Curved Header */}
       <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
         <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reimbursement</Text>
-          <TouchableOpacity
-            onPress={() => router.push("/reimbursement-form")}
-            style={styles.headerAddBtn}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={wpx(24)} color="#FFFFFF" />
-          </TouchableOpacity>
+          {isSelectMode ? (
+            <TouchableOpacity
+              onPress={exitSelectMode}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+
+          <Text style={styles.headerTitle}>
+            {isSelectMode ? "Pilih Draft" : "Reimbursement"}
+          </Text>
+
+          <View style={styles.headerRightActions}>
+            {draftExpensesCount > 0 && (
+              <TouchableOpacity
+                onPress={isSelectMode ? handleSelectAll : () => setIsSelectMode(true)}
+                style={styles.headerActionBtn}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isSelectMode ? "checkmark-done-circle" : "checkbox-outline"}
+                  size={wpx(22)}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+            )}
+            {!isSelectMode && (
+              <TouchableOpacity
+                onPress={() => router.push("/reimbursement-form")}
+                style={styles.headerActionBtn}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={wpx(24)} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
 
@@ -387,81 +625,100 @@ export default function ReimbursementScreen() {
           ) : (
             expenses.map((item) => {
               const statusConfig = STATUS_MAP[item.state] || STATUS_MAP.draft;
+              const isSelected = selectedIds.includes(item.id);
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.card}
-                  onPress={() => item.state !== "draft" && handleShowDetail(item.id)}
-                  activeOpacity={item.state !== "draft" ? 0.75 : 1}
+                  style={[
+                    styles.card,
+                    isSelectMode && item.state !== "draft" && { opacity: 0.5 },
+                    isSelectMode && item.state === "draft" && isSelected && styles.cardSelected,
+                  ]}
+                  onPress={() => handleCardPress(item)}
+                  onLongPress={() => handleCardLongPress(item)}
+                  activeOpacity={0.75}
                 >
-                  <View style={styles.cardHeader}>
-                    <View style={styles.categoryBadge}>
-                      <Ionicons name="receipt-outline" size={12} color={colors.primary} style={{ marginRight: 4 }} />
-                      <Text style={styles.categoryText}>
-                        {item.product?.name || "Expense"}
-                      </Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.b }]}>
-                      <Ionicons name={statusConfig.icon as any} size={11} color={statusConfig.c} style={{ marginRight: 3 }} />
-                      <Text style={[styles.statusText, { color: statusConfig.c }]}>
-                        {statusConfig.label}
-                      </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {isSelectMode && item.state === "draft" && (
+                      <View style={{ marginRight: spacing.md }}>
+                        {isSelected ? (
+                          <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                        ) : (
+                          <Ionicons name="ellipse-outline" size={24} color={colors.textMuted} />
+                        )}
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.cardHeader}>
+                        <View style={styles.categoryBadge}>
+                          <Ionicons name="receipt-outline" size={12} color={colors.primary} style={{ marginRight: 4 }} />
+                          <Text style={styles.categoryText}>
+                            {item.product?.name || "Expense"}
+                          </Text>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: statusConfig.b }]}>
+                          <Ionicons name={statusConfig.icon as any} size={11} color={statusConfig.c} style={{ marginRight: 3 }} />
+                          <Text style={[styles.statusText, { color: statusConfig.c }]}>
+                            {statusConfig.label}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.cardTitle}>{item.name}</Text>
+                      {item.description ? (
+                        <Text style={styles.cardDesc} numberOfLines={2}>
+                          {item.description}
+                        </Text>
+                      ) : null}
+
+                      {((item.attachments && item.attachments.length > 0) || (item.attachment_ids && item.attachment_ids.length > 0)) && (
+                        <View style={styles.attachmentsRow}>
+                          <Ionicons name="attach" size={14} color={colors.primary} />
+                          <Text style={styles.attachmentsCount}>
+                            {item.attachments?.length || item.attachment_ids?.length || 0} Lampiran
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.cardFooter}>
+                        <Text style={styles.cardAmount}>
+                          Rp {item.total_amount_currency.toLocaleString("id-ID")}
+                        </Text>
+                        <Text style={styles.cardDate}>
+                          {toDisplayDate(item.date)}
+                        </Text>
+                      </View>
+
+                      {item.state === "draft" && !isSelectMode && (
+                        <View style={styles.cardActions}>
+                          <TouchableOpacity
+                            style={[styles.cardActionBtn, styles.submitCardBtn]}
+                            onPress={() => handleSubmitExpense(item)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="paper-plane-outline" size={14} color="#059669" />
+                            <Text style={styles.submitCardBtnText}>Kirim</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.cardActionBtn, styles.editBtn]}
+                            onPress={() => handleEdit(item)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="create-outline" size={14} color={colors.primary} />
+                            <Text style={styles.editBtnText}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.cardActionBtn, styles.deleteBtn]}
+                            onPress={() => handleDelete(item.id)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="trash-outline" size={14} color={colors.error} />
+                            <Text style={styles.deleteBtnText}>Hapus</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   </View>
-
-                  <Text style={styles.cardTitle}>{item.name}</Text>
-                  {item.description ? (
-                    <Text style={styles.cardDesc} numberOfLines={2}>
-                      {item.description}
-                    </Text>
-                  ) : null}
-
-                  {((item.attachments && item.attachments.length > 0) || (item.attachment_ids && item.attachment_ids.length > 0)) && (
-                    <View style={styles.attachmentsRow}>
-                      <Ionicons name="attach" size={14} color={colors.primary} />
-                      <Text style={styles.attachmentsCount}>
-                        {item.attachments?.length || item.attachment_ids?.length || 0} Lampiran
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={styles.cardFooter}>
-                    <Text style={styles.cardAmount}>
-                      Rp {item.total_amount_currency.toLocaleString("id-ID")}
-                    </Text>
-                    <Text style={styles.cardDate}>
-                      {toDisplayDate(item.date)}
-                    </Text>
-                  </View>
-
-                  {item.state === "draft" && (
-                    <View style={styles.cardActions}>
-                      <TouchableOpacity
-                        style={[styles.cardActionBtn, styles.submitCardBtn]}
-                        onPress={() => handleSubmitExpense(item)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="paper-plane-outline" size={14} color="#059669" />
-                        <Text style={styles.submitCardBtnText}>Kirim</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.cardActionBtn, styles.editBtn]}
-                        onPress={() => handleEdit(item)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="create-outline" size={14} color={colors.primary} />
-                        <Text style={styles.editBtnText}>Edit</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.cardActionBtn, styles.deleteBtn]}
-                        onPress={() => handleDelete(item.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="trash-outline" size={14} color={colors.error} />
-                        <Text style={styles.deleteBtnText}>Hapus</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             })
@@ -470,13 +727,50 @@ export default function ReimbursementScreen() {
       )}
 
       {/* Floating Plus FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push("/reimbursement-form")}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="#FFFFFF" />
-      </TouchableOpacity>
+      {!isSelectMode && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push("/reimbursement-form")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* Floating Bottom Selection Bar */}
+      {isSelectMode && (
+        <View style={[styles.bottomActionBar, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+          <View style={styles.bottomActionInfo}>
+            <Text style={styles.selectedCountText}>
+              {selectedIds.length} Terpilih
+            </Text>
+            <Text style={styles.selectedAmountText}>
+              Total: Rp {selectedExpensesAmount.toLocaleString("id-ID")}
+            </Text>
+          </View>
+          <View style={styles.bottomActionButtons}>
+            <TouchableOpacity
+              style={[styles.bottomBtn, styles.cancelSelectBtn]}
+              onPress={exitSelectMode}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelSelectBtnText}>Batal</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.bottomBtn,
+                styles.submitSelectBtn,
+                selectedIds.length === 0 && { backgroundColor: colors.border }
+              ]}
+              onPress={handleBatchSubmit}
+              disabled={selectedIds.length === 0}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.submitSelectBtnText}>Kirim</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Android date pickers */}
       {showDatePicker && Platform.OS !== "ios" && (
@@ -572,12 +866,14 @@ export default function ReimbursementScreen() {
                   </Text>
                 </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Kategori</Text>
-                  <View style={[styles.categoryBadge, { alignSelf: "flex-start", marginTop: 4 }]}>
-                    <Text style={styles.categoryText}>{selectedDetail.product?.name || "Expense"}</Text>
+                {selectedDetail.product?.name ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Kategori</Text>
+                    <View style={[styles.categoryBadge, { alignSelf: "flex-start", marginTop: 4 }]}>
+                      <Text style={styles.categoryText}>{selectedDetail.product.name}</Text>
+                    </View>
                   </View>
-                </View>
+                ) : null}
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Status</Text>
@@ -604,10 +900,60 @@ export default function ReimbursementScreen() {
                   </View>
                 ) : null}
 
-                {/* Attachments Section */}
+                {/* Lines Detail Section */}
+                {selectedDetail.lines && selectedDetail.lines.length > 0 && (
+                  <View style={styles.detailRow}>
+                    <Text style={[styles.detailLabel, { marginBottom: spacing.sm }]}>Item Pengeluaran</Text>
+                    <View style={{ gap: spacing.md }}>
+                      {selectedDetail.lines.map((line) => (
+                        <View key={line.id} style={styles.detailLineCard}>
+                          <View style={styles.detailLineHeader}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.detailLineName}>{line.name}</Text>
+                              <View style={[styles.categoryBadge, { alignSelf: "flex-start", marginTop: 2, paddingVertical: 1 }]}>
+                                <Text style={[styles.categoryText, { fontSize: rf(9) }]}>
+                                  {line.product?.name || "Expense"}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={styles.detailLineTotal}>
+                              Rp {(line.price_unit * line.quantity).toLocaleString("id-ID")}
+                            </Text>
+                          </View>
+                          <Text style={styles.detailLineSub}>
+                            {line.quantity}x @ Rp {line.price_unit.toLocaleString("id-ID")}
+                          </Text>
+
+                          {/* Line attachments */}
+                          {line.attachments && line.attachments.length > 0 && (
+                            <View style={{ marginTop: spacing.sm }}>
+                              <Text style={[styles.detailLabel, { fontSize: rf(9), marginBottom: 4 }]}>
+                                Bukti Item ({line.attachments.length})
+                              </Text>
+                              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.detailPhotosScroll}>
+                                {line.attachments.map((att) => (
+                                  <TouchableOpacity
+                                    key={att.id}
+                                    onPress={() => setActivePreviewUri(att.url)}
+                                    activeOpacity={0.8}
+                                    style={styles.detailPhotoContainer}
+                                  >
+                                    <Image source={{ uri: att.url }} style={styles.detailPhotoThumbnail} />
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* General Header Attachments Section */}
                 {selectedDetail.attachments && selectedDetail.attachments.length > 0 ? (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Lampiran Bukti ({selectedDetail.attachments.length})</Text>
+                    <Text style={styles.detailLabel}>Lampiran Bukti Umum ({selectedDetail.attachments.length})</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.detailPhotosScroll}>
                       {selectedDetail.attachments.map((att) => (
                         <TouchableOpacity
@@ -1291,5 +1637,109 @@ const styles = StyleSheet.create({
   fullscreenImage: {
     width: "100%",
     height: "80%",
+  },
+  cardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "#F0F4FF",
+  },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  headerActionBtn: {
+    width: wpx(36),
+    height: wpx(36),
+    borderRadius: radius.full,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bottomActionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    ...shadows.elevated,
+    zIndex: 10,
+  },
+  bottomActionInfo: {
+    flex: 1,
+  },
+  selectedCountText: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textSecondary,
+  },
+  selectedAmountText: {
+    fontSize: rf(15),
+    fontWeight: "800" as any,
+    color: colors.primary,
+    marginTop: 2,
+  },
+  bottomActionButtons: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  bottomBtn: {
+    paddingHorizontal: spacing.lg,
+    height: hpx(40),
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelSelectBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cancelSelectBtnText: {
+    color: colors.textPrimary,
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+  },
+  submitSelectBtn: {
+    backgroundColor: colors.success,
+  },
+  submitSelectBtnText: {
+    color: "#FFFFFF",
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+  },
+  detailLineCard: {
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.xs,
+  },
+  detailLineHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  detailLineName: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  detailLineTotal: {
+    fontSize: rf(13),
+    fontWeight: "800" as any,
+    color: colors.primary,
+  },
+  detailLineSub: {
+    fontSize: rf(11),
+    color: colors.textSecondary,
+    fontWeight: "600" as any,
+    marginTop: 2,
   },
 });

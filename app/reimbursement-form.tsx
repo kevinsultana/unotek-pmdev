@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,8 +18,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { expenseService } from "../services/expenseService";
@@ -32,7 +32,7 @@ import {
   spacing,
   wpx
 } from "../src/constants/theme";
-import type { ExpenseCategory } from "../types/expense";
+import type { Expense, ExpenseCategory } from "../types/expense";
 import { showToast } from "../utils/toast";
 
 export default function ReimbursementFormScreen() {
@@ -47,15 +47,41 @@ export default function ReimbursementFormScreen() {
     isLocal: boolean;
   }
 
-  // Form Fields
+  interface FormLinePhoto {
+    id?: number;
+    uri: string;
+    isLocal: boolean;
+  }
+
+  interface FormLine {
+    id?: number;
+    name: string;
+    product_id: number;
+    product_name: string;
+    quantity: number;
+    price_unit: number;
+    photos: FormLinePhoto[];
+  }
+
+  // Header / Form Fields
   const [formTitle, setFormTitle] = useState("");
-  const [formCategory, setFormCategory] = useState<ExpenseCategory | null>(null);
-  const [formAmount, setFormAmount] = useState("");
   const [formDate, setFormDate] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formPhotos, setFormPhotos] = useState<FormPhoto[]>([]);
 
-  // States
+  // Lines State
+  const [formLines, setFormLines] = useState<FormLine[]>([]);
+
+  // Modal Line Item States
+  const [showLineModal, setShowLineModal] = useState(false);
+  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
+  const [lineName, setLineName] = useState("");
+  const [lineCategory, setLineCategory] = useState<ExpenseCategory | null>(null);
+  const [linePrice, setLinePrice] = useState("");
+  const [lineQuantity, setLineQuantity] = useState("1");
+  const [linePhotos, setLinePhotos] = useState<FormLinePhoto[]>([]);
+
+  // General States
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,7 +118,7 @@ export default function ReimbursementFormScreen() {
     return Number(clean).toLocaleString("id-ID");
   };
 
-  // Image attachment pickers
+  // Header General Photos
   const handlePickFromCamera = async () => {
     if (formPhotos.length >= 5) {
       showToast("error", "Validasi", "Maksimal 5 foto bukti.");
@@ -143,35 +169,202 @@ export default function ReimbursementFormScreen() {
     setFormPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Line modal photo attachments
+  const handleLinePickFromCamera = async () => {
+    if (linePhotos.length >= 5) {
+      showToast("error", "Validasi", "Maksimal 5 foto bukti.");
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      showToast("error", "Izin Kamera", "Aplikasi membutuhkan akses kamera.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setLinePhotos(prev => [...prev, { uri: result.assets[0].uri, isLocal: true }]);
+    }
+  };
+
+  const handleLinePickFromGallery = async () => {
+    const maxRemaining = 5 - linePhotos.length;
+    if (maxRemaining <= 0) {
+      showToast("error", "Validasi", "Maksimal 5 foto bukti.");
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showToast("error", "Izin Galeri", "Aplikasi membutuhkan akses galeri.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: maxRemaining,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets) {
+      const selected = result.assets.map(asset => ({
+        uri: asset.uri,
+        isLocal: true,
+      })).slice(0, maxRemaining);
+      setLinePhotos(prev => [...prev, ...selected]);
+    }
+  };
+
+  const handleLineRemovePhoto = (index: number) => {
+    setLinePhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Line item CRUD inside the form
+  const handleOpenAddLine = () => {
+    setEditingLineIndex(null);
+    setLineName("");
+    setLineCategory(null);
+    setLinePrice("");
+    setLineQuantity("1");
+    setLinePhotos([]);
+    setShowLineModal(true);
+  };
+
+  const handleOpenEditLine = (index: number) => {
+    const line = formLines[index];
+    setEditingLineIndex(index);
+    setLineName(line.name);
+    const cat = categories.find((c) => c.id === line.product_id) || {
+      id: line.product_id,
+      name: line.product_name,
+    };
+    setLineCategory(cat);
+    setLinePrice(line.price_unit.toLocaleString("id-ID"));
+    setLineQuantity(line.quantity.toString());
+    setLinePhotos(line.photos);
+    setShowLineModal(true);
+  };
+
+  const handleSaveLine = () => {
+    if (!lineName || !lineCategory || !linePrice || !lineQuantity) {
+      showToast("error", "Validasi", "Harap isi semua kolom wajib item.");
+      return;
+    }
+    const price = parseInt(linePrice.replace(/\./g, ""), 10);
+    const qty = parseInt(lineQuantity, 10);
+    if (isNaN(price) || price <= 0) {
+      showToast("error", "Validasi", "Harga satuan tidak valid.");
+      return;
+    }
+    if (isNaN(qty) || qty <= 0) {
+      showToast("error", "Validasi", "Kuantitas tidak valid.");
+      return;
+    }
+
+    const newLine: FormLine = {
+      name: lineName,
+      product_id: lineCategory.id,
+      product_name: lineCategory.name,
+      quantity: qty,
+      price_unit: price,
+      photos: linePhotos,
+    };
+
+    if (editingLineIndex !== null) {
+      setFormLines(prev => {
+        const next = [...prev];
+        next[editingLineIndex] = newLine;
+        return next;
+      });
+    } else {
+      setFormLines(prev => [...prev, newLine]);
+    }
+    setShowLineModal(false);
+  };
+
+  const handleDeleteLine = (index: number) => {
+    Alert.alert(
+      "Hapus Item",
+      "Apakah Anda yakin ingin menghapus item pengeluaran ini?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: () => {
+            setFormLines(prev => prev.filter((_, i) => i !== index));
+          },
+        },
+      ]
+    );
+  };
+
   // Load Categories & Expense detail if editing
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Load Categories first
       const catRes = await expenseService.listCategories();
       const loadedCats = catRes.data.data || [];
       setCategories(loadedCats);
 
       if (expenseId) {
-        // Load Expense Detail
         const detailRes = await expenseService.getById(expenseId);
         const detail = detailRes.data.data;
         if (detail) {
           setFormTitle(detail.name);
-          const foundCategory = loadedCats.find((c) => c.name === detail.product?.name) || {
-            id: detail.product?.id || 0,
-            name: detail.product?.name || "",
-          };
-          setFormCategory(foundCategory);
-          setFormAmount(Number(detail.total_amount_currency).toLocaleString("id-ID"));
           setFormDate(detail.date);
           setFormDescription(detail.description || "");
+
+          // Header general attachments
           const loadedPhotos = detail.attachments?.map((att: any) => ({
             id: att.id,
             uri: att.url,
             isLocal: false,
           })) || [];
           setFormPhotos(loadedPhotos);
+
+          // Lines and their line attachments
+          if (detail.lines && detail.lines.length > 0) {
+            const mappedLines = await Promise.all(
+              detail.lines.map(async (line) => {
+                let lineAtts: FormLinePhoto[] = [];
+                try {
+                  const attRes = await expenseService.listLineAttachments(line.id);
+                  lineAtts = attRes.data.data?.map((att) => ({
+                    id: att.id,
+                    uri: att.url,
+                    isLocal: false,
+                  })) || [];
+                } catch {
+                  // Fallback to empty if fails
+                }
+                return {
+                  id: line.id,
+                  name: line.name,
+                  product_id: line.product?.id || line.product_id || 0,
+                  product_name: line.product?.name || "",
+                  quantity: line.quantity,
+                  price_unit: line.price_unit,
+                  photos: lineAtts,
+                };
+              })
+            );
+            setFormLines(mappedLines);
+          } else {
+            // Migrate old single expense structure to a single line item
+            setFormLines([
+              {
+                id: undefined,
+                name: detail.name,
+                product_id: detail.product?.id || 0,
+                product_name: detail.product?.name || "",
+                quantity: detail.quantity || 1,
+                price_unit: detail.total_amount_currency,
+                photos: [],
+              },
+            ]);
+          }
         }
       }
     } catch (err: any) {
@@ -189,62 +382,116 @@ export default function ReimbursementFormScreen() {
     loadData();
   }, [loadData]);
 
-  // Save / Update Handler
+  const getLocalUri = async (uri: string): Promise<string> => {
+    if (!uri.startsWith("http")) {
+      return uri;
+    }
+    try {
+      const filename = uri.split("/").pop() || `temp_${Date.now()}.jpg`;
+      const tempUri = `${FileSystem.documentDirectory}${filename}`;
+      const downloadResult = await FileSystem.downloadAsync(uri, tempUri);
+      return downloadResult.uri;
+    } catch (error) {
+      console.log("Failed to download remote attachment:", error);
+      return uri;
+    }
+  };
+
+  // Main Save Handler
   const handleSave = async () => {
-    if (!formTitle || !formCategory || !formAmount || !formDate) {
-      showToast("error", "Validasi", "Harap isi semua kolom wajib.");
+    if (!formTitle || !formDate) {
+      showToast("error", "Validasi", "Harap isi Judul dan Tanggal pengajuan.");
+      return;
+    }
+    if (formLines.length === 0) {
+      showToast("error", "Validasi", "Harap tambahkan minimal 1 item pengeluaran.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      let attachmentIds: number[] = [];
-
-      // 1. Upload local images in parallel or sequence, keep server image IDs
+      // 1. Upload header photos
+      let headerAttachmentIds: number[] = [];
       for (const photo of formPhotos) {
         if (photo.isLocal) {
           const uploadRes = await expenseService.uploadAttachment(photo.uri);
           if (uploadRes.data.success && uploadRes.data.data?.id) {
-            attachmentIds.push(uploadRes.data.data.id);
+            headerAttachmentIds.push(uploadRes.data.data.id);
           }
         } else if (photo.id) {
-          attachmentIds.push(photo.id);
+          headerAttachmentIds.push(photo.id);
         }
       }
 
-      const rawAmount = parseInt(formAmount.replace(/\./g, ""), 10);
+      // 2. Prepare payload lines
+      const reqLines = formLines.map(line => ({
+        name: line.name,
+        product_id: line.product_id,
+        quantity: line.quantity,
+        price_unit: line.price_unit,
+      }));
+
+      let savedExpense: Expense | null = null;
 
       if (expenseId) {
-        // Update Expense
-        const updateData: any = {
+        // Update Expense (this deletes old lines and replaces them with reqLines)
+        const updateData = {
           name: formTitle,
-          product_id: formCategory.id,
-          total_amount_currency: rawAmount,
-          date: formDate,
-          description: formDescription || null,
-          quantity: 1,
-          attachment_ids: attachmentIds,
-        };
-
-        await expenseService.update(expenseId, updateData);
-        showToast("success", "Berhasil", "Perubahan draft berhasil disimpan.");
-      } else {
-        // Create Expense
-        const createData = {
-          name: formTitle,
-          product_id: formCategory.id,
-          total_amount_currency: rawAmount,
           date: formDate,
           description: formDescription || undefined,
-          quantity: 1,
-          attachment_ids: attachmentIds.length > 0 ? attachmentIds : undefined,
+          attachment_ids: headerAttachmentIds,
+          lines: reqLines,
         };
-
-        await expenseService.create(createData);
-        showToast("success", "Berhasil", "Draft reimbursement berhasil disimpan.");
+        const res = await expenseService.update(expenseId, updateData);
+        savedExpense = res.data.data;
+      } else {
+        // Create Expense with Lines
+        const createData = {
+          name: formTitle,
+          date: formDate,
+          description: formDescription || undefined,
+          attachment_ids: headerAttachmentIds.length > 0 ? headerAttachmentIds : undefined,
+          lines: reqLines,
+        };
+        const res = await expenseService.create(createData);
+        savedExpense = res.data.data;
       }
 
-      // Navigate back to the list and refresh
+      // 3. Upload line-level photos
+      let uploadFailCount = 0;
+      if (savedExpense && savedExpense.lines && savedExpense.lines.length > 0) {
+        for (let i = 0; i < formLines.length; i++) {
+          const localLine = formLines[i];
+          const serverLine = savedExpense.lines[i];
+          if (serverLine && serverLine.id) {
+            for (const photo of localLine.photos) {
+              try {
+                const uploadUri = await getLocalUri(photo.uri);
+                const uploadRes = await expenseService.uploadLineAttachment(uploadUri, serverLine.id);
+                if (!uploadRes.data.success) {
+                  uploadFailCount++;
+                }
+                if (uploadUri !== photo.uri) {
+                  await FileSystem.deleteAsync(uploadUri, { idempotent: true });
+                }
+              } catch (uploadErr) {
+                console.log("Error uploading line photo:", uploadErr);
+                uploadFailCount++;
+              }
+            }
+          }
+        }
+      }
+
+      if (uploadFailCount > 0) {
+        showToast(
+          "success",
+          "Tersimpan dengan Catatan",
+          `Reimbursement tersimpan, namun ${uploadFailCount} foto gagal diunggah.`
+        );
+      } else {
+        showToast("success", "Berhasil", "Reimbursement berhasil disimpan.");
+      }
       router.back();
     } catch (err: any) {
       showToast(
@@ -252,10 +499,16 @@ export default function ReimbursementFormScreen() {
         "Gagal",
         err?.response?.data?.message || "Gagal menyimpan reimbursement."
       );
+      console.log(err);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const calculatedTotal = formLines.reduce(
+    (sum, l) => sum + l.price_unit * l.quantity,
+    0
+  );
 
   return (
     <View style={styles.container}>
@@ -298,49 +551,14 @@ export default function ReimbursementFormScreen() {
             ]}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.fieldLabel}>Kategori Biaya *</Text>
-            <TouchableOpacity
-              style={styles.selectBtn}
-              onPress={() => setShowCategoryPicker(true)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={
-                  formCategory
-                    ? styles.selectValue
-                    : styles.selectPlaceholder
-                }
-              >
-                {formCategory?.name || "Pilih Kategori Biaya"}
-              </Text>
-              <Ionicons
-                name="chevron-down"
-                size={18}
-                color={colors.textMuted}
-              />
-            </TouchableOpacity>
-
             <Text style={styles.fieldLabel}>Judul Pengajuan *</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Contoh: Bensin dinas meeting client"
+              placeholder="Contoh: Perjalanan Dinas Jakarta"
               placeholderTextColor={colors.textMuted}
               value={formTitle}
               onChangeText={setFormTitle}
             />
-
-            <Text style={styles.fieldLabel}>Nominal Biaya (Rupiah) *</Text>
-            <View style={styles.amountInputContainer}>
-              <Text style={styles.currencyPrefix}>Rp.</Text>
-              <TextInput
-                style={styles.amountInput}
-                keyboardType="numeric"
-                placeholder="Contoh: 150.000"
-                placeholderTextColor={colors.textMuted}
-                value={formAmount}
-                onChangeText={(val) => setFormAmount(formatThousands(val))}
-              />
-            </View>
 
             <Text style={styles.fieldLabel}>Tanggal Transaksi *</Text>
             {Platform.OS === "ios" ? (
@@ -381,57 +599,82 @@ export default function ReimbursementFormScreen() {
             <TextInput
               style={[styles.textInput, styles.textArea]}
               multiline
-              placeholder="Detail tujuan pengeluaran..."
+              placeholder="Keterangan perjalanan dinas atau pengeluaran..."
               placeholderTextColor={colors.textMuted}
               value={formDescription}
               onChangeText={setFormDescription}
             />
 
-            <Text style={styles.fieldLabel}>Lampiran Bukti (Foto - Maksimal 5)</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.photosScroll}
-            >
-              {formPhotos.map((photo, index) => (
-                <View key={index} style={styles.photoContainer}>
-                  <TouchableOpacity
-                    onPress={() => setActivePreviewUri(photo.uri)}
-                    activeOpacity={0.8}
-                  >
-                    <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.photoDeleteBadge}
-                    onPress={() => handleRemovePhoto(index)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close-circle" size={18} color={colors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
 
-              {formPhotos.length < 5 && (
-                <View style={styles.addPhotoButtonsContainer}>
-                  <TouchableOpacity
-                    style={styles.photoAddBox}
-                    onPress={handlePickFromCamera}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="camera-outline" size={20} color={colors.primary} />
-                    <Text style={styles.photoAddBoxText}>Kamera</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.photoAddBox}
-                    onPress={handlePickFromGallery}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="image-outline" size={20} color={colors.primary} />
-                    <Text style={styles.photoAddBoxText}>Galeri</Text>
-                  </TouchableOpacity>
+            {/* Lines Section */}
+            <View style={styles.linesSectionHeader}>
+              <Text style={styles.linesTitle}>Item Pengeluaran *</Text>
+              <TouchableOpacity
+                style={styles.lineAddBtn}
+                onPress={handleOpenAddLine}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                <Text style={styles.lineAddBtnText}>Tambah Item</Text>
+              </TouchableOpacity>
+            </View>
+
+            {formLines.length === 0 ? (
+              <View style={styles.emptyLinesBox}>
+                <Ionicons name="list-outline" size={24} color={colors.textMuted} />
+                <Text style={styles.emptyLinesText}>Belum ada item pengeluaran yang ditambahkan.</Text>
+              </View>
+            ) : (
+              <View style={styles.linesList}>
+                {formLines.map((line, index) => (
+                  <View key={index} style={styles.lineCard}>
+                    <View style={styles.lineCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.lineCardName}>{line.name}</Text>
+                        <Text style={styles.lineCardCategory}>{line.product_name}</Text>
+                      </View>
+                      <Text style={styles.lineCardTotal}>
+                        Rp {(line.price_unit * line.quantity).toLocaleString("id-ID")}
+                      </Text>
+                    </View>
+
+                    <View style={styles.lineCardFooter}>
+                      <Text style={styles.lineCardDetails}>
+                        {line.quantity}x @ Rp {line.price_unit.toLocaleString("id-ID")}
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+                        {line.photos.length > 0 && (
+                          <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            <Ionicons name="attach-outline" size={14} color={colors.textSecondary} style={{ marginRight: 2 }} />
+                            <Text style={styles.lineCardPhotosCount}>{line.photos.length}</Text>
+                          </View>
+                        )}
+                        <View style={styles.lineCardActions}>
+                          <TouchableOpacity
+                            onPress={() => handleOpenEditLine(index)}
+                            style={styles.lineActionBtn}
+                          >
+                            <Ionicons name="create-outline" size={16} color={colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteLine(index)}
+                            style={styles.lineActionBtn}
+                          >
+                            <Ionicons name="trash-outline" size={16} color={colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Calculated summary */}
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>Total Estimasi:</Text>
+                  <Text style={styles.summaryValue}>Rp {calculatedTotal.toLocaleString("id-ID")}</Text>
                 </View>
-              )}
-            </ScrollView>
+              </View>
+            )}
 
             {/* Submit Buttons */}
             <View style={styles.buttonsRow}>
@@ -507,10 +750,10 @@ export default function ReimbursementFormScreen() {
                     key={c.id}
                     style={[
                       styles.categoryItem,
-                      formCategory?.id === c.id && styles.categoryItemActive,
+                      lineCategory?.id === c.id && styles.categoryItemActive,
                     ]}
                     onPress={() => {
-                      setFormCategory(c);
+                      setLineCategory(c);
                       setShowCategoryPicker(false);
                     }}
                     activeOpacity={0.7}
@@ -518,13 +761,13 @@ export default function ReimbursementFormScreen() {
                     <Text
                       style={[
                         styles.categoryItemText,
-                        formCategory?.id === c.id &&
+                        lineCategory?.id === c.id &&
                         styles.categoryItemTextActive,
                       ]}
                     >
                       {c.name}
                     </Text>
-                    {formCategory?.id === c.id && (
+                    {lineCategory?.id === c.id && (
                       <Ionicons
                         name="checkmark"
                         size={16}
@@ -534,6 +777,151 @@ export default function ReimbursementFormScreen() {
                   </TouchableOpacity>
                 ))
               )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Add/Edit Line Item */}
+      <Modal
+        visible={showLineModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowLineModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowLineModal(false)} />
+          <View style={styles.lineModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingLineIndex !== null ? "Edit Item Pengeluaran" : "Tambah Item Pengeluaran"}
+              </Text>
+              <TouchableOpacity onPress={() => setShowLineModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.lineFormScroll}>
+              <Text style={styles.fieldLabel}>Nama / Deskripsi Item *</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Contoh: Tiket Pesawat PP Jakarta"
+                placeholderTextColor={colors.textMuted}
+                value={lineName}
+                onChangeText={setLineName}
+              />
+
+              <Text style={styles.fieldLabel}>Kategori Biaya *</Text>
+              <TouchableOpacity
+                style={styles.selectBtn}
+                onPress={() => setShowCategoryPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={
+                    lineCategory
+                      ? styles.selectValue
+                      : styles.selectPlaceholder
+                  }
+                >
+                  {lineCategory?.name || "Pilih Kategori"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={18}
+                  color={colors.textMuted}
+                />
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: "row", gap: spacing.md }}>
+                <View style={{ flex: 1.5 }}>
+                  <Text style={styles.fieldLabel}>Harga Satuan (Rp) *</Text>
+                  <View style={styles.amountInputContainer}>
+                    <Text style={styles.currencyPrefix}>Rp.</Text>
+                    <TextInput
+                      style={styles.amountInput}
+                      keyboardType="numeric"
+                      placeholder="Harga"
+                      placeholderTextColor={colors.textMuted}
+                      value={linePrice}
+                      onChangeText={(val) => setLinePrice(formatThousands(val))}
+                    />
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Kuantitas *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    keyboardType="numeric"
+                    placeholder="Contoh: 1"
+                    placeholderTextColor={colors.textMuted}
+                    value={lineQuantity}
+                    onChangeText={setLineQuantity}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.fieldLabel}>Lampiran Bukti Item (Maksimal 5)</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.photosScroll}
+              >
+                {linePhotos.map((photo, index) => (
+                  <View key={index} style={styles.photoContainer}>
+                    <TouchableOpacity
+                      onPress={() => setActivePreviewUri(photo.uri)}
+                      activeOpacity={0.8}
+                    >
+                      <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.photoDeleteBadge}
+                      onPress={() => handleLineRemovePhoto(index)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="close-circle" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {linePhotos.length < 5 && (
+                  <View style={styles.addPhotoButtonsContainer}>
+                    <TouchableOpacity
+                      style={styles.photoAddBox}
+                      onPress={handleLinePickFromCamera}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="camera-outline" size={20} color={colors.primary} />
+                      <Text style={styles.photoAddBoxText}>Kamera</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.photoAddBox}
+                      onPress={handleLinePickFromGallery}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="image-outline" size={20} color={colors.primary} />
+                      <Text style={styles.photoAddBoxText}>Galeri</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+
+              <View style={styles.modalButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.formBtn, styles.draftBtn]}
+                  onPress={() => setShowLineModal(false)}
+                >
+                  <Text style={styles.draftBtnText}>Batal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.formBtn, styles.submitBtn]}
+                  onPress={handleSaveLine}
+                >
+                  <Text style={styles.submitBtnText}>Simpan Item</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -684,61 +1072,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Attachment
-  previewContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  previewImage: {
-    width: wpx(60),
-    height: hpx(60),
-    borderRadius: radius.sm,
-    backgroundColor: colors.border,
-  },
-  removePhotoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.error,
-    borderRadius: radius.sm,
-  },
-  removePhotoText: {
-    fontSize: rf(12),
-    fontWeight: "600" as any,
-    color: colors.error,
-  },
-  photoActionsRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  photoActionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
-    height: sizes.buttonMd,
-  },
-  photoActionText: {
-    fontSize: rf(13),
-    fontWeight: "600" as any,
-    color: colors.textPrimary,
-  },
-
   // Submit Buttons
   buttonsRow: {
     marginTop: spacing.lg,
@@ -871,5 +1204,163 @@ const styles = StyleSheet.create({
     fontWeight: "700" as any,
     color: colors.primary,
     marginTop: 4,
+  },
+
+  // Lines Section
+  linesSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: spacing.xs,
+  },
+  linesTitle: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  lineAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  lineAddBtnText: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  emptyLinesBox: {
+    paddingVertical: spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    gap: spacing.xs,
+  },
+  emptyLinesText: {
+    fontSize: rf(12),
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  linesList: {
+    gap: spacing.md,
+  },
+  lineCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
+  lineCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  lineCardName: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  lineCardCategory: {
+    fontSize: rf(11),
+    fontWeight: "600" as any,
+    color: colors.textMuted,
+    marginTop: 2,
+    textTransform: "uppercase",
+  },
+  lineCardTotal: {
+    fontSize: rf(14),
+    fontWeight: "800" as any,
+    color: colors.primary,
+  },
+  lineCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
+  },
+  lineCardDetails: {
+    fontSize: rf(12),
+    color: colors.textSecondary,
+    fontWeight: "600" as any,
+  },
+  lineCardPhotosCount: {
+    fontSize: rf(11),
+    color: colors.textSecondary,
+    fontWeight: "700" as any,
+  },
+  lineCardActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  lineActionBtn: {
+    padding: 2,
+  },
+  summaryBox: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.primaryLight,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  summaryLabel: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  summaryValue: {
+    fontSize: rf(16),
+    fontWeight: "800" as any,
+    color: colors.primary,
+  },
+
+  // Modal Line
+  lineModalContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    maxHeight: "90%",
+  },
+  lineFormScroll: {
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  modalButtonsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  formBtn: {
+    flex: 1,
+    height: sizes.buttonMd,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  draftBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  draftBtnText: {
+    color: colors.textPrimary,
+    fontSize: rf(14),
+    fontWeight: "700" as any,
   },
 });

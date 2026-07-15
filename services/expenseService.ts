@@ -84,6 +84,38 @@ export const expenseService = {
   deleteAttachment: (attachmentId: number) =>
     api.delete<ApiResponse<null>>(`/expenses/attachments/${attachmentId}`),
 
+  uploadLineAttachment: async (fileUri: string, lineId?: number) => {
+    const formData = new FormData();
+    const uriParts = fileUri.split(".");
+    const fileExtension = uriParts[uriParts.length - 1] || "jpg";
+    
+    formData.append("file", {
+      uri: fileUri,
+      name: `line_attachment_${Date.now()}.${fileExtension}`,
+      type: `image/${fileExtension === "png" ? "png" : "jpeg"}`,
+    } as any);
+
+    if (lineId !== undefined) {
+      formData.append("line_id", String(lineId));
+    }
+
+    return api.post<ApiResponse<ExpenseAttachment>>(
+      "/expenses/lines/upload-attachment",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+  },
+
+  listLineAttachments: (lineId: number) =>
+    api.get<ApiResponse<ExpenseAttachment[]>>(`/expenses/lines/${lineId}/attachments`),
+
+  deleteLineAttachment: (attachmentId: number) =>
+    api.delete<ApiResponse<null>>(`/expenses/lines/attachments/${attachmentId}`),
+
   listCategories: () =>
     api.get<ApiResponse<ExpenseCategory[]>>("/expenses/categories"),
 };
