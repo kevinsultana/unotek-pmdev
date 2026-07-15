@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
@@ -499,7 +499,6 @@ export default function ReimbursementFormScreen() {
         "Gagal",
         err?.response?.data?.message || "Gagal menyimpan reimbursement."
       );
-      console.log(err);
     } finally {
       setIsSubmitting(false);
     }

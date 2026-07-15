@@ -285,7 +285,6 @@ export default function ReimbursementScreen() {
       fetchExpenses();
     } catch (err: any) {
       showToast("error", "Gagal", err?.response?.data?.message || "Gagal mengirim pengajuan");
-      console.log(err)
     } finally {
       setIsLoading(false);
     }
