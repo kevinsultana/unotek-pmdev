@@ -40,6 +40,8 @@ export default function RootLayout() {
           <Stack.Screen name="task-create" />
           <Stack.Screen name="reimbursement" />
           <Stack.Screen name="reimbursement-form" />
+          <Stack.Screen name="maintenance" />
+          <Stack.Screen name="maintenance-form" />
           <Stack.Screen name="(tabs)" />
         </Stack>
       </AuthProvider>

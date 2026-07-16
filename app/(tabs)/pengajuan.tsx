@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";
@@ -39,7 +38,7 @@ import { showToast } from "../../utils/toast";
 
 interface Submission {
   id: string;
-  type: "Cuti" | "Lembur" | "Reimbursement";
+  type: "Cuti" | "Lembur" | "Reimbursement" | "Maintenance";
   title: string;
   details: string;
   amountOrDuration: string;
@@ -342,6 +341,17 @@ export default function PengajuanScreen() {
                 <Ionicons name="receipt-outline" size={20} color="#059669" />
               </View>
               <Text style={styles.actionLabel}>Reimbursement</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: "#FFE4E6" }]}
+              onPress={() => router.push("/maintenance")}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconBg, { backgroundColor: "#FFE4E6" }]}>
+                <Ionicons name="build-outline" size={20} color="#E11D48" />
+              </View>
+              <Text style={styles.actionLabel}>Maintenance</Text>
             </TouchableOpacity>
 
 

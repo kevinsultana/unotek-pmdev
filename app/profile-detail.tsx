@@ -4,9 +4,13 @@ import { StatusBar } from "expo-status-bar";
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,6 +30,27 @@ import {
   textPresets,
   wpx,
 } from "../src/constants/theme";
+import { assetService } from "../services/assetService";
+import type { Asset } from "../types/asset";
+
+const CATEGORY_MAP: Record<
+  string,
+  { label: string; icon: string; color: string; bg: string }
+> = {
+  hardware: { label: "Hardware", icon: "laptop-outline", color: "#1E40AF", bg: "#DBEAFE" },
+  facility: { label: "Fasilitas", icon: "business-outline", color: "#D97706", bg: "#FEF3C7" },
+  vehicle: { label: "Kendaraan", icon: "car-outline", color: "#059669", bg: "#D1FAE5" },
+  other: { label: "Lainnya", icon: "help-circle-outline", color: "#6B7280", bg: "#F3F4F6" },
+};
+
+const STATUS_MAP: Record<
+  string,
+  { label: string; c: string; b: string }
+> = {
+  active: { label: "Sedang Digunakan", c: "#059669", b: "#D1FAE5" },
+  warning: { label: "Rusak Ringan", c: "#D97706", b: "#FEF3C7" },
+  broken: { label: "Perlu Perbaikan", c: "#DC2626", b: "#FEE2E2" },
+};
 
 const formatBirthday = (bdayStr?: string | null) => {
   if (!bdayStr) return "—";
@@ -74,6 +99,19 @@ export default function ProfileDetailScreen() {
   const [employeeDetail, setEmployeeDetail] = useState<Employee | null>(null);
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
 
+  // Asset States
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [isAssetsLoading, setIsAssetsLoading] = useState(true);
+  const [showAssetModal, setShowAssetModal] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+
+  // Asset Form States
+  const [assetName, setAssetName] = useState("");
+  const [assetCode, setAssetCode] = useState("");
+  const [assetCategory, setAssetCategory] = useState<Asset["category"]>("hardware");
+  const [assetStatus, setAssetStatus] = useState<Asset["status"]>("active");
+  const [isAssetSaving, setIsAssetSaving] = useState(false);
+
   const fetchFullEmployeeDetails = useCallback(async () => {
     const empId = profile?.employee?.id;
     if (!empId) return;
@@ -90,10 +128,97 @@ export default function ProfileDetailScreen() {
     }
   }, [profile?.employee?.id]);
 
+  const fetchAssets = useCallback(async () => {
+    setIsAssetsLoading(true);
+    try {
+      const data = await assetService.list();
+      setAssets(data || []);
+    } catch (err) {
+      console.error("Error loading assets:", err);
+    } finally {
+      setIsAssetsLoading(false);
+    }
+  }, []);
+
+  const handleOpenAssetModal = (asset: Asset | null) => {
+    if (asset) {
+      setEditingAsset(asset);
+      setAssetName(asset.name);
+      setAssetCode(asset.code);
+      setAssetCategory(asset.category);
+      setAssetStatus(asset.status);
+    } else {
+      setEditingAsset(null);
+      setAssetName("");
+      setAssetCode("");
+      setAssetCategory("hardware");
+      setAssetStatus("active");
+    }
+    setShowAssetModal(true);
+  };
+
+  const handleCloseAssetModal = () => {
+    setShowAssetModal(false);
+    setEditingAsset(null);
+    setAssetName("");
+    setAssetCode("");
+  };
+
+  const handleSaveAsset = async () => {
+    if (!assetName.trim() || !assetCode.trim()) {
+      Alert.alert("Validasi", "Harap isi nama aset dan kode inventaris.");
+      return;
+    }
+    setIsAssetSaving(true);
+    try {
+      const payload = {
+        name: assetName.trim(),
+        code: assetCode.trim(),
+        category: assetCategory,
+        status: assetStatus,
+      };
+
+      if (editingAsset) {
+        await assetService.update(editingAsset.id, payload);
+      } else {
+        await assetService.create(payload);
+      }
+      await fetchAssets();
+      handleCloseAssetModal();
+    } catch (err: any) {
+      Alert.alert("Gagal", err?.message || "Gagal menyimpan aset.");
+    } finally {
+      setIsAssetSaving(false);
+    }
+  };
+
+  const handleDeleteAsset = (id: number) => {
+    Alert.alert(
+      "Hapus Aset",
+      "Apakah Anda yakin ingin menghapus kepemilikan aset ini?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await assetService.delete(id);
+              await fetchAssets();
+            } catch (err: any) {
+              Alert.alert("Gagal", err?.message || "Gagal menghapus aset.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchFullEmployeeDetails();
-    }, [fetchFullEmployeeDetails])
+      fetchAssets();
+    }, [fetchFullEmployeeDetails, fetchAssets])
   );
 
   const isLoading = isProfileLoading || isLoadingEmployee;
@@ -228,8 +353,173 @@ export default function ProfileDetailScreen() {
               ))}
             </View>
           ))}
+
+          {/* Asset Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Aset Kantor</Text>
+              <TouchableOpacity
+                style={styles.addAssetBtn}
+                onPress={() => handleOpenAssetModal(null)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+                <Text style={styles.addAssetBtnText}>Tambah</Text>
+              </TouchableOpacity>
+            </View>
+
+            {isAssetsLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.md }} />
+            ) : assets.length === 0 ? (
+              <Text style={styles.emptyAssetsText}>Tidak ada aset yang dipegang.</Text>
+            ) : (
+              assets.map((asset, index) => {
+                const categoryConfig = CATEGORY_MAP[asset.category] || CATEGORY_MAP.other;
+                const statusConfig = STATUS_MAP[asset.status] || STATUS_MAP.active;
+                return (
+                  <View key={asset.id}>
+                    <View style={styles.assetRow}>
+                      <View style={[styles.infoIcon, { backgroundColor: categoryConfig.bg, marginRight: spacing.md }]}>
+                        <Ionicons name={categoryConfig.icon as any} size={18} color={categoryConfig.color} />
+                      </View>
+                      <View style={styles.assetInfoTextContainer}>
+                        <Text style={styles.assetNameText}>{asset.name}</Text>
+                        <View style={styles.assetMetaRow}>
+                          <Text style={styles.assetCodeText}>{asset.code}</Text>
+                          <View style={[styles.statusBadgeSmall, { backgroundColor: statusConfig.b }]}>
+                            <Text style={[styles.statusBadgeTextSmall, { color: statusConfig.c }]}>
+                              {statusConfig.label}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.assetActions}>
+                        <TouchableOpacity
+                          style={styles.assetActionBtn}
+                          onPress={() => handleOpenAssetModal(asset)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.assetActionBtn}
+                          onPress={() => handleDeleteAsset(asset.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash-outline" size={16} color={colors.error} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    {index < assets.length - 1 && <View style={styles.divider} />}
+                  </View>
+                );
+              })
+            )}
+          </View>
         </View>
         <View style={{ height: hpx(24) }} />
+
+        {/* Asset Form Modal */}
+        <Modal
+          visible={showAssetModal}
+          animationType="slide"
+          transparent
+          onRequestClose={handleCloseAssetModal}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseAssetModal} />
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {editingAsset ? "Edit Aset Kantor" : "Tambah Aset Kantor"}
+                </Text>
+                <TouchableOpacity onPress={handleCloseAssetModal}>
+                  <Ionicons name="close" size={24} color={colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formContainer}>
+                <Text style={styles.fieldLabel}>Nama Aset *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. Laptop MacBook Pro"
+                  placeholderTextColor={colors.textMuted}
+                  value={assetName}
+                  onChangeText={setAssetName}
+                />
+
+                <Text style={styles.fieldLabel}>Kode Inventaris / SN *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. AST-2023-009"
+                  placeholderTextColor={colors.textMuted}
+                  value={assetCode}
+                  onChangeText={setAssetCode}
+                />
+
+                <Text style={styles.fieldLabel}>Kategori Aset</Text>
+                <View style={styles.selectGrid}>
+                  {(Object.keys(CATEGORY_MAP) as Array<keyof typeof CATEGORY_MAP>).map((catKey) => {
+                    const cat = CATEGORY_MAP[catKey];
+                    const isSelected = assetCategory === catKey;
+                    return (
+                      <TouchableOpacity
+                        key={catKey}
+                        style={[
+                          styles.selectBtn,
+                          isSelected && { borderColor: colors.primary, backgroundColor: colors.primaryLight }
+                        ]}
+                        onPress={() => setAssetCategory(catKey as Asset["category"])}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.selectText, isSelected && { color: colors.primary, fontWeight: "700" }]}>
+                          {cat.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.fieldLabel}>Status Aset</Text>
+                <View style={styles.selectGridVertical}>
+                  {(Object.keys(STATUS_MAP) as Array<keyof typeof STATUS_MAP>).map((statKey) => {
+                    const stat = STATUS_MAP[statKey];
+                    const isSelected = assetStatus === statKey;
+                    return (
+                      <TouchableOpacity
+                        key={statKey}
+                        style={[
+                          styles.selectBtnVertical,
+                          { borderColor: stat.c },
+                          isSelected && { backgroundColor: stat.b }
+                        ]}
+                        onPress={() => setAssetStatus(statKey as Asset["status"])}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.selectText, { color: stat.c }, isSelected && { fontWeight: "700" }]}>
+                          {stat.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.submitBtn, isAssetSaving && { opacity: 0.6 }]}
+                  disabled={isAssetSaving}
+                  onPress={handleSaveAsset}
+                  activeOpacity={0.8}
+                >
+                  {isAssetSaving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.submitText}>Simpan Perubahan</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </View>
   );
@@ -318,5 +608,161 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginVertical: spacing.md,
     marginLeft: 52,
+  },
+
+  // Asset Section Styles
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  addAssetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: hpx(4),
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.sm,
+  },
+  addAssetBtnText: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  emptyAssetsText: {
+    fontSize: rf(13),
+    color: colors.textMuted,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: spacing.md,
+  },
+  assetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  assetInfoTextContainer: {
+    flex: 1,
+  },
+  assetNameText: {
+    ...textPresets.cardTitle,
+    fontSize: rf(14),
+  },
+  assetMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: hpx(2),
+    gap: spacing.sm,
+  },
+  assetCodeText: {
+    fontSize: rf(11),
+    color: colors.textMuted,
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(1),
+    borderRadius: radius.xs,
+  },
+  statusBadgeTextSmall: {
+    fontSize: rf(9),
+    fontWeight: "700" as any,
+  },
+  assetActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  assetActionBtn: {
+    padding: spacing.xs,
+  },
+
+  // Modal & Forms
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing["2xl"],
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: spacing.sm,
+  },
+  modalTitle: { ...textPresets.screenTitle },
+  formContainer: {
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  fieldLabel: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  textInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    height: sizes.buttonMd,
+    color: colors.textPrimary,
+    fontSize: rf(14),
+  },
+  selectGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  selectBtn: {
+    flex: 1,
+    minWidth: "45%",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingVertical: hpx(10),
+    alignItems: "center",
+    backgroundColor: colors.card,
+  },
+  selectText: {
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+    color: colors.textSecondary,
+  },
+  selectGridVertical: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  selectBtnVertical: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: radius.sm,
+    paddingVertical: hpx(10),
+    alignItems: "center",
+    backgroundColor: colors.card,
+  },
+  submitBtn: {
+    height: sizes.buttonMd,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.md,
+    ...shadows.elevated,
+    shadowColor: colors.primary,
+  },
+  submitText: {
+    color: "#FFFFFF",
+    fontSize: rf(16),
+    fontWeight: "700" as any,
   },
 });
