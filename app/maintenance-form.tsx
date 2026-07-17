@@ -29,7 +29,7 @@ import {
   spacing,
   wpx,
 } from "../src/constants/theme";
-import type { MaintenanceRequest } from "../types/maintenance";
+import type { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam } from "../types/maintenance";
 import { showToast } from "../utils/toast";
 
 const URGENCY_LEVELS = [
@@ -44,6 +44,11 @@ const CATEGORIES = [
   { value: "software", label: "Software", icon: "code-working-outline" },
   { value: "facility", label: "Fasilitas", icon: "business-outline" },
   { value: "other", label: "Lainnya", icon: "help-circle-outline" },
+] as const;
+
+const MAINTENANCE_TYPES = [
+  { value: "corrective", label: "Korektif" },
+  { value: "preventive", label: "Preventif" },
 ] as const;
 
 export default function MaintenanceFormScreen() {
@@ -67,6 +72,57 @@ export default function MaintenanceFormScreen() {
   const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
   const [activePreviewUri, setActivePreviewUri] = useState<string | null>(null);
 
+  // Equipment Selector State
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [equipmentId, setEquipmentId] = useState<number | null>(null);
+  const [showEquipmentPicker, setShowEquipmentPicker] = useState(false);
+  const [equipmentSearchQuery, setEquipmentSearchQuery] = useState("");
+  const [isEquipmentsLoading, setIsEquipmentsLoading] = useState(false);
+
+  // New Fields State
+  const [maintenanceType, setMaintenanceType] = useState<"corrective" | "preventive">("corrective");
+  const [teams, setTeams] = useState<MaintenanceTeam[]>([]);
+  const [teamId, setTeamId] = useState<number | null>(null);
+  const [stages, setStages] = useState<MaintenanceStage[]>([]);
+  const [stageId, setStageId] = useState<number | null>(null);
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
+  const [showStagePicker, setShowStagePicker] = useState(false);
+  const [isMetadataLoading, setIsMetadataLoading] = useState(false);
+
+  // Load equipments list and teams/stages metadata
+  useEffect(() => {
+    const loadEquipments = async () => {
+      setIsEquipmentsLoading(true);
+      try {
+        const data = await maintenanceService.listEquipments();
+        setEquipments(data);
+      } catch (err) {
+        console.warn("Failed to load equipments list:", err);
+      } finally {
+        setIsEquipmentsLoading(false);
+      }
+    };
+
+    const loadMetadata = async () => {
+      setIsMetadataLoading(true);
+      try {
+        const [teamsData, stagesData] = await Promise.all([
+          maintenanceService.listTeams(),
+          maintenanceService.listStages()
+        ]);
+        setTeams(teamsData);
+        setStages(stagesData);
+      } catch (err) {
+        console.warn("Failed to load teams or stages metadata:", err);
+      } finally {
+        setIsMetadataLoading(false);
+      }
+    };
+
+    loadEquipments();
+    loadMetadata();
+  }, []);
+
   // Load existing data if editing
   useEffect(() => {
     if (requestId) {
@@ -81,13 +137,25 @@ export default function MaintenanceFormScreen() {
               router.back();
               return;
             }
-            setAssetName(req.asset_name);
-            setAssetCode(req.asset_code);
-            setCategory(req.category);
-            setUrgency(req.urgency);
-            setTitle(req.title);
-            setDescription(req.description);
+            setAssetName(req.asset_name || "");
+            setAssetCode(req.asset_code || "");
+            setCategory(req.category || "hardware");
+            setUrgency(req.urgency || "low");
+            setTitle(req.title || "");
+            setDescription(req.description || "");
             setImages(req.images || []);
+            if (req.equipment_id) {
+              setEquipmentId(req.equipment_id);
+            }
+            if (req.maintenance_type) {
+              setMaintenanceType(req.maintenance_type);
+            }
+            if (req.maintenance_team_id) {
+              setTeamId(req.maintenance_team_id);
+            }
+            if (req.stage_id) {
+              setStageId(req.stage_id);
+            }
           } else {
             showToast("error", "Error", "Pengajuan tidak ditemukan.");
             router.back();
@@ -101,6 +169,31 @@ export default function MaintenanceFormScreen() {
       loadRequestData();
     }
   }, [requestId, router]);
+
+  // Equipment Select Helper
+  const handleSelectEquipment = (equip: Equipment) => {
+    setEquipmentId(equip.id);
+    setAssetName(equip.name);
+    setAssetCode(equip.code);
+
+    if (equip.category?.name) {
+      const name = equip.category.name.toLowerCase();
+      if (name.includes("hard") || name.includes("comp") || name.includes("laptop") || name.includes("pc")) {
+        setCategory("hardware");
+      } else if (name.includes("soft") || name.includes("app") || name.includes("licens")) {
+        setCategory("software");
+      } else if (name.includes("fac") || name.includes("build") || name.includes("room") || name.includes("furn") || name.includes("kursi") || name.includes("meja")) {
+        setCategory("facility");
+      } else {
+        setCategory("other");
+      }
+    } else {
+      setCategory("hardware");
+    }
+
+    setShowEquipmentPicker(false);
+    setEquipmentSearchQuery("");
+  };
 
   // Image Picking Helpers
   const handlePickFromCamera = async () => {
@@ -154,7 +247,12 @@ export default function MaintenanceFormScreen() {
 
   // Submit Operations
   const handleSave = async (submitDirectly: boolean) => {
-    if (!assetName.trim() || !assetCode.trim() || !title.trim() || !description.trim()) {
+    const cleanAssetName = (assetName || "").trim();
+    const cleanAssetCode = (assetCode || "").trim();
+    const cleanTitle = (title || "").trim();
+    const cleanDescription = (description || "").trim();
+
+    if (!cleanAssetName || !cleanAssetCode || !cleanTitle || !cleanDescription) {
       showToast("error", "Validasi", "Harap isi semua kolom form yang diwajibkan.");
       return;
     }
@@ -162,14 +260,18 @@ export default function MaintenanceFormScreen() {
     setIsSubmitting(true);
     try {
       const payload: Omit<MaintenanceRequest, "id" | "date" | "notes"> = {
-        asset_name: assetName.trim(),
-        asset_code: assetCode.trim(),
+        asset_name: cleanAssetName,
+        asset_code: cleanAssetCode,
         category,
         urgency,
-        title: title.trim(),
-        description: description.trim(),
+        title: cleanTitle,
+        description: cleanDescription,
         images,
         state: submitDirectly ? "submitted" : "draft",
+        equipment_id: equipmentId || undefined,
+        maintenance_type: maintenanceType,
+        maintenance_team_id: teamId || undefined,
+        stage_id: stageId || undefined,
       };
 
       if (requestId) {
@@ -272,6 +374,35 @@ export default function MaintenanceFormScreen() {
               })}
             </View>
 
+            {/* Selector Aset Terdaftar */}
+            <View style={styles.selectorHeaderRow}>
+              <Text style={styles.label}>Aset / Peralatan Terdaftar <Text style={styles.optional}>(Opsional)</Text></Text>
+              <TouchableOpacity
+                onPress={() => setShowEquipmentPicker(true)}
+                style={styles.selectAssetBtn}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="search" size={14} color={colors.primary} />
+                <Text style={styles.selectAssetBtnText}>Cari Aset</Text>
+              </TouchableOpacity>
+            </View>
+
+            {equipmentId ? (
+              <View style={styles.selectedAssetContainer}>
+                <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                <Text style={styles.selectedAssetText} numberOfLines={1}>
+                  Terhubung: {assetName} ({assetCode})
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  setEquipmentId(null);
+                  setAssetName("");
+                  setAssetCode("");
+                }}>
+                  <Ionicons name="close-circle" size={18} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {/* 2. Asset Name */}
             <Text style={styles.label}>Nama Aset Kantor <Text style={styles.required}>*</Text></Text>
             <TextInput
@@ -279,7 +410,10 @@ export default function MaintenanceFormScreen() {
               placeholder="Contoh: Laptop Asus ROG / Kursi Kerja"
               placeholderTextColor={colors.textMuted}
               value={assetName}
-              onChangeText={setAssetName}
+              onChangeText={(text) => {
+                setAssetName(text);
+                if (equipmentId) setEquipmentId(null);
+              }}
             />
 
             {/* 3. Asset Code */}
@@ -289,7 +423,10 @@ export default function MaintenanceFormScreen() {
               placeholder="Contoh: AST-UNOTEK-009 / SN-8927498"
               placeholderTextColor={colors.textMuted}
               value={assetCode}
-              onChangeText={setAssetCode}
+              onChangeText={(text) => {
+                setAssetCode(text);
+                if (equipmentId) setEquipmentId(null);
+              }}
             />
 
             {/* 4. Urgency Segmented Control */}
@@ -321,6 +458,66 @@ export default function MaintenanceFormScreen() {
                 );
               })}
             </View>
+
+            {/* Tipe Maintenance */}
+            <Text style={styles.label}>Tipe Maintenance <Text style={styles.required}>*</Text></Text>
+            <View style={styles.urgencyGrid}>
+              {MAINTENANCE_TYPES.map((type) => {
+                const isSelected = maintenanceType === type.value;
+                return (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.urgencyBtn,
+                      { borderColor: colors.primary },
+                      isSelected && { backgroundColor: colors.primaryLight },
+                    ]}
+                    onPress={() => setMaintenanceType(type.value)}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        { color: colors.primary },
+                        isSelected && { fontWeight: "700" as any },
+                      ]}
+                    >
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Tim Maintenance */}
+            <Text style={styles.label}>Tim Penanggung Jawab</Text>
+            <TouchableOpacity
+              style={styles.pickerSelector}
+              onPress={() => setShowTeamPicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.pickerSelectorText, !teamId && { color: colors.textMuted }]}>
+                {teamId ? (teams.find(t => t.id === teamId)?.name || "Tim Terpilih") : "Pilih tim penanggung jawab..."}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Tahapan Maintenance (Only when editing) */}
+            {requestId ? (
+              <>
+                <Text style={styles.label}>Tahapan Maintenance</Text>
+                <TouchableOpacity
+                  style={styles.pickerSelector}
+                  onPress={() => setShowStagePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.pickerSelectorText, !stageId && { color: colors.textMuted }]}>
+                    {stageId ? (stages.find(s => s.id === stageId)?.name || "Tahap Terpilih") : "Pilih tahapan..."}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </>
+            ) : null}
 
             {/* 5. Title */}
             <Text style={styles.label}>Judul Pengajuan / Masalah <Text style={styles.required}>*</Text></Text>
@@ -508,6 +705,217 @@ export default function MaintenanceFormScreen() {
               resizeMode="contain"
             />
           )}
+        </View>
+      </Modal>
+
+      {/* Equipment Picker Modal */}
+      <Modal
+        visible={showEquipmentPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEquipmentPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowEquipmentPicker(false)}
+          />
+          <View style={[styles.detailModalContent, { height: "75%" }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pilih Aset / Peralatan</Text>
+              <TouchableOpacity onPress={() => setShowEquipmentPicker(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.searchBar}>
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={colors.textMuted}
+                style={{ marginRight: spacing.sm }}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cari nama aset atau kode..."
+                placeholderTextColor={colors.textMuted}
+                value={equipmentSearchQuery}
+                onChangeText={setEquipmentSearchQuery}
+              />
+              {equipmentSearchQuery ? (
+                <TouchableOpacity onPress={() => setEquipmentSearchQuery("")}>
+                  <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {isEquipmentsLoading ? (
+              <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ marginTop: spacing.sm, color: colors.textSecondary }}>Memuat daftar aset...</Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={{ flex: 1, marginTop: spacing.md }}
+                showsVerticalScrollIndicator={false}
+              >
+                {equipments.filter(item => {
+                  const query = equipmentSearchQuery.toLowerCase();
+                  return (
+                    item.name.toLowerCase().includes(query) ||
+                    item.code.toLowerCase().includes(query)
+                  );
+                }).length === 0 ? (
+                  <View style={{ alignItems: "center", paddingVertical: hpx(40) }}>
+                    <Text style={{ color: colors.textMuted }}>Aset tidak ditemukan</Text>
+                  </View>
+                ) : (
+                  equipments.filter(item => {
+                    const query = equipmentSearchQuery.toLowerCase();
+                    return (
+                      item.name.toLowerCase().includes(query) ||
+                      item.code.toLowerCase().includes(query)
+                    );
+                  }).map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.equipmentItem}
+                      onPress={() => handleSelectEquipment(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.equipmentName}>{item.name}</Text>
+                      <Text style={styles.equipmentCode}>Kode: {item.code}</Text>
+                      {item.category?.name ? (
+                        <Text style={styles.equipmentCategory}>Kategori: {item.category.name}</Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Team Picker Modal */}
+      <Modal
+        visible={showTeamPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowTeamPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowTeamPicker(false)} />
+          <View style={styles.modalStatusSelectContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pilih Tim Maintenance</Text>
+              <TouchableOpacity onPress={() => setShowTeamPicker(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[
+                  styles.categoryItem,
+                  !teamId && styles.categoryItemActive,
+                ]}
+                onPress={() => {
+                  setTeamId(null);
+                  setShowTeamPicker(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.categoryItemText,
+                    !teamId && styles.categoryItemTextActive,
+                  ]}
+                >
+                  Tanpa Tim (Belum Ditentukan)
+                </Text>
+                {!teamId && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+
+              {teams.map((team) => (
+                <TouchableOpacity
+                  key={team.id}
+                  style={[
+                    styles.categoryItem,
+                    teamId === team.id && styles.categoryItemActive,
+                  ]}
+                  onPress={() => {
+                    setTeamId(team.id);
+                    setShowTeamPicker(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.categoryItemText,
+                      teamId === team.id && styles.categoryItemTextActive,
+                    ]}
+                  >
+                    {team.name}
+                  </Text>
+                  {teamId === team.id && (
+                    <Ionicons name="checkmark" size={16} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Stage Picker Modal */}
+      <Modal
+        visible={showStagePicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowStagePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowStagePicker(false)} />
+          <View style={styles.modalStatusSelectContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pilih Tahapan</Text>
+              <TouchableOpacity onPress={() => setShowStagePicker(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {stages.map((stage) => (
+                <TouchableOpacity
+                  key={stage.id}
+                  style={[
+                    styles.categoryItem,
+                    stageId === stage.id && styles.categoryItemActive,
+                  ]}
+                  onPress={() => {
+                    setStageId(stage.id);
+                    setShowStagePicker(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.categoryItemText,
+                      stageId === stage.id && styles.categoryItemTextActive,
+                    ]}
+                  >
+                    {stage.name}
+                  </Text>
+                  {stageId === stage.id && (
+                    <Ionicons name="checkmark" size={16} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -817,5 +1225,136 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: "100%",
     height: "80%",
+  },
+  selectorHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  selectAssetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: hpx(4),
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.sm,
+  },
+  selectAssetBtnText: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  optional: {
+    fontSize: rf(11),
+    color: colors.textMuted,
+    fontWeight: "normal",
+  },
+  selectedAssetContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.xs,
+    gap: spacing.sm,
+  },
+  selectedAssetText: {
+    flex: 1,
+    fontSize: rf(13),
+    color: "#166534",
+    fontWeight: "600" as any,
+  },
+  equipmentItem: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  equipmentName: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  equipmentCode: {
+    fontSize: rf(12),
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  equipmentCategory: {
+    fontSize: rf(11),
+    color: colors.textMuted,
+    textTransform: "uppercase",
+    marginTop: 2,
+  },
+  detailModalContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing["2xl"],
+    paddingTop: spacing["2xl"],
+    paddingBottom: spacing["3xl"],
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    height: sizes.searchHeight,
+  },
+  searchInput: {
+    flex: 1,
+    height: "100%",
+    fontSize: rf(13),
+    color: colors.textPrimary,
+  },
+  modalStatusSelectContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing["2xl"],
+  },
+  categoryItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface,
+  },
+  categoryItemActive: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+  },
+  categoryItemText: {
+    fontSize: rf(14),
+    color: colors.textSecondary,
+    fontWeight: "500" as any,
+  },
+  categoryItemTextActive: {
+    color: colors.primary,
+    fontWeight: "700" as any,
+  },
+  pickerSelector: {
+    backgroundColor: colors.card,
+    borderWidth: 1.2,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    height: sizes.buttonMd,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  pickerSelectorText: {
+    fontSize: rf(13),
+    color: colors.textPrimary,
   },
 });

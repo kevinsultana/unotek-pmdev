@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -112,6 +112,26 @@ export default function ProfileDetailScreen() {
   const [assetStatus, setAssetStatus] = useState<Asset["status"]>("active");
   const [isAssetSaving, setIsAssetSaving] = useState(false);
 
+  // Dynamic Equipments States
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [assetNote, setAssetNote] = useState("");
+  const [assetCost, setAssetCost] = useState("");
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await assetService.listCategories();
+        setCategories(res || []);
+      } catch (err) {
+        console.warn("Failed to load equipment categories:", err);
+      }
+    };
+    loadCategories();
+  }, []);
+
   const fetchFullEmployeeDetails = useCallback(async () => {
     const empId = profile?.employee?.id;
     if (!empId) return;
@@ -129,16 +149,37 @@ export default function ProfileDetailScreen() {
   }, [profile?.employee?.id]);
 
   const fetchAssets = useCallback(async () => {
+    const empId = profile?.employee?.id;
+    if (!empId) {
+      setAssets([]);
+      setIsAssetsLoading(false);
+      return;
+    }
     setIsAssetsLoading(true);
     try {
-      const data = await assetService.list();
+      const data = await assetService.list({ employee_id: empId });
       setAssets(data || []);
     } catch (err) {
       console.error("Error loading assets:", err);
     } finally {
       setIsAssetsLoading(false);
     }
-  }, []);
+  }, [profile?.employee?.id]);
+
+  const handleSelectCategory = (cat: any) => {
+    setSelectedCategoryId(cat.id);
+    const name = cat.name.toLowerCase();
+    if (name.includes("hard") || name.includes("comp") || name.includes("laptop") || name.includes("pc")) {
+      setAssetCategory("hardware");
+    } else if (name.includes("fac") || name.includes("build") || name.includes("room") || name.includes("furn") || name.includes("kursi") || name.includes("meja")) {
+      setAssetCategory("facility");
+    } else if (name.includes("mobil") || name.includes("motor") || name.includes("car") || name.includes("vehic")) {
+      setAssetCategory("vehicle");
+    } else {
+      setAssetCategory("other");
+    }
+    setShowCategoryPicker(false);
+  };
 
   const handleOpenAssetModal = (asset: Asset | null) => {
     if (asset) {
@@ -147,12 +188,18 @@ export default function ProfileDetailScreen() {
       setAssetCode(asset.code);
       setAssetCategory(asset.category);
       setAssetStatus(asset.status);
+      setSelectedCategoryId(asset.category_id || null);
+      setAssetNote(asset.note || "");
+      setAssetCost(asset.cost ? String(asset.cost) : "");
     } else {
       setEditingAsset(null);
       setAssetName("");
       setAssetCode("");
       setAssetCategory("hardware");
       setAssetStatus("active");
+      setSelectedCategoryId(null);
+      setAssetNote("");
+      setAssetCost("");
     }
     setShowAssetModal(true);
   };
@@ -162,6 +209,9 @@ export default function ProfileDetailScreen() {
     setEditingAsset(null);
     setAssetName("");
     setAssetCode("");
+    setAssetNote("");
+    setAssetCost("");
+    setSelectedCategoryId(null);
   };
 
   const handleSaveAsset = async () => {
@@ -173,9 +223,11 @@ export default function ProfileDetailScreen() {
     try {
       const payload = {
         name: assetName.trim(),
-        code: assetCode.trim(),
-        category: assetCategory,
-        status: assetStatus,
+        serial_no: assetCode.trim(),
+        category_id: selectedCategoryId || undefined,
+        employee_id: profile?.employee?.id,
+        note: assetNote.trim(),
+        cost: Number(assetCost) || 0,
       };
 
       if (editingAsset) {
@@ -442,7 +494,7 @@ export default function ProfileDetailScreen() {
                 <Text style={styles.fieldLabel}>Nama Aset *</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="e.g. Laptop MacBook Pro"
+                  placeholder="e.g. Laptop Dell XPS 15"
                   placeholderTextColor={colors.textMuted}
                   value={assetName}
                   onChangeText={setAssetName}
@@ -451,58 +503,43 @@ export default function ProfileDetailScreen() {
                 <Text style={styles.fieldLabel}>Kode Inventaris / SN *</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="e.g. AST-2023-009"
+                  placeholder="e.g. SN-2026-001"
                   placeholderTextColor={colors.textMuted}
                   value={assetCode}
                   onChangeText={setAssetCode}
                 />
 
-                <Text style={styles.fieldLabel}>Kategori Aset</Text>
-                <View style={styles.selectGrid}>
-                  {(Object.keys(CATEGORY_MAP) as Array<keyof typeof CATEGORY_MAP>).map((catKey) => {
-                    const cat = CATEGORY_MAP[catKey];
-                    const isSelected = assetCategory === catKey;
-                    return (
-                      <TouchableOpacity
-                        key={catKey}
-                        style={[
-                          styles.selectBtn,
-                          isSelected && { borderColor: colors.primary, backgroundColor: colors.primaryLight }
-                        ]}
-                        onPress={() => setAssetCategory(catKey as Asset["category"])}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.selectText, isSelected && { color: colors.primary, fontWeight: "700" }]}>
-                          {cat.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <Text style={styles.fieldLabel}>Kategori Aset *</Text>
+                <TouchableOpacity
+                  style={styles.pickerSelector}
+                  onPress={() => setShowCategoryPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.pickerSelectorText, !selectedCategoryId && { color: colors.textMuted }]}>
+                    {selectedCategoryId ? (categories.find(c => c.id === selectedCategoryId)?.name || "Kategori Terpilih") : "Pilih kategori aset..."}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
 
-                <Text style={styles.fieldLabel}>Status Aset</Text>
-                <View style={styles.selectGridVertical}>
-                  {(Object.keys(STATUS_MAP) as Array<keyof typeof STATUS_MAP>).map((statKey) => {
-                    const stat = STATUS_MAP[statKey];
-                    const isSelected = assetStatus === statKey;
-                    return (
-                      <TouchableOpacity
-                        key={statKey}
-                        style={[
-                          styles.selectBtnVertical,
-                          { borderColor: stat.c },
-                          isSelected && { backgroundColor: stat.b }
-                        ]}
-                        onPress={() => setAssetStatus(statKey as Asset["status"])}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.selectText, { color: stat.c }, isSelected && { fontWeight: "700" }]}>
-                          {stat.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <Text style={styles.fieldLabel}>Biaya Aset (Cost)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. 15000000"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="numeric"
+                  value={assetCost}
+                  onChangeText={setAssetCost}
+                />
+
+                <Text style={styles.fieldLabel}>Catatan (Note)</Text>
+                <TextInput
+                  style={[styles.textInput, { height: hpx(60), paddingTop: spacing.xs, paddingBottom: spacing.xs }]}
+                  multiline
+                  placeholder="e.g. Laptop untuk development"
+                  placeholderTextColor={colors.textMuted}
+                  value={assetNote}
+                  onChangeText={setAssetNote}
+                />
 
                 <TouchableOpacity
                   style={[styles.submitBtn, isAssetSaving && { opacity: 0.6 }]}
@@ -517,6 +554,52 @@ export default function ProfileDetailScreen() {
                   )}
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Category Picker Modal */}
+        <Modal
+          visible={showCategoryPicker}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowCategoryPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowCategoryPicker(false)} />
+            <View style={styles.modalStatusSelectContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Pilih Kategori Aset</Text>
+                <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
+                  <Ionicons name="close" size={24} color={colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[
+                      styles.categoryItem,
+                      selectedCategoryId === cat.id && styles.categoryItemActive,
+                    ]}
+                    onPress={() => handleSelectCategory(cat)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryItemText,
+                        selectedCategoryId === cat.id && styles.categoryItemTextActive,
+                      ]}
+                    >
+                      {cat.name}
+                    </Text>
+                    {selectedCategoryId === cat.id && (
+                      <Ionicons name="checkmark" size={16} color={colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -762,7 +845,51 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: "#FFFFFF",
-    fontSize: rf(16),
+    fontSize: rf(14),
     fontWeight: "700" as any,
+  },
+  modalStatusSelectContent: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing["2xl"],
+  },
+  categoryItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surface,
+  },
+  categoryItemActive: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+  },
+  categoryItemText: {
+    fontSize: rf(14),
+    color: colors.textSecondary,
+    fontWeight: "500" as any,
+  },
+  categoryItemTextActive: {
+    color: colors.primary,
+    fontWeight: "700" as any,
+  },
+  pickerSelector: {
+    backgroundColor: colors.card,
+    borderWidth: 1.2,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    height: sizes.buttonMd,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  pickerSelectorText: {
+    fontSize: rf(13),
+    color: colors.textPrimary,
   },
 });

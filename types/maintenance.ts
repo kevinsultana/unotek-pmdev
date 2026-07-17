@@ -1,3 +1,25 @@
+export interface Equipment {
+  id: number;
+  name: string;
+  code: string;
+  category_id?: number;
+  category?: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface MaintenanceStage {
+  id: number;
+  name: string;
+  sequence?: number;
+}
+
+export interface MaintenanceTeam {
+  id: number;
+  name: string;
+}
+
 export interface MaintenanceRequest {
   id: number;
   asset_name: string;
@@ -10,6 +32,10 @@ export interface MaintenanceRequest {
   date: string; // YYYY-MM-DD
   notes?: string; // Technician reply or admin feedback
   images?: string[]; // Array of photo URIs
+  equipment_id?: number;
+  stage_id?: number;
+  maintenance_team_id?: number;
+  maintenance_type?: "corrective" | "preventive";
 }
 
 export type CreateMaintenanceRequest = Omit<MaintenanceRequest, "id" | "state" | "date" | "notes">;
