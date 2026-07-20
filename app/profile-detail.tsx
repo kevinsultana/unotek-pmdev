@@ -83,6 +83,18 @@ const mapMarital = (marital?: string | null) => {
   return mapping[marital] || marital;
 };
 
+const stripHtml = (htmlStr?: string | null) => {
+  if (!htmlStr) return "";
+  return htmlStr
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+};
+
 export default function ProfileDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -180,7 +192,7 @@ export default function ProfileDetailScreen() {
     setAssetCategory(asset.category);
     setAssetStatus(asset.status);
     setSelectedCategoryId(asset.category_id || null);
-    setAssetNote(asset.note || "");
+    setAssetNote(stripHtml(asset.note || ""));
     setAssetCost(asset.cost ? String(asset.cost) : "");
     setShowAssetModal(true);
   };
@@ -435,49 +447,55 @@ export default function ProfileDetailScreen() {
               </View>
 
               <View style={styles.formContainer}>
-                <Text style={styles.fieldLabel}>Nama Aset</Text>
-                <TextInput
-                  style={[styles.textInput, { color: colors.textMuted }]}
-                  placeholder="-"
-                  placeholderTextColor={colors.textMuted}
-                  value={assetName || "-"}
-                  editable={false}
-                />
+                <View style={{ marginBottom: spacing.sm }}>
+                  <Text style={{ fontSize: rf(11), fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", marginBottom: hpx(2) }}>
+                    Nama Aset
+                  </Text>
+                  <Text style={{ fontSize: rf(15), fontWeight: "600", color: colors.textPrimary }}>
+                    {assetName || "-"}
+                  </Text>
+                </View>
 
-                <Text style={styles.fieldLabel}>Kode Inventaris / SN</Text>
-                <TextInput
-                  style={[styles.textInput, { color: colors.textMuted }]}
-                  placeholder="-"
-                  placeholderTextColor={colors.textMuted}
-                  value={assetCode || "-"}
-                  editable={false}
-                />
+                <View style={{ marginBottom: spacing.sm }}>
+                  <Text style={{ fontSize: rf(11), fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", marginBottom: hpx(2) }}>
+                    Kode Inventaris / SN
+                  </Text>
+                  <Text style={{ fontSize: rf(15), fontWeight: "600", color: colors.textPrimary }}>
+                    {assetCode || "-"}
+                  </Text>
+                </View>
 
-                <Text style={styles.fieldLabel}>Kategori Aset</Text>
-                <TouchableOpacity
-                  style={[styles.pickerSelector, { backgroundColor: colors.surface }]}
-                  disabled={true}
-                  activeOpacity={1}
-                >
-                  <Text style={[styles.pickerSelectorText, { color: colors.textMuted }]}>
+                <View style={{ marginBottom: spacing.sm }}>
+                  <Text style={{ fontSize: rf(11), fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", marginBottom: hpx(2) }}>
+                    Kategori Aset
+                  </Text>
+                  <Text style={{ fontSize: rf(15), fontWeight: "600", color: colors.textPrimary }}>
                     {selectedCategoryId ? (categories.find(c => c.id === selectedCategoryId)?.name || "-") : "-"}
                   </Text>
-                  <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-                </TouchableOpacity>
+                </View>
 
-                <Text style={styles.fieldLabel}>Biaya Aset (Cost)</Text>
-                <TextInput
-                  style={[styles.textInput, { color: colors.textMuted }]}
-                  placeholder="-"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  value={assetCost || "-"}
-                  editable={false}
-                />
+                <View style={{ marginBottom: spacing.sm }}>
+                  <Text style={{ fontSize: rf(11), fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", marginBottom: hpx(2) }}>
+                    Biaya Aset (Cost)
+                  </Text>
+                  <Text style={{ fontSize: rf(15), fontWeight: "600", color: colors.textPrimary }}>
+                    {assetCost || "-"}
+                  </Text>
+                </View>
 
                 <Text style={styles.fieldLabel}>Catatan (Note) *</Text>
                 <TextInput
-                  style={[styles.textInput, { height: hpx(60), paddingTop: spacing.xs, paddingBottom: spacing.xs }]}
+                  style={[
+                    styles.textInput,
+                    {
+                      height: hpx(100),
+                      paddingTop: spacing.md,
+                      paddingBottom: spacing.md,
+                      textAlignVertical: "top",
+                      borderColor: colors.primary,
+                      backgroundColor: colors.card,
+                    },
+                  ]}
                   multiline
                   placeholder="-"
                   placeholderTextColor={colors.textMuted}
