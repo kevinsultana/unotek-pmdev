@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
+import type { ApiResponse } from "../types/api";
 import { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam } from "../types/maintenance";
 import { api } from "./api";
-import type { ApiResponse } from "../types/api";
 
 let SecureStore: typeof import("expo-secure-store") | null = null;
 
@@ -102,7 +102,7 @@ async function mapServerRequest(item: any, imagesMap: Record<number, string[]>):
     notes: item.notes || "",
     asset_name: item.equipment?.name || "Peralatan Umum",
     asset_code: item.equipment?.code || "-",
-    category: mapCategory(item.equipment?.category?.name),
+    category: mapCategory(item.category?.name || item.equipment?.category?.name),
     images: imagesMap[item.id] || [],
     equipment_id: item.equipment_id,
     stage_id: item.stage_id,
@@ -141,11 +141,11 @@ export const maintenanceService = {
     }
   },
 
-  async list(): Promise<MaintenanceRequest[]> {
+  async list(params?: { user_id?: number; owner_user_id?: number }): Promise<MaintenanceRequest[]> {
     let serverRequests: MaintenanceRequest[] = [];
     try {
       const res = await api.get<{ success: boolean; data: any[] }>("/maintenance-requests", {
-        params: { page: 1, per_page: 100 }
+        params: { page: 1, per_page: 100, ...params }
       });
       if (res.data && res.data.success && Array.isArray(res.data.data)) {
         const imagesMap = await getLocalImagesMap();
@@ -154,13 +154,13 @@ export const maintenanceService = {
         );
       }
     } catch (err) {
-      console.warn("Failed to fetch maintenance requests from server:", err);
+      console.error("Failed to fetch maintenance requests from server:", err);
     }
 
     const localDrafts = await this.getStorageData();
 
     // Sort: newest draft first, then newest server request
-    return [...localDrafts, ...serverRequests];
+    return [...serverRequests];
   },
 
   async getById(id: number): Promise<MaintenanceRequest | null> {

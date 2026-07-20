@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useProfile } from "../hooks/useProfile";
 import { maintenanceService } from "../services/maintenanceService";
 import {
   colors,
@@ -85,23 +86,30 @@ export default function MaintenanceScreen() {
 
   const [showStatusPicker, setShowStatusPicker] = useState(false);
 
+  const { profile, isLoading: isProfileLoading } = useProfile();
+
   // Load Data
   const fetchRequests = useCallback(async (showIndicator = true) => {
+    const userId = profile?.user?.id;
+    if (!userId) return;
     if (showIndicator) setIsLoading(true);
     try {
-      const data = await maintenanceService.list();
+      const data = await maintenanceService.list({ user_id: userId });
       setRequests(data || []);
     } catch (err: any) {
+      console.error("fetchRequests error:", err);
       showToast("error", "Error", err?.message || "Gagal memuat data maintenance.");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [profile?.user?.id]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchRequests(false);
-    }, [fetchRequests])
+      if (profile?.user?.id) {
+        fetchRequests(false);
+      }
+    }, [fetchRequests, profile?.user?.id])
   );
 
   const handleRefresh = async () => {
@@ -195,7 +203,6 @@ export default function MaintenanceScreen() {
       return dateStr;
     }
   };
-
   // Filter Logic
   const filteredRequests = requests.filter((item) => {
     // 1. Status Filter
@@ -204,14 +211,14 @@ export default function MaintenanceScreen() {
         activeTab === "Draft"
           ? "draft"
           : activeTab === "Diajukan"
-          ? "submitted"
-          : activeTab === "Diproses"
-          ? "in_progress"
-          : activeTab === "Selesai"
-          ? "done"
-          : activeTab === "Ditolak"
-          ? "refused"
-          : "";
+            ? "submitted"
+            : activeTab === "Diproses"
+              ? "in_progress"
+              : activeTab === "Selesai"
+                ? "done"
+                : activeTab === "Ditolak"
+                  ? "refused"
+                  : "";
       if (item.state !== mappedState) return false;
     }
 
@@ -317,7 +324,7 @@ export default function MaintenanceScreen() {
       </View>
 
       {/* List content */}
-      {isLoading ? (
+      {isLoading || isProfileLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Memuat pengajuan...</Text>
