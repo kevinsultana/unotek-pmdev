@@ -33,15 +33,7 @@ import {
 import { assetService } from "../services/assetService";
 import type { Asset } from "../types/asset";
 
-const CATEGORY_MAP: Record<
-  string,
-  { label: string; icon: string; color: string; bg: string }
-> = {
-  hardware: { label: "Hardware", icon: "laptop-outline", color: "#1E40AF", bg: "#DBEAFE" },
-  facility: { label: "Fasilitas", icon: "business-outline", color: "#D97706", bg: "#FEF3C7" },
-  vehicle: { label: "Kendaraan", icon: "car-outline", color: "#059669", bg: "#D1FAE5" },
-  other: { label: "Lainnya", icon: "help-circle-outline", color: "#6B7280", bg: "#F3F4F6" },
-};
+
 
 const STATUS_MAP: Record<
   string,
@@ -181,26 +173,15 @@ export default function ProfileDetailScreen() {
     setShowCategoryPicker(false);
   };
 
-  const handleOpenAssetModal = (asset: Asset | null) => {
-    if (asset) {
-      setEditingAsset(asset);
-      setAssetName(asset.name);
-      setAssetCode(asset.code);
-      setAssetCategory(asset.category);
-      setAssetStatus(asset.status);
-      setSelectedCategoryId(asset.category_id || null);
-      setAssetNote(asset.note || "");
-      setAssetCost(asset.cost ? String(asset.cost) : "");
-    } else {
-      setEditingAsset(null);
-      setAssetName("");
-      setAssetCode("");
-      setAssetCategory("hardware");
-      setAssetStatus("active");
-      setSelectedCategoryId(null);
-      setAssetNote("");
-      setAssetCost("");
-    }
+  const handleOpenAssetModal = (asset: Asset) => {
+    setEditingAsset(asset);
+    setAssetName(asset.name);
+    setAssetCode(asset.code);
+    setAssetCategory(asset.category);
+    setAssetStatus(asset.status);
+    setSelectedCategoryId(asset.category_id || null);
+    setAssetNote(asset.note || "");
+    setAssetCost(asset.cost ? String(asset.cost) : "");
     setShowAssetModal(true);
   };
 
@@ -215,8 +196,9 @@ export default function ProfileDetailScreen() {
   };
 
   const handleSaveAsset = async () => {
-    if (!assetName.trim() || !assetCode.trim()) {
-      Alert.alert("Validasi", "Harap isi nama aset dan kode inventaris.");
+    if (!editingAsset) return;
+    if (!assetNote.trim()) {
+      Alert.alert("Validasi", "Harap isi catatan aset.");
       return;
     }
     setIsAssetSaving(true);
@@ -230,11 +212,7 @@ export default function ProfileDetailScreen() {
         cost: Number(assetCost) || 0,
       };
 
-      if (editingAsset) {
-        await assetService.update(editingAsset.id, payload);
-      } else {
-        await assetService.create(payload);
-      }
+      await assetService.update(editingAsset.id, payload);
       await fetchAssets();
       handleCloseAssetModal();
     } catch (err: any) {
@@ -242,28 +220,6 @@ export default function ProfileDetailScreen() {
     } finally {
       setIsAssetSaving(false);
     }
-  };
-
-  const handleDeleteAsset = (id: number) => {
-    Alert.alert(
-      "Hapus Aset",
-      "Apakah Anda yakin ingin menghapus kepemilikan aset ini?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await assetService.delete(id);
-              await fetchAssets();
-            } catch (err: any) {
-              Alert.alert("Gagal", err?.message || "Gagal menghapus aset.");
-            }
-          },
-        },
-      ]
-    );
   };
 
   useFocusEffect(
@@ -410,14 +366,6 @@ export default function ProfileDetailScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Aset Kantor</Text>
-              <TouchableOpacity
-                style={styles.addAssetBtn}
-                onPress={() => handleOpenAssetModal(null)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
-                <Text style={styles.addAssetBtnText}>Tambah</Text>
-              </TouchableOpacity>
             </View>
 
             {isAssetsLoading ? (
@@ -426,24 +374,27 @@ export default function ProfileDetailScreen() {
               <Text style={styles.emptyAssetsText}>Tidak ada aset yang dipegang.</Text>
             ) : (
               assets.map((asset, index) => {
-                const categoryConfig = CATEGORY_MAP[asset.category] || CATEGORY_MAP.other;
                 const statusConfig = STATUS_MAP[asset.status] || STATUS_MAP.active;
                 return (
                   <View key={asset.id}>
                     <View style={styles.assetRow}>
-                      <View style={[styles.infoIcon, { backgroundColor: categoryConfig.bg, marginRight: spacing.md }]}>
-                        <Ionicons name={categoryConfig.icon as any} size={18} color={categoryConfig.color} />
-                      </View>
                       <View style={styles.assetInfoTextContainer}>
-                        <Text style={styles.assetNameText}>{asset.name}</Text>
-                        <View style={styles.assetMetaRow}>
-                          <Text style={styles.assetCodeText}>{asset.code}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
+                          <Text style={{ fontWeight: "700", fontSize: rf(14), color: colors.textPrimary }}>
+                            {asset.category_name || "Lainnya"}
+                          </Text>
                           <View style={[styles.statusBadgeSmall, { backgroundColor: statusConfig.b }]}>
                             <Text style={[styles.statusBadgeTextSmall, { color: statusConfig.c }]}>
                               {statusConfig.label}
                             </Text>
                           </View>
                         </View>
+                        <Text style={{ fontSize: rf(13), color: colors.textSecondary, marginTop: hpx(4) }}>
+                          {asset.name}
+                        </Text>
+                        <Text style={{ fontSize: rf(11), color: colors.textMuted, marginTop: hpx(2) }}>
+                          {asset.code}
+                        </Text>
                       </View>
                       <View style={styles.assetActions}>
                         <TouchableOpacity
@@ -453,16 +404,9 @@ export default function ProfileDetailScreen() {
                         >
                           <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.assetActionBtn}
-                          onPress={() => handleDeleteAsset(asset.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="trash-outline" size={16} color={colors.error} />
-                        </TouchableOpacity>
                       </View>
                     </View>
-                    {index < assets.length - 1 && <View style={styles.divider} />}
+                    {index < assets.length - 1 && <View style={[styles.divider, { marginLeft: 0 }]} />}
                   </View>
                 );
               })
@@ -483,7 +427,7 @@ export default function ProfileDetailScreen() {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
-                  {editingAsset ? "Edit Aset Kantor" : "Tambah Aset Kantor"}
+                  Edit Aset Kantor
                 </Text>
                 <TouchableOpacity onPress={handleCloseAssetModal}>
                   <Ionicons name="close" size={24} color={colors.textPrimary} />
@@ -491,51 +435,51 @@ export default function ProfileDetailScreen() {
               </View>
 
               <View style={styles.formContainer}>
-                <Text style={styles.fieldLabel}>Nama Aset *</Text>
+                <Text style={styles.fieldLabel}>Nama Aset</Text>
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. Laptop Dell XPS 15"
+                  style={[styles.textInput, { color: colors.textMuted }]}
+                  placeholder="-"
                   placeholderTextColor={colors.textMuted}
-                  value={assetName}
-                  onChangeText={setAssetName}
+                  value={assetName || "-"}
+                  editable={false}
                 />
 
-                <Text style={styles.fieldLabel}>Kode Inventaris / SN *</Text>
+                <Text style={styles.fieldLabel}>Kode Inventaris / SN</Text>
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. SN-2026-001"
+                  style={[styles.textInput, { color: colors.textMuted }]}
+                  placeholder="-"
                   placeholderTextColor={colors.textMuted}
-                  value={assetCode}
-                  onChangeText={setAssetCode}
+                  value={assetCode || "-"}
+                  editable={false}
                 />
 
-                <Text style={styles.fieldLabel}>Kategori Aset *</Text>
+                <Text style={styles.fieldLabel}>Kategori Aset</Text>
                 <TouchableOpacity
-                  style={styles.pickerSelector}
-                  onPress={() => setShowCategoryPicker(true)}
-                  activeOpacity={0.7}
+                  style={[styles.pickerSelector, { backgroundColor: colors.surface }]}
+                  disabled={true}
+                  activeOpacity={1}
                 >
-                  <Text style={[styles.pickerSelectorText, !selectedCategoryId && { color: colors.textMuted }]}>
-                    {selectedCategoryId ? (categories.find(c => c.id === selectedCategoryId)?.name || "Kategori Terpilih") : "Pilih kategori aset..."}
+                  <Text style={[styles.pickerSelectorText, { color: colors.textMuted }]}>
+                    {selectedCategoryId ? (categories.find(c => c.id === selectedCategoryId)?.name || "-") : "-"}
                   </Text>
-                  <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+                  <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
 
                 <Text style={styles.fieldLabel}>Biaya Aset (Cost)</Text>
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. 15000000"
+                  style={[styles.textInput, { color: colors.textMuted }]}
+                  placeholder="-"
                   placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
-                  value={assetCost}
-                  onChangeText={setAssetCost}
+                  value={assetCost || "-"}
+                  editable={false}
                 />
 
-                <Text style={styles.fieldLabel}>Catatan (Note)</Text>
+                <Text style={styles.fieldLabel}>Catatan (Note) *</Text>
                 <TextInput
                   style={[styles.textInput, { height: hpx(60), paddingTop: spacing.xs, paddingBottom: spacing.xs }]}
                   multiline
-                  placeholder="e.g. Laptop untuk development"
+                  placeholder="-"
                   placeholderTextColor={colors.textMuted}
                   value={assetNote}
                   onChangeText={setAssetNote}

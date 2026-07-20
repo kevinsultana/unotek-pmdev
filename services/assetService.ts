@@ -17,6 +17,7 @@ export function mapEquipmentToAsset(eq: any): Asset {
     name: eq.name,
     code: eq.serial_no || eq.code || "-",
     category: mapCategory(eq.category?.name),
+    category_name: eq.category?.name || "Lainnya",
     status: eq.active !== false ? "active" : "broken",
     category_id: eq.category_id,
     employee_id: eq.employee_id,
