@@ -307,9 +307,9 @@ export const maintenanceService = {
     return mapServerRequest(serverReq, imagesMap);
   },
 
-  async listEquipments(search?: string): Promise<Equipment[]> {
+  async listEquipments(params?: { employee_id?: number; search?: string }): Promise<Equipment[]> {
     const res = await api.get<{ success: boolean; data: any[] }>("/equipments", {
-      params: { page: 1, per_page: 100, search }
+      params: { page: 1, per_page: 100, ...params }
     });
     if (res.data && res.data.success && Array.isArray(res.data.data)) {
       return res.data.data;

@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { maintenanceService } from "../services/maintenanceService";
+import { useProfile } from "../hooks/useProfile";
 import {
   colors,
   hpx,
@@ -52,6 +53,7 @@ const MAINTENANCE_TYPES = [
 ] as const;
 
 export default function MaintenanceFormScreen() {
+  const { profile } = useProfile();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
@@ -89,12 +91,15 @@ export default function MaintenanceFormScreen() {
   const [showStagePicker, setShowStagePicker] = useState(false);
   const [isMetadataLoading, setIsMetadataLoading] = useState(false);
 
-  // Load equipments list and teams/stages metadata
+  // Load equipments list
   useEffect(() => {
+    const empId = profile?.employee?.id;
+    if (!empId) return;
+
     const loadEquipments = async () => {
       setIsEquipmentsLoading(true);
       try {
-        const data = await maintenanceService.listEquipments();
+        const data = await maintenanceService.listEquipments({ employee_id: empId });
         setEquipments(data);
       } catch (err) {
         console.warn("Failed to load equipments list:", err);
@@ -103,6 +108,11 @@ export default function MaintenanceFormScreen() {
       }
     };
 
+    loadEquipments();
+  }, [profile?.employee?.id]);
+
+  // Load teams/stages metadata
+  useEffect(() => {
     const loadMetadata = async () => {
       setIsMetadataLoading(true);
       try {
@@ -119,7 +129,6 @@ export default function MaintenanceFormScreen() {
       }
     };
 
-    loadEquipments();
     loadMetadata();
   }, []);
 
@@ -252,7 +261,7 @@ export default function MaintenanceFormScreen() {
     const cleanTitle = (title || "").trim();
     const cleanDescription = (description || "").trim();
 
-    if (!cleanAssetName || !cleanAssetCode || !cleanTitle || !cleanDescription) {
+    if (!equipmentId || !cleanTitle || !cleanDescription) {
       showToast("error", "Validasi", "Harap isi semua kolom form yang diwajibkan.");
       return;
     }
@@ -375,23 +384,13 @@ export default function MaintenanceFormScreen() {
             </View>
 
             {/* Selector Aset Terdaftar */}
-            <View style={styles.selectorHeaderRow}>
-              <Text style={styles.label}>Aset / Peralatan Terdaftar <Text style={styles.optional}>(Opsional)</Text></Text>
-              <TouchableOpacity
-                onPress={() => setShowEquipmentPicker(true)}
-                style={styles.selectAssetBtn}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="search" size={14} color={colors.primary} />
-                <Text style={styles.selectAssetBtnText}>Cari Aset</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.label}>Aset Kantor <Text style={styles.required}>*</Text></Text>
 
             {equipmentId ? (
               <View style={styles.selectedAssetContainer}>
                 <Ionicons name="checkmark-circle" size={18} color="#059669" />
                 <Text style={styles.selectedAssetText} numberOfLines={1}>
-                  Terhubung: {assetName} ({assetCode})
+                  {assetName} ({assetCode})
                 </Text>
                 <TouchableOpacity onPress={() => {
                   setEquipmentId(null);
@@ -401,33 +400,18 @@ export default function MaintenanceFormScreen() {
                   <Ionicons name="close-circle" size={18} color="#DC2626" />
                 </TouchableOpacity>
               </View>
-            ) : null}
-
-            {/* 2. Asset Name */}
-            <Text style={styles.label}>Nama Aset Kantor <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Contoh: Laptop Asus ROG / Kursi Kerja"
-              placeholderTextColor={colors.textMuted}
-              value={assetName}
-              onChangeText={(text) => {
-                setAssetName(text);
-                if (equipmentId) setEquipmentId(null);
-              }}
-            />
-
-            {/* 3. Asset Code */}
-            <Text style={styles.label}>Kode Inventaris / Serial Number <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Contoh: AST-UNOTEK-009 / SN-8927498"
-              placeholderTextColor={colors.textMuted}
-              value={assetCode}
-              onChangeText={(text) => {
-                setAssetCode(text);
-                if (equipmentId) setEquipmentId(null);
-              }}
-            />
+            ) : (
+              <TouchableOpacity
+                style={styles.pickerSelector}
+                onPress={() => setShowEquipmentPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pickerSelectorText, { color: colors.textMuted }]}>
+                  Pilih Aset Kantor...
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
 
             {/* 4. Urgency Segmented Control */}
             <Text style={styles.label}>Tingkat Urgensi <Text style={styles.required}>*</Text></Text>
