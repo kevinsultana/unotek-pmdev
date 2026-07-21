@@ -68,16 +68,14 @@ export default function EventScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
-  // Date filters (Default range: from 7 days ago to 30 days ahead)
+  // Date filters (Default range: from 1st of current month to 1st of next month)
   const [dateFrom, setDateFrom] = useState<Date>(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d;
+    return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [dateTo, setDateTo] = useState<Date>(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d;
+    return new Date(d.getFullYear(), d.getMonth() + 1, 1);
   });
   const [showPicker, setShowPicker] = useState<"from" | "to" | null>(null);
 
