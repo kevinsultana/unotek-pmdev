@@ -101,6 +101,7 @@ export default function HomeScreen() {
     }, [refreshUser, refreshTasks]),
   );
 
+  const companyName = profile?.employee?.company || "placheloder";
   const userName = profile?.employee?.name || "User";
   const initials = userName.charAt(0).toUpperCase();
   const hour = new Date().getHours();
@@ -133,6 +134,9 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{greeting},</Text>
             <Text style={styles.userName} numberOfLines={1}>
               {userName}
+            </Text>
+            <Text style={styles.companyName} numberOfLines={1}>
+              {companyName}
             </Text>
           </View>
           <View style={styles.avatarWrap}>
@@ -320,6 +324,12 @@ const styles = StyleSheet.create({
     fontSize: rf(22),
     fontWeight: "800" as any,
     color: "#FFFFFF",
+    marginBottom: hpx(2),
+  },
+  companyName: {
+    fontSize: rf(11),
+    fontWeight: "800" as any,
+    color: "#eaeaeaff",
   },
   avatarWrap: {
     width: wpx(48),
