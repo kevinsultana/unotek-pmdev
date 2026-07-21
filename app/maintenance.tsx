@@ -63,6 +63,18 @@ const CATEGORY_MAP: Record<
   other: { label: "Lainnya", icon: "help-circle-outline", color: "#6B7280", bg: "#F3F4F6" },
 };
 
+const stripHtml = (htmlStr?: string | null) => {
+  if (!htmlStr) return "";
+  return htmlStr
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+};
+
 export default function MaintenanceScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -94,7 +106,7 @@ export default function MaintenanceScreen() {
     if (!userId) return;
     if (showIndicator) setIsLoading(true);
     try {
-      const data = await maintenanceService.list({ user_id: userId });
+      const data = await maintenanceService.list({ owner_user_id: userId });
       setRequests(data || []);
     } catch (err: any) {
       console.error("fetchRequests error:", err);
@@ -581,23 +593,41 @@ export default function MaintenanceScreen() {
                 </View>
 
                 {/* Category */}
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Kategori</Text>
-                  {(() => {
-                    const cat = CATEGORY_MAP[selectedDetail.category] || CATEGORY_MAP.other;
-                    return (
+                <View style={styles.detailGridRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailLabel}>Kategori</Text>
+                    {(() => {
+                      const cat = CATEGORY_MAP[selectedDetail.category] || CATEGORY_MAP.other;
+                      return (
+                        <View
+                          style={[
+                            styles.badge,
+                            { backgroundColor: cat.bg, alignSelf: "flex-start", marginTop: 4 },
+                          ]}
+                        >
+                          <Text style={[styles.badgeText, { color: cat.color, fontWeight: "700" }]}>
+                            {cat.label}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+
+                  {selectedDetail.problem_category_name ? (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailLabel}>Kategori Detail</Text>
                       <View
                         style={[
                           styles.badge,
-                          { backgroundColor: cat.bg, alignSelf: "flex-start", marginTop: 4 },
+                          { backgroundColor: colors.primaryLight, alignSelf: "flex-start", marginTop: 4 },
                         ]}
                       >
-                        <Text style={[styles.badgeText, { color: cat.color, fontWeight: "700" }]}>
-                          {cat.label}
+                        <Text style={[styles.badgeText, { color: colors.primary, fontWeight: "700" }]}>
+                          {selectedDetail.problem_category_name}
                         </Text>
                       </View>
-                    );
-                  })()}
+                    </View>
+                  ) : null}
                 </View>
 
                 {/* Asset info */}
@@ -620,11 +650,11 @@ export default function MaintenanceScreen() {
                 {/* Description */}
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Deskripsi Kerusakan</Text>
-                  <Text style={styles.detailValueDesc}>{selectedDetail.description}</Text>
+                  <Text style={styles.detailValueDesc}>{stripHtml(selectedDetail.description) || "-"}</Text>
                 </View>
 
                 {/* Photos */}
-                {selectedDetail.images && selectedDetail.images.length > 0 ? (
+                {((selectedDetail.attachments && selectedDetail.attachments.length > 0) || (selectedDetail.images && selectedDetail.images.length > 0)) ? (
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Foto Bukti Kerusakan</Text>
                     <ScrollView
@@ -632,15 +662,27 @@ export default function MaintenanceScreen() {
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={{ gap: spacing.sm, paddingTop: spacing.xs }}
                     >
-                      {selectedDetail.images.map((imgUri, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          activeOpacity={0.9}
-                          onPress={() => setActivePreviewUri(imgUri)}
-                        >
-                          <Image source={{ uri: imgUri }} style={styles.detailImageThumb} />
-                        </TouchableOpacity>
-                      ))}
+                      {selectedDetail.attachments && selectedDetail.attachments.length > 0 ? (
+                        selectedDetail.attachments.map((att) => (
+                          <TouchableOpacity
+                            key={att.id}
+                            activeOpacity={0.9}
+                            onPress={() => setActivePreviewUri(att.url)}
+                          >
+                            <Image source={{ uri: att.url }} style={styles.detailImageThumb} />
+                          </TouchableOpacity>
+                        ))
+                      ) : (
+                        selectedDetail.images?.map((imgUri, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            activeOpacity={0.9}
+                            onPress={() => setActivePreviewUri(imgUri)}
+                          >
+                            <Image source={{ uri: imgUri }} style={styles.detailImageThumb} />
+                          </TouchableOpacity>
+                        ))
+                      )}
                     </ScrollView>
                   </View>
                 ) : null}
@@ -657,7 +699,7 @@ export default function MaintenanceScreen() {
                       />
                       <Text style={styles.notesTitle}>Catatan Penanganan Teknisi</Text>
                     </View>
-                    <Text style={styles.notesBody}>{selectedDetail.notes}</Text>
+                    <Text style={styles.notesBody}>{stripHtml(selectedDetail.notes) || "-"}</Text>
                   </View>
                 ) : null}
 

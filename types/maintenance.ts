@@ -1,3 +1,14 @@
+export interface ProblemCategory {
+  id: number;
+  name: string;
+}
+
+export interface MaintenanceAttachment {
+  id: number;
+  name: string;
+  url: string;
+}
+
 export interface Equipment {
   id: number;
   name: string;
@@ -36,6 +47,9 @@ export interface MaintenanceRequest {
   stage_id?: number;
   maintenance_team_id?: number;
   maintenance_type?: "corrective" | "preventive";
+  problem_category_id?: number;
+  problem_category_name?: string;
+  attachments?: MaintenanceAttachment[];
 }
 
 export type CreateMaintenanceRequest = Omit<MaintenanceRequest, "id" | "state" | "date" | "notes">;

@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import type { ApiResponse } from "../types/api";
-import { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam } from "../types/maintenance";
+import { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam, ProblemCategory, MaintenanceAttachment } from "../types/maintenance";
 import { api } from "./api";
 
 let SecureStore: typeof import("expo-secure-store") | null = null;
@@ -108,6 +108,8 @@ async function mapServerRequest(item: any, imagesMap: Record<number, string[]>):
     stage_id: item.stage_id,
     maintenance_team_id: item.maintenance_team_id,
     maintenance_type: item.maintenance_type || "corrective",
+    problem_category_id: item.problem_category_id || item.problem_category?.id,
+    problem_category_name: item.problem_category?.name,
   };
 }
 
@@ -171,7 +173,14 @@ export const maintenanceService = {
     const res = await api.get<ApiResponse<any>>(`/maintenance-requests/${id}`);
     if (res.data && res.data.success && res.data.data) {
       const imagesMap = await getLocalImagesMap();
-      return mapServerRequest(res.data.data, imagesMap);
+      const mapped = await mapServerRequest(res.data.data, imagesMap);
+      try {
+        const atts = await this.listAttachments(id);
+        mapped.attachments = atts;
+      } catch (err) {
+        console.warn("Failed to load attachments in getById:", err);
+      }
+      return mapped;
     }
     return null;
   },
@@ -207,6 +216,7 @@ export const maintenanceService = {
       priority: urgencyToPriority(req.urgency),
       maintenance_team_id: req.maintenance_team_id,
       stage_id: req.stage_id,
+      problem_category_id: req.problem_category_id,
     });
 
     const serverReq = res.data.data;
@@ -241,6 +251,7 @@ export const maintenanceService = {
       stage_id: req.stage_id,
       maintenance_type: req.maintenance_type,
       maintenance_team_id: req.maintenance_team_id,
+      problem_category_id: req.problem_category_id,
     };
 
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
@@ -290,6 +301,7 @@ export const maintenanceService = {
       priority: urgencyToPriority(draft.urgency),
       maintenance_team_id: draft.maintenance_team_id,
       stage_id: draft.stage_id,
+      problem_category_id: draft.problem_category_id,
     });
 
     const serverReq = res.data.data;
@@ -331,5 +343,52 @@ export const maintenanceService = {
       return res.data.data;
     }
     return [];
+  },
+
+  async listProblemCategories(): Promise<ProblemCategory[]> {
+    const res = await api.get<ApiResponse<any[]>>("/maintenance-problem-categories");
+    if (res.data && res.data.success && Array.isArray(res.data.data)) {
+      return res.data.data;
+    }
+    return [];
+  },
+
+  async uploadAttachment(fileUri: string, requestId?: number): Promise<ApiResponse<MaintenanceAttachment>> {
+    const formData = new FormData();
+    const uriParts = fileUri.split(".");
+    const fileExtension = uriParts[uriParts.length - 1] || "jpg";
+
+    formData.append("file", {
+      uri: fileUri,
+      name: `attachment_${Date.now()}.${fileExtension}`,
+      type: `image/${fileExtension === "png" ? "png" : "jpeg"}`,
+    } as any);
+
+    if (requestId !== undefined) {
+      formData.append("request_id", String(requestId));
+    }
+
+    const res = await api.post<ApiResponse<MaintenanceAttachment>>(
+      "/maintenance-requests/upload-attachment",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return res.data;
+  },
+
+  async listAttachments(requestId: number): Promise<MaintenanceAttachment[]> {
+    const res = await api.get<ApiResponse<MaintenanceAttachment[]>>(`/maintenance-requests/${requestId}/attachments`);
+    if (res.data && res.data.success && Array.isArray(res.data.data)) {
+      return res.data.data;
+    }
+    return [];
+  },
+
+  async deleteAttachment(attachmentId: number): Promise<void> {
+    await api.delete<ApiResponse<null>>(`/maintenance-requests/attachments/${attachmentId}`);
   }
 };

@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -30,7 +31,7 @@ import {
   spacing,
   wpx,
 } from "../src/constants/theme";
-import type { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam } from "../types/maintenance";
+import type { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam, ProblemCategory, MaintenanceAttachment } from "../types/maintenance";
 import { showToast } from "../utils/toast";
 
 const URGENCY_LEVELS = [
@@ -91,6 +92,15 @@ export default function MaintenanceFormScreen() {
   const [showStagePicker, setShowStagePicker] = useState(false);
   const [isMetadataLoading, setIsMetadataLoading] = useState(false);
 
+  // Problem Category Selector State
+  const [problemCategories, setProblemCategories] = useState<ProblemCategory[]>([]);
+  const [problemCategoryId, setProblemCategoryId] = useState<number | null>(null);
+  const [showProblemCategoryPicker, setShowProblemCategoryPicker] = useState(false);
+
+  // Existing Attachments State
+  const [existingAttachments, setExistingAttachments] = useState<MaintenanceAttachment[]>([]);
+  const [isDeletingAttachmentId, setIsDeletingAttachmentId] = useState<number | null>(null);
+
   // Load equipments list
   useEffect(() => {
     const empId = profile?.employee?.id;
@@ -111,19 +121,21 @@ export default function MaintenanceFormScreen() {
     loadEquipments();
   }, [profile?.employee?.id]);
 
-  // Load teams/stages metadata
+  // Load teams/stages/problem-categories metadata
   useEffect(() => {
     const loadMetadata = async () => {
       setIsMetadataLoading(true);
       try {
-        const [teamsData, stagesData] = await Promise.all([
+        const [teamsData, stagesData, problemCatsData] = await Promise.all([
           maintenanceService.listTeams(),
-          maintenanceService.listStages()
+          maintenanceService.listStages(),
+          maintenanceService.listProblemCategories(),
         ]);
         setTeams(teamsData);
         setStages(stagesData);
+        setProblemCategories(problemCatsData);
       } catch (err) {
-        console.warn("Failed to load teams or stages metadata:", err);
+        console.warn("Failed to load teams, stages, or problem categories metadata:", err);
       } finally {
         setIsMetadataLoading(false);
       }
@@ -152,7 +164,7 @@ export default function MaintenanceFormScreen() {
             setUrgency(req.urgency || "low");
             setTitle(req.title || "");
             setDescription(req.description || "");
-            setImages(req.images || []);
+            setImages([]);
             if (req.equipment_id) {
               setEquipmentId(req.equipment_id);
             }
@@ -164,6 +176,17 @@ export default function MaintenanceFormScreen() {
             }
             if (req.stage_id) {
               setStageId(req.stage_id);
+            }
+            if (req.problem_category_id) {
+              setProblemCategoryId(req.problem_category_id);
+            }
+
+            // Load attachments from server
+            try {
+              const atts = await maintenanceService.listAttachments(requestId);
+              setExistingAttachments(atts);
+            } catch (err) {
+              console.warn("Failed to load attachments in edit mode:", err);
             }
           } else {
             showToast("error", "Error", "Pengajuan tidak ditemukan.");
@@ -204,10 +227,27 @@ export default function MaintenanceFormScreen() {
     setEquipmentSearchQuery("");
   };
 
+  const handleSelectProblemCategory = (cat: ProblemCategory) => {
+    setProblemCategoryId(cat.id);
+    const name = cat.name.toLowerCase();
+    if (name.includes("hard") || name.includes("comp") || name.includes("laptop") || name.includes("pc")) {
+      setCategory("hardware");
+    } else if (name.includes("soft") || name.includes("app") || name.includes("licens")) {
+      setCategory("software");
+    } else if (name.includes("fac") || name.includes("build") || name.includes("room") || name.includes("furn") || name.includes("kursi") || name.includes("meja")) {
+      setCategory("facility");
+    } else {
+      setCategory("other");
+    }
+    setShowProblemCategoryPicker(false);
+  };
+
   // Image Picking Helpers
+  const totalPhotosCount = existingAttachments.length + images.length;
+
   const handlePickFromCamera = async () => {
     setShowImageSourcePicker(false);
-    if (images.length >= 5) {
+    if (totalPhotosCount >= 5) {
       showToast("error", "Validasi", "Maksimal 5 foto bukti kerusakan.");
       return;
     }
@@ -228,7 +268,7 @@ export default function MaintenanceFormScreen() {
 
   const handlePickFromGallery = async () => {
     setShowImageSourcePicker(false);
-    const maxRemaining = 5 - images.length;
+    const maxRemaining = 5 - totalPhotosCount;
     if (maxRemaining <= 0) {
       showToast("error", "Validasi", "Maksimal 5 foto bukti kerusakan.");
       return;
@@ -246,12 +286,38 @@ export default function MaintenanceFormScreen() {
     });
     if (!result.canceled && result.assets) {
       const selectedUris = result.assets.map((asset) => asset.uri);
-      setImages((prev) => [...prev, ...selectedUris].slice(0, 5));
+      setImages((prev) => [...prev, ...selectedUris].slice(0, maxRemaining));
     }
   };
 
   const handleRemoveImage = (index: number) => {
     setImages((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleDeleteAttachment = (attachmentId: number) => {
+    Alert.alert(
+      "Hapus Lampiran",
+      "Apakah Anda yakin ingin menghapus foto bukti kerusakan ini?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeletingAttachmentId(attachmentId);
+            try {
+              await maintenanceService.deleteAttachment(attachmentId);
+              showToast("success", "Berhasil", "Lampiran berhasil dihapus.");
+              setExistingAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+            } catch (err: any) {
+              showToast("error", "Gagal", err?.message || "Gagal menghapus lampiran.");
+            } finally {
+              setIsDeletingAttachmentId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Submit Operations
@@ -261,47 +327,53 @@ export default function MaintenanceFormScreen() {
     const cleanTitle = (title || "").trim();
     const cleanDescription = (description || "").trim();
 
-    if (!equipmentId || !cleanTitle || !cleanDescription) {
-      showToast("error", "Validasi", "Harap isi semua kolom form yang diwajibkan.");
+    if (!equipmentId || !cleanTitle || !cleanDescription || !problemCategoryId) {
+      showToast("error", "Validasi", "Harap isi semua kolom form yang diwajibkan (termasuk Kategori Detail).");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const payload: Omit<MaintenanceRequest, "id" | "date" | "notes"> = {
+      const payload: any = {
         asset_name: cleanAssetName,
         asset_code: cleanAssetCode,
         category,
         urgency,
         title: cleanTitle,
         description: cleanDescription,
-        images,
         state: submitDirectly ? "submitted" : "draft",
         equipment_id: equipmentId || undefined,
         maintenance_type: maintenanceType,
         maintenance_team_id: teamId || undefined,
         stage_id: stageId || undefined,
+        problem_category_id: problemCategoryId || undefined,
       };
 
+      let savedRequest: MaintenanceRequest;
       if (requestId) {
-        await maintenanceService.update(requestId, payload);
-        showToast(
-          "success",
-          "Berhasil",
-          submitDirectly
-            ? "Pengajuan maintenance berhasil dikirim."
-            : "Draft pengajuan berhasil diperbarui."
-        );
+        savedRequest = await maintenanceService.update(requestId, payload);
       } else {
-        await maintenanceService.create(payload);
-        showToast(
-          "success",
-          "Berhasil",
-          submitDirectly
-            ? "Pengajuan maintenance berhasil dikirim."
-            : "Draft pengajuan berhasil disimpan."
-        );
+        savedRequest = await maintenanceService.create(payload);
       }
+
+      // If there are new local images, upload them
+      if (images.length > 0) {
+        for (const imgUri of images) {
+          try {
+            await maintenanceService.uploadAttachment(imgUri, savedRequest.id);
+          } catch (uploadErr) {
+            console.error("Failed to upload attachment:", imgUri, uploadErr);
+          }
+        }
+      }
+
+      showToast(
+        "success",
+        "Berhasil",
+        submitDirectly
+          ? "Pengajuan maintenance berhasil dikirim."
+          : "Pengajuan maintenance berhasil disimpan."
+      );
       router.back();
     } catch (err: any) {
       showToast("error", "Gagal", err?.message || "Gagal menyimpan pengajuan.");
@@ -352,36 +424,16 @@ export default function MaintenanceFormScreen() {
           >
             {/* 1. Category Selector */}
             <Text style={styles.label}>Kategori Masalah <Text style={styles.required}>*</Text></Text>
-            <View style={styles.categoryGrid}>
-              {CATEGORIES.map((cat) => {
-                const isSelected = category === cat.value;
-                return (
-                  <TouchableOpacity
-                    key={cat.value}
-                    style={[
-                      styles.categoryCard,
-                      isSelected && styles.categoryCardSelected,
-                    ]}
-                    onPress={() => setCategory(cat.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={20}
-                      color={isSelected ? colors.primary : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.categoryCardText,
-                        isSelected && styles.categoryCardTextSelected,
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TouchableOpacity
+              style={styles.pickerSelector}
+              onPress={() => setShowProblemCategoryPicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.pickerSelectorText, !problemCategoryId && { color: colors.textMuted }]}>
+                {problemCategoryId ? (problemCategories.find(c => c.id === problemCategoryId)?.name || "Kategori Terpilih") : "Pilih Kategori Masalah..."}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
 
             {/* Selector Aset Terdaftar */}
             <Text style={styles.label}>Aset Kantor <Text style={styles.required}>*</Text></Text>
@@ -526,9 +578,44 @@ export default function MaintenanceFormScreen() {
             />
 
             {/* 7. Image Pickers */}
+            {requestId && existingAttachments.length > 0 && (
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.label}>Foto Terlampir (Server)</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.photoList}
+                >
+                  {existingAttachments.map((att) => (
+                    <View key={att.id} style={styles.photoContainer}>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => setActivePreviewUri(att.url)}
+                      >
+                        <Image source={{ uri: att.url }} style={styles.photoThumb} />
+                      </TouchableOpacity>
+                      {isDeletingAttachmentId === att.id ? (
+                        <View style={[styles.photoRemoveBtn, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.photoRemoveBtn}
+                          activeOpacity={0.7}
+                          onPress={() => handleDeleteAttachment(att.id)}
+                        >
+                          <Ionicons name="close" size={14} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             <View style={styles.photoSectionHeader}>
-              <Text style={styles.label}>Foto Bukti Kerusakan ({images.length}/5)</Text>
-              {images.length < 5 && (
+              <Text style={styles.label}>Foto Baru ({totalPhotosCount}/5)</Text>
+              {totalPhotosCount < 5 && (
                 <TouchableOpacity
                   onPress={() => setShowImageSourcePicker(true)}
                   style={styles.addPhotoTextBtn}
@@ -563,7 +650,7 @@ export default function MaintenanceFormScreen() {
                   </View>
                 ))}
               </ScrollView>
-            ) : (
+            ) : existingAttachments.length === 0 ? (
               <TouchableOpacity
                 style={styles.photoPlaceholder}
                 onPress={() => setShowImageSourcePicker(true)}
@@ -577,7 +664,7 @@ export default function MaintenanceFormScreen() {
                   Ketuk untuk mengambil foto atau pilih dari galeri.
                 </Text>
               </TouchableOpacity>
-            )}
+            ) : null}
 
             {/* Action Buttons */}
             <View style={styles.actionButtonsContainer}>
@@ -894,6 +981,76 @@ export default function MaintenanceFormScreen() {
                     {stage.name}
                   </Text>
                   {stageId === stage.id && (
+                    <Ionicons name="checkmark" size={16} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Problem Category Picker Modal */}
+      <Modal
+        visible={showProblemCategoryPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowProblemCategoryPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowProblemCategoryPicker(false)} />
+          <View style={styles.modalStatusSelectContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pilih Kategori Detail</Text>
+              <TouchableOpacity onPress={() => setShowProblemCategoryPicker(false)}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[
+                  styles.categoryItem,
+                  !problemCategoryId && styles.categoryItemActive,
+                ]}
+                onPress={() => {
+                  setProblemCategoryId(null);
+                  setShowProblemCategoryPicker(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.categoryItemText,
+                    !problemCategoryId && styles.categoryItemTextActive,
+                  ]}
+                >
+                  Tanpa Kategori Detail
+                </Text>
+                {!problemCategoryId && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+
+              {problemCategories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.categoryItem,
+                    problemCategoryId === cat.id && styles.categoryItemActive,
+                  ]}
+                  onPress={() => handleSelectProblemCategory(cat)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.categoryItemText,
+                      problemCategoryId === cat.id && styles.categoryItemTextActive,
+                    ]}
+                  >
+                    {cat.name}
+                  </Text>
+                  {problemCategoryId === cat.id && (
                     <Ionicons name="checkmark" size={16} color={colors.primary} />
                   )}
                 </TouchableOpacity>
