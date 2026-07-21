@@ -23,6 +23,7 @@ export function mapEquipmentToAsset(eq: any): Asset {
     employee_id: eq.employee_id,
     note: eq.note || "",
     cost: eq.cost || 0,
+    assign_date: eq.assign_date || null,
   };
 }
 

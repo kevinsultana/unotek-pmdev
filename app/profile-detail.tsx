@@ -64,6 +64,26 @@ const formatBirthday = (bdayStr?: string | null) => {
   }
 };
 
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return "-";
+  try {
+    const datePart = dateStr.split(" ")[0];
+    const parts = datePart.split("-");
+    if (parts.length !== 3) return dateStr;
+    const year = parts[0];
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    
+    const months = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    return `${day} ${months[monthIdx]} ${year}`;
+  } catch {
+    return dateStr;
+  }
+};
+
 const mapGender = (sex?: string | null) => {
   if (!sex) return "—";
   if (sex === "male") return "Laki-laki";
@@ -470,16 +490,16 @@ export default function ProfileDetailScreen() {
                     Kategori Aset
                   </Text>
                   <Text style={{ fontSize: rf(15), fontWeight: "600", color: colors.textPrimary }}>
-                    {selectedCategoryId ? (categories.find(c => c.id === selectedCategoryId)?.name || "-") : "-"}
+                    {editingAsset?.category_name || "-"}
                   </Text>
                 </View>
 
                 <View style={{ marginBottom: spacing.sm }}>
                   <Text style={{ fontSize: rf(11), fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", marginBottom: hpx(2) }}>
-                    Biaya Aset (Cost)
+                    Tanggal Penyerahan (Assign Date)
                   </Text>
                   <Text style={{ fontSize: rf(15), fontWeight: "600", color: colors.textPrimary }}>
-                    {assetCost || "-"}
+                    {formatDate(editingAsset?.assign_date)}
                   </Text>
                 </View>
 

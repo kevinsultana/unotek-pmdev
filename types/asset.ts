@@ -9,4 +9,5 @@ export interface Asset {
   employee_id?: number;
   note?: string;
   cost?: number;
+  assign_date?: string | null;
 }
