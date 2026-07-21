@@ -1,5 +1,6 @@
 export interface AttendanceStatus {
-  employee: {
+  attendance_state?: "checked_in" | "checked_out";
+  employee?: {
     id: number;
     name: string;
     attendance_state: "checked_in" | "checked_out";

@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -50,11 +51,13 @@ export default function KehadiranScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
-  const hasCheckedIn = attStatus?.employee?.attendance_state === "checked_in";
   const todayRecords = attStatus?.today ?? [];
   const lastRecord = todayRecords[todayRecords.length - 1];
+  const hasCheckedIn =
+    attStatus?.attendance_state === "checked_in" ||
+    attStatus?.employee?.attendance_state === "checked_in";
   const hasCheckedOutToday =
-    todayRecords.length > 0 && lastRecord?.check_out !== null;
+    !hasCheckedIn && todayRecords.length > 0 && !!lastRecord?.check_out;
 
   const formatTime = (isoString: string | null | undefined) => {
     if (!isoString) return "";
@@ -237,6 +240,24 @@ export default function KehadiranScreen() {
     }
   };
 
+  const handlePressCheckInScreen = () => {
+    if (hasCheckedOutToday) {
+      Alert.alert(
+        "Konfirmasi Presensi",
+        "Anda sudah melakukan Check Out hari ini. Apakah Anda yakin ingin melakukan Check In kembali?",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Ya, Check In",
+            onPress: () => openAttendanceFlow("checkin"),
+          },
+        ]
+      );
+    } else {
+      openAttendanceFlow("checkin");
+    }
+  };
+
   const handleConfirmAttendance = async () => {
     if (!photoUri) {
       showToast("error", "Kamera", "Silakan ambil foto selfie terlebih dahulu.");
@@ -271,11 +292,12 @@ export default function KehadiranScreen() {
       setGpsCoords(null);
       setGpsAddress(null);
     } catch (error: any) {
-      showToast(
-        "error",
-        "Presensi Gagal",
-        error?.response?.data?.message || "Coba lagi.",
-      );
+      console.error("[KehadiranScreen] handleConfirmAttendance error:", error);
+      const errMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Coba lagi.";
+      showToast("error", "Presensi Gagal", errMsg);
     } finally {
       setIsSubmittingAttendance(false);
     }
@@ -306,6 +328,62 @@ export default function KehadiranScreen() {
       >
         {/* Floating Clock Card */}
         <View style={styles.floatingCard}>
+          {/* Status Banner */}
+          {attStatus ? (
+            <View
+              style={[
+                styles.statusBanner,
+                hasCheckedOutToday
+                  ? styles.bannerComplete
+                  : hasCheckedIn
+                    ? styles.bannerIn
+                    : styles.bannerOut,
+              ]}
+            >
+              <Ionicons
+                name={
+                  hasCheckedOutToday
+                    ? "checkmark-done-circle"
+                    : hasCheckedIn
+                      ? "checkmark-circle-outline"
+                      : "alert-circle-outline"
+                }
+                size={rf(14)}
+                color={
+                  hasCheckedOutToday
+                    ? colors.primary
+                    : hasCheckedIn
+                      ? colors.success
+                      : colors.amber
+                }
+              />
+              <Text
+                style={[
+                  styles.statusBannerText,
+                  {
+                    color: hasCheckedOutToday
+                      ? colors.primary
+                      : hasCheckedIn
+                        ? colors.success
+                        : colors.amber,
+                  },
+                ]}
+              >
+                {hasCheckedOutToday
+                  ? "Sudah Check-In & Check-Out"
+                  : hasCheckedIn
+                    ? "Sudah Absen Masuk"
+                    : "Belum Absen Masuk"}
+              </Text>
+            </View>
+          ) : attLoading ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.primary}
+              style={{ marginBottom: hpx(12) }}
+            />
+          ) : null}
+
           <Text style={styles.clockDate}>{currentDate}</Text>
           <Text style={styles.clockTime}>{currentTime}</Text>
           <View style={styles.pulseRow}>
@@ -313,6 +391,15 @@ export default function KehadiranScreen() {
             <Text style={styles.pulseLabel}>Waktu Kerja Aktif</Text>
           </View>
         </View>
+
+        {hasCheckedIn && todayRecords.length === 0 && (
+          <View style={styles.warningCard}>
+            <Ionicons name="warning-outline" size={rf(20)} color="#D97706" />
+            <Text style={styles.warningText}>
+              Anda memiliki sesi presensi aktif dari hari sebelumnya yang belum ditutup. Silakan lakukan Check Out terlebih dahulu untuk menyinkronkan data.
+            </Text>
+          </View>
+        )}
 
         {/* Attendance action */}
         <View style={styles.actionCard}>
@@ -327,28 +414,30 @@ export default function KehadiranScreen() {
             <>
               <Text style={styles.actionDesc}>
                 {hasCheckedOutToday
-                  ? "Presensi hari ini sudah lengkap."
+                  ? "Presensi hari ini sudah lengkap. Anda bisa Check In kembali jika diperlukan."
                   : hasCheckedIn
                     ? "Anda sedang aktif bekerja. Lakukan Check Out jika jam kerja selesai."
                     : "Lakukan Check In dengan selfie & GPS untuk mulai bekerja."}
               </Text>
-              {!hasCheckedOutToday && (
-                <TouchableOpacity
-                  style={[
-                    styles.attBtn,
-                    hasCheckedIn ? styles.attBtnOut : styles.attBtnIn,
-                  ]}
-                  onPress={() =>
-                    openAttendanceFlow(hasCheckedIn ? "checkout" : "checkin")
+              <TouchableOpacity
+                style={[
+                  styles.attBtn,
+                  hasCheckedIn ? styles.attBtnOut : styles.attBtnIn,
+                ]}
+                onPress={() => {
+                  if (hasCheckedIn) {
+                    openAttendanceFlow("checkout");
+                  } else {
+                    handlePressCheckInScreen();
                   }
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="finger-print" size={wpx(22)} color="#FFFFFF" />
-                  <Text style={styles.attBtnText}>
-                    {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
-                  </Text>
-                </TouchableOpacity>
-              )}
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="finger-print" size={wpx(22)} color="#FFFFFF" />
+                <Text style={styles.attBtnText}>
+                  {hasCheckedIn ? "Check Out Sekarang" : "Check In Sekarang"}
+                </Text>
+              </TouchableOpacity>
               {todayRecords.map((record, idx) => {
                 const inTime = formatTime(record.check_in);
                 const outTime = formatTime(record.check_out);
@@ -626,6 +715,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing["2xl"],
     paddingBottom: hpx(40),
     paddingTop: hpx(45),
+  },
+
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wpx(6),
+    paddingHorizontal: wpx(12),
+    paddingVertical: hpx(6),
+    borderRadius: radius.full,
+    marginBottom: hpx(12),
+  },
+  statusBannerText: {
+    fontSize: rf(11),
+    fontWeight: "700" as any,
+  },
+  bannerIn: {
+    backgroundColor: "#D1FAE5",
+  },
+  bannerOut: {
+    backgroundColor: "#FEF3C7",
+  },
+  bannerComplete: {
+    backgroundColor: "#DBEAFE",
+  },
+  warningCard: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    flexDirection: "row",
+    gap: spacing.md,
+    alignItems: "center",
+    marginBottom: hpx(16),
+  },
+  warningText: {
+    flex: 1,
+    fontSize: rf(13),
+    color: "#D97706",
+    lineHeight: rf(18),
+    fontWeight: "500" as any,
   },
 
   // Floating Clock Card

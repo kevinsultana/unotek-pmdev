@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
 import { useProfile } from "../../hooks/useProfile";
+import { useAttendance } from "../../hooks/useAttendance";
 import { useTasks } from "../../hooks/useTasks";
 import {
   colors,
@@ -70,6 +72,11 @@ export default function HomeScreen() {
   const { refreshUser } = useAuth();
   const { profile, isLoading } = useProfile();
   const { tasks, isLoading: tasksLoading, refresh: refreshTasks } = useTasks();
+  const {
+    status: attStatus,
+    isLoading: attLoading,
+    refresh: refreshAttendance,
+  } = useAttendance();
 
   const [clock, setClock] = useState({ time: "", date: "" });
   useEffect(() => {
@@ -98,7 +105,8 @@ export default function HomeScreen() {
     useCallback(() => {
       refreshUser();
       refreshTasks();
-    }, [refreshUser, refreshTasks]),
+      refreshAttendance();
+    }, [refreshUser, refreshTasks, refreshAttendance]),
   );
 
   const companyName = profile?.employee?.company || "placheloder";
@@ -114,6 +122,32 @@ export default function HomeScreen() {
           ? "Selamat Sore"
           : "Selamat Malam";
   const recentTasks = tasks.slice(0, 5);
+
+  const todayRecords = attStatus?.today ?? [];
+  const lastRecord = todayRecords[todayRecords.length - 1];
+  const hasCheckedIn =
+    attStatus?.attendance_state === "checked_in" ||
+    attStatus?.employee?.attendance_state === "checked_in";
+  const hasCheckedOutToday =
+    !hasCheckedIn && todayRecords.length > 0 && !!lastRecord?.check_out;
+
+  const handlePressCheckIn = () => {
+    if (hasCheckedOutToday) {
+      Alert.alert(
+        "Konfirmasi Presensi",
+        "Anda sudah melakukan Check Out hari ini. Apakah Anda yakin ingin melakukan Check In kembali?",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Ya, Check In",
+            onPress: () => router.push("/kehadiran"),
+          },
+        ]
+      );
+    } else {
+      router.push("/kehadiran");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -176,32 +210,101 @@ export default function HomeScreen() {
 
         {/* ── Attendance Hero Card ──────────────────────────────────── */}
         <View style={styles.heroCard}>
+          {/* Status Banner */}
+          {attStatus ? (
+            <View
+              style={[
+                styles.statusBanner,
+                hasCheckedOutToday
+                  ? styles.bannerComplete
+                  : hasCheckedIn
+                    ? styles.bannerIn
+                    : styles.bannerOut,
+              ]}
+            >
+              <Ionicons
+                name={
+                  hasCheckedOutToday
+                    ? "checkmark-done-circle"
+                    : hasCheckedIn
+                      ? "checkmark-circle-outline"
+                      : "alert-circle-outline"
+                }
+                size={rf(14)}
+                color={
+                  hasCheckedOutToday
+                    ? colors.primary
+                    : hasCheckedIn
+                      ? colors.success
+                      : colors.amber
+                }
+              />
+              <Text
+                style={[
+                  styles.statusBannerText,
+                  {
+                    color: hasCheckedOutToday
+                      ? colors.primary
+                      : hasCheckedIn
+                        ? colors.success
+                        : colors.amber,
+                  },
+                ]}
+              >
+                {hasCheckedOutToday
+                  ? "Sudah Check-In & Check-Out"
+                  : hasCheckedIn
+                    ? "Sudah Absen Masuk"
+                    : "Belum Absen Masuk"}
+              </Text>
+            </View>
+          ) : attLoading ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.primary}
+              style={{ marginBottom: hpx(12) }}
+            />
+          ) : null}
+
+          {/* Warning outstanding session */}
+          {hasCheckedIn && todayRecords.length === 0 && (
+            <View style={styles.warningCard}>
+              <Ionicons name="warning-outline" size={rf(18)} color="#D97706" />
+              <Text style={styles.warningText}>
+                Anda memiliki sesi presensi aktif dari hari sebelumnya yang belum ditutup. Silakan lakukan Check Out terlebih dahulu.
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.heroDate}>{clock.date}</Text>
           <Text style={styles.heroTime}>{clock.time}</Text>
           <View style={styles.pulseDot} />
           <View style={styles.heroActions}>
-            <TouchableOpacity
-              style={[styles.heroBtn, styles.heroBtnIn]}
-              onPress={() => router.push("/kehadiran")}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="finger-print" size={wpx(18)} color="#FFFFFF" />
-              <Text style={styles.heroBtnText}>Check In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.heroBtn, styles.heroBtnOut]}
-              onPress={() => router.push("/kehadiran")}
-              activeOpacity={0.85}
-            >
-              <Ionicons
-                name="exit-outline"
-                size={wpx(18)}
-                color={colors.error}
-              />
-              <Text style={[styles.heroBtnText, { color: colors.error }]}>
-                Check Out
-              </Text>
-            </TouchableOpacity>
+            {!hasCheckedIn ? (
+              <TouchableOpacity
+                style={[styles.heroBtn, styles.heroBtnIn]}
+                onPress={handlePressCheckIn}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="finger-print" size={wpx(18)} color="#FFFFFF" />
+                <Text style={styles.heroBtnText}>Check In</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.heroBtn, styles.heroBtnOut]}
+                onPress={() => router.push("/kehadiran")}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="exit-outline"
+                  size={wpx(18)}
+                  color={colors.error}
+                />
+                <Text style={[styles.heroBtnText, { color: colors.error }]}>
+                  Check Out
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -394,6 +497,47 @@ const styles = StyleSheet.create({
   },
 
   // ── Attendance Hero Card ───────────────────────────────────────────
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wpx(6),
+    paddingHorizontal: wpx(12),
+    paddingVertical: hpx(6),
+    borderRadius: radius.full,
+    marginBottom: hpx(12),
+  },
+  statusBannerText: {
+    fontSize: rf(11),
+    fontWeight: "700" as any,
+  },
+  bannerIn: {
+    backgroundColor: "#D1FAE5",
+  },
+  bannerOut: {
+    backgroundColor: "#FEF3C7",
+  },
+  bannerComplete: {
+    backgroundColor: "#DBEAFE",
+  },
+  warningCard: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+    marginBottom: hpx(12),
+    width: "100%",
+  },
+  warningText: {
+    flex: 1,
+    fontSize: rf(11),
+    color: "#D97706",
+    lineHeight: rf(15),
+    fontWeight: "500" as any,
+  },
   heroCard: {
     backgroundColor: colors.card,
     borderRadius: wpx(20),

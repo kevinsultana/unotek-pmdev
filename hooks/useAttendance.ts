@@ -14,11 +14,6 @@ export function useAttendance() {
       const res = await attendanceService.getStatus();
       setStatus(res.data.data);
     } catch (err: any) {
-      console.log(
-        "GET /attendance/status error:",
-        err?.response?.status,
-        JSON.stringify(err?.response?.data, null, 2),
-      );
       const message =
         err?.response?.data?.message ||
         err?.message ||
@@ -48,18 +43,35 @@ export function useAttendance() {
           name: "photo.jpg",
           type: "image/jpeg",
         } as any);
-        const uploadRes = await attendanceService.uploadPhoto(formData);
-        photo_id = uploadRes.data.data.photo_id;
+        try {
+          const uploadRes = await attendanceService.uploadPhoto(formData);
+          photo_id = uploadRes.data.data.photo_id;
+        } catch (err: any) {
+          throw err;
+        }
       }
 
-      const res = await attendanceService.checkIn({
-        attendance_type: data.work_type.toLowerCase() as "wfo" | "wfh" | "wfa",
-        latitude: data.latitude,
-        longitude: data.longitude,
-        photo_id,
-      });
-      await fetchStatus();
-      return res.data;
+      try {
+        const checkInData = {
+          attendance_type: data.work_type.toLowerCase() as "wfo" | "wfh" | "wfa",
+          latitude: data.latitude,
+          longitude: data.longitude,
+          photo_id,
+        };
+        const res = await attendanceService.checkIn(checkInData);
+        await fetchStatus();
+        return res.data;
+      } catch (err: any) {
+        console.error(
+          "[useAttendance] checkIn failed. Status:",
+          err?.response?.status,
+          "Error data:",
+          JSON.stringify(err?.response?.data, null, 2),
+          "Message:",
+          err?.message
+        );
+        throw err;
+      }
     },
     [fetchStatus],
   );
@@ -78,17 +90,42 @@ export function useAttendance() {
           name: "photo.jpg",
           type: "image/jpeg",
         } as any);
-        const uploadRes = await attendanceService.uploadPhoto(formData);
-        photo_id = uploadRes.data.data.photo_id;
+        try {
+          const uploadRes = await attendanceService.uploadPhoto(formData);
+          photo_id = uploadRes.data.data.photo_id;
+        } catch (err: any) {
+          console.error(
+            "[useAttendance] uploadPhoto failed during checkOut. Status:",
+            err?.response?.status,
+            "Error data:",
+            JSON.stringify(err?.response?.data, null, 2),
+            "Message:",
+            err?.message
+          );
+          throw err;
+        }
       }
 
-      const res = await attendanceService.checkOut({
-        latitude: data.latitude,
-        longitude: data.longitude,
-        photo_id,
-      });
-      await fetchStatus();
-      return res.data;
+      try {
+        const checkOutData = {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          photo_id,
+        };
+        const res = await attendanceService.checkOut(checkOutData);
+        await fetchStatus();
+        return res.data;
+      } catch (err: any) {
+        console.error(
+          "[useAttendance] checkOut failed. Status:",
+          err?.response?.status,
+          "Error data:",
+          JSON.stringify(err?.response?.data, null, 2),
+          "Message:",
+          err?.message
+        );
+        throw err;
+      }
     },
     [fetchStatus],
   );
