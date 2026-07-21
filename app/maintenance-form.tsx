@@ -19,8 +19,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { maintenanceService } from "../services/maintenanceService";
 import { useProfile } from "../hooks/useProfile";
+import { maintenanceService } from "../services/maintenanceService";
 import {
   colors,
   hpx,
@@ -31,7 +31,7 @@ import {
   spacing,
   wpx,
 } from "../src/constants/theme";
-import type { Equipment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam, ProblemCategory, MaintenanceAttachment } from "../types/maintenance";
+import type { Equipment, MaintenanceAttachment, MaintenanceRequest, MaintenanceStage, MaintenanceTeam, ProblemCategory } from "../types/maintenance";
 import { showToast } from "../utils/toast";
 
 const URGENCY_LEVELS = [
@@ -53,6 +53,18 @@ const MAINTENANCE_TYPES = [
   { value: "preventive", label: "Preventif" },
 ] as const;
 
+const stripHtml = (htmlStr?: string | null) => {
+  if (!htmlStr) return "";
+  return htmlStr
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+};
+
 export default function MaintenanceFormScreen() {
   const { profile } = useProfile();
   const router = useRouter();
@@ -72,6 +84,7 @@ export default function MaintenanceFormScreen() {
   // General States
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittedEdit, setIsSubmittedEdit] = useState(false);
   const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
   const [activePreviewUri, setActivePreviewUri] = useState<string | null>(null);
 
@@ -152,18 +165,19 @@ export default function MaintenanceFormScreen() {
         try {
           const req = await maintenanceService.getById(requestId);
           if (req) {
-            // Can only edit draft requests
-            if (req.state !== "draft") {
-              showToast("error", "Akses Ditolak", "Hanya pengajuan dengan status Draft yang dapat diubah.");
+            // Can only edit draft or submitted requests
+            if (req.state !== "draft" && req.state !== "submitted") {
+              showToast("error", "Akses Ditolak", "Hanya pengajuan dengan status Draft atau Diajukan yang dapat diubah.");
               router.back();
               return;
             }
+            setIsSubmittedEdit(req.state === "submitted");
             setAssetName(req.asset_name || "");
             setAssetCode(req.asset_code || "");
             setCategory(req.category || "hardware");
             setUrgency(req.urgency || "low");
             setTitle(req.title || "");
-            setDescription(req.description || "");
+            setDescription(stripHtml(req.description || ""));
             setImages([]);
             if (req.equipment_id) {
               setEquipmentId(req.equipment_id);
@@ -370,9 +384,11 @@ export default function MaintenanceFormScreen() {
       showToast(
         "success",
         "Berhasil",
-        submitDirectly
-          ? "Pengajuan maintenance berhasil dikirim."
-          : "Pengajuan maintenance berhasil disimpan."
+        isSubmittedEdit
+          ? "Perubahan berhasil disimpan."
+          : (submitDirectly
+            ? "Pengajuan maintenance berhasil dikirim."
+            : "Pengajuan maintenance berhasil disimpan.")
       );
       router.back();
     } catch (err: any) {
@@ -538,22 +554,7 @@ export default function MaintenanceFormScreen() {
               <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            {/* Tahapan Maintenance (Only when editing) */}
-            {requestId ? (
-              <>
-                <Text style={styles.label}>Tahapan Maintenance</Text>
-                <TouchableOpacity
-                  style={styles.pickerSelector}
-                  onPress={() => setShowStagePicker(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.pickerSelectorText, !stageId && { color: colors.textMuted }]}>
-                    {stageId ? (stages.find(s => s.id === stageId)?.name || "Tahap Terpilih") : "Pilih tahapan..."}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </>
-            ) : null}
+
 
             {/* 5. Title */}
             <Text style={styles.label}>Judul Pengajuan / Masalah <Text style={styles.required}>*</Text></Text>
@@ -668,37 +669,57 @@ export default function MaintenanceFormScreen() {
 
             {/* Action Buttons */}
             <View style={styles.actionButtonsContainer}>
-              <TouchableOpacity
-                style={[styles.btnOutline, isSubmitting && { opacity: 0.6 }]}
-                disabled={isSubmitting}
-                onPress={() => handleSave(false)}
-                activeOpacity={0.7}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <>
-                    <Ionicons name="save-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.btnText, { color: colors.primary }]}>Simpan Draft</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {isSubmittedEdit ? (
+                <TouchableOpacity
+                  style={[styles.btnSolid, { flex: 1, backgroundColor: colors.primary }, isSubmitting && { opacity: 0.6 }]}
+                  disabled={isSubmitting}
+                  onPress={() => handleSave(true)}
+                  activeOpacity={0.8}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="save-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Simpan Perubahan</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.btnOutline, isSubmitting && { opacity: 0.6 }]}
+                    disabled={isSubmitting}
+                    onPress={() => handleSave(false)}
+                    activeOpacity={0.7}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="save-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                        <Text style={[styles.btnText, { color: colors.primary }]}>Simpan Draft</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.btnSolid, isSubmitting && { opacity: 0.6 }]}
-                disabled={isSubmitting}
-                onPress={() => handleSave(true)}
-                activeOpacity={0.8}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="paper-plane" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Kirim Pengajuan</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btnSolid, isSubmitting && { opacity: 0.6 }]}
+                    disabled={isSubmitting}
+                    onPress={() => handleSave(true)}
+                    activeOpacity={0.8}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="paper-plane" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Kirim Pengajuan</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>

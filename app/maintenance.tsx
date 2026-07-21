@@ -703,21 +703,23 @@ export default function MaintenanceScreen() {
                   </View>
                 ) : null}
 
-                {/* Action Buttons for Draft */}
-                {selectedDetail.state === "draft" && (
+                {/* Action Buttons for Draft & Submitted */}
+                {(selectedDetail.state === "draft" || selectedDetail.state === "submitted") && (
                   <View style={styles.detailActionBtnRow}>
-                    <TouchableOpacity
-                      style={[styles.btnOutline, { flex: 1, borderColor: colors.error }]}
-                      onPress={() => handleDelete(selectedDetail.id)}
-                    >
-                      <Ionicons
-                        name="trash-outline"
-                        size={16}
-                        color={colors.error}
-                        style={{ marginRight: 4 }}
-                      />
-                      <Text style={[styles.btnText, { color: colors.error }]}>Hapus</Text>
-                    </TouchableOpacity>
+                    {selectedDetail.state === "draft" && (
+                      <TouchableOpacity
+                        style={[styles.btnOutline, { flex: 1, borderColor: colors.error }]}
+                        onPress={() => handleDelete(selectedDetail.id)}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={16}
+                          color={colors.error}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={[styles.btnText, { color: colors.error }]}>Hapus</Text>
+                      </TouchableOpacity>
+                    )}
 
                     <TouchableOpacity
                       style={[styles.btnOutline, { flex: 1, borderColor: colors.primary }]}
@@ -732,18 +734,20 @@ export default function MaintenanceScreen() {
                       <Text style={[styles.btnText, { color: colors.primary }]}>Ubah</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.btnSolid, { flex: 1.5, backgroundColor: colors.primary }]}
-                      onPress={() => handleSubmitRequest(selectedDetail.id)}
-                    >
-                      <Ionicons
-                        name="paper-plane-outline"
-                        size={16}
-                        color="#FFFFFF"
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Kirim</Text>
-                    </TouchableOpacity>
+                    {selectedDetail.state === "draft" && (
+                      <TouchableOpacity
+                        style={[styles.btnSolid, { flex: 1.5, backgroundColor: colors.primary }]}
+                        onPress={() => handleSubmitRequest(selectedDetail.id)}
+                      >
+                        <Ionicons
+                          name="paper-plane-outline"
+                          size={16}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={[styles.btnText, { color: "#FFFFFF" }]}>Kirim</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </ScrollView>
