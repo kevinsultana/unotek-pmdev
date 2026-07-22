@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -23,12 +24,12 @@ import {
   radius,
   rf,
   shadows,
-  sizes,
   spacing,
-  textPresets,
-  wpx,
+  wpx
 } from "../src/constants/theme";
 import type {
+  CrmLostReason,
+  CrmStage,
   PipelineAttachment,
   PipelineItem,
   PipelinePriority,
@@ -63,6 +64,40 @@ function formatRupiah(amount: number): string {
   return "Rp " + amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+function stripHtmlTags(str?: string): string {
+  if (!str) return "";
+  return str
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n\s*\n/g, "\n")
+    .trim();
+}
+
+function normalizeUri(uri?: string): string {
+  if (!uri) return "";
+  if (
+    uri.startsWith("http://") ||
+    uri.startsWith("https://") ||
+    uri.startsWith("file://") ||
+    uri.startsWith("content://") ||
+    uri.startsWith("data:")
+  ) {
+    return uri;
+  }
+  if (uri.startsWith("/")) {
+    return `file://${uri}`;
+  }
+  return uri;
+}
+
 export default function PipelineDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -70,18 +105,14 @@ export default function PipelineDetailScreen() {
 
   const [pipeline, setPipeline] = useState<PipelineItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stages, setStages] = useState<CrmStage[]>([]);
+  const [lostReasons, setLostReasons] = useState<CrmLostReason[]>([]);
 
-  // Edit Modal State
-  const [modalVisible, setModalVisible] = useState(false);
-  const [formTitle, setFormTitle] = useState("");
-  const [formClient, setFormClient] = useState("");
-  const [formAmount, setFormAmount] = useState("");
-  const [formStage, setFormStage] = useState<PipelineStage>("Lead");
-  const [formPriority, setFormPriority] = useState<PipelinePriority>("Medium");
-  const [formProbability, setFormProbability] = useState("50");
-  const [formExpectedDate, setFormExpectedDate] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  // Mark Lost Modal State
+  const [lostModalVisible, setLostModalVisible] = useState(false);
+  const [selectedLostReason, setSelectedLostReason] = useState<CrmLostReason | null>(null);
+  const [lostFeedback, setLostFeedback] = useState("");
+  const [submittingLost, setSubmittingLost] = useState(false);
 
   // Add Document Link Modal State
   const [docModalVisible, setDocModalVisible] = useState(false);
@@ -90,6 +121,28 @@ export default function PipelineDetailScreen() {
 
   // Preview Image Modal State
   const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
+
+  const fetchStages = useCallback(async () => {
+    try {
+      const fetchedStages = await pipelineService.fetchStages();
+      if (fetchedStages && fetchedStages.length > 0) {
+        setStages(fetchedStages);
+      }
+    } catch (err) {
+      console.warn("Failed to load CRM stages in detail screen:", err);
+    }
+  }, []);
+
+  const fetchLostReasons = useCallback(async () => {
+    try {
+      const fetchedReasons = await pipelineService.fetchLostReasons();
+      if (fetchedReasons && fetchedReasons.length > 0) {
+        setLostReasons(fetchedReasons);
+      }
+    } catch (err) {
+      console.warn("Failed to load Lost Reasons in detail screen:", err);
+    }
+  }, []);
 
   const fetchDetail = useCallback(async () => {
     if (!params.id) {
@@ -113,70 +166,98 @@ export default function PipelineDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      fetchStages();
+      fetchLostReasons();
       fetchDetail();
-    }, [fetchDetail])
+    }, [fetchStages, fetchLostReasons, fetchDetail])
   );
 
-  // Open Edit Modal
+  // Open full screen form for Edit
   const handleOpenEdit = () => {
     if (!pipeline) return;
-    setFormTitle(pipeline.title);
-    setFormClient(pipeline.client);
-    setFormAmount(pipeline.amount.toString());
-    setFormStage(pipeline.stage);
-    setFormPriority(pipeline.priority);
-    setFormProbability(pipeline.probability.toString());
-    setFormExpectedDate(pipeline.expectedCloseDate);
-    setFormNotes(pipeline.notes || "");
-    setModalVisible(true);
+    router.push({ pathname: "/pipeline-form", params: { id: pipeline.id } });
   };
 
-  // Quick Change Stage
-  const handleQuickChangeStage = async (newStage: PipelineStage) => {
-    if (!pipeline || pipeline.stage === newStage) return;
+  // Quick Change Stage using CRM Stage Name & ID
+  const handleQuickChangeStage = async (newStageName: string, newStageId?: number | string) => {
+    if (!pipeline || pipeline.stage === newStageName) return;
     try {
-      const updated = await pipelineService.update(pipeline.id, { stage: newStage });
-      setPipeline(updated);
-      showToast("success", "Stage Diperbarui", `Status pipeline diubah menjadi ${newStage}.`);
+      const name = newStageName.toLowerCase().trim();
+      let newProb = 90;
+      if (name.includes("activity") || name.includes("aktivitas")) newProb = 10;
+      else if (name.includes("lead")) newProb = 50;
+      else if (name.includes("won") || name.includes("menang")) newProb = 100;
+      else if (name.includes("lost") || name.includes("gagal")) newProb = 0;
+
+      if (newStageId) {
+        await pipelineService.moveStage(pipeline.id, newStageId, newProb, pipeline.title);
+      } else {
+        await pipelineService.update(pipeline.id, {
+          title: pipeline.title,
+          stage: newStageName as PipelineStage,
+          probability: newProb,
+        });
+      }
+      setPipeline({
+        ...pipeline,
+        stage: newStageName as PipelineStage,
+        stageId: newStageId,
+        probability: newProb,
+      });
+      showToast("success", "Stage Diperbarui", `Status pipeline diubah menjadi ${newStageName} (${newProb}%).`);
+      fetchDetail();
     } catch (err: any) {
       showToast("error", "Gagal Mengubah Stage", err?.message);
     }
   };
 
-  // Save Edit
-  const handleSave = async () => {
+  // Handle Mark Won
+  const handleMarkWon = async () => {
     if (!pipeline) return;
-    if (!formTitle.trim()) {
-      showToast("error", "Judul Wajib Diisi", "Silakan masukkan nama pipeline/proyek.");
-      return;
-    }
-    if (!formClient.trim()) {
-      showToast("error", "Nama Klien Wajib Diisi", "Silakan masukkan nama klien.");
-      return;
-    }
+    Alert.alert(
+      "Tandai Won (Menang)",
+      `Apakah Anda yakin ingin menandai prospek "${pipeline.title}" sebagai Won (Menang)?`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Tandai Won 🎉",
+          onPress: async () => {
+            try {
+              await pipelineService.markWon(pipeline.id);
+              showToast("success", "Status Menang (Won)", "Prospek berhasil ditandai sebagai Won! 🎉");
+              fetchDetail();
+            } catch (err: any) {
+              showToast("error", "Gagal Tandai Won", err?.message);
+            }
+          },
+        },
+      ]
+    );
+  };
 
-    const numAmount = parseFloat(formAmount.replace(/[^0-9]/g, "")) || 0;
-    const numProb = Math.min(100, Math.max(0, parseInt(formProbability) || 50));
+  // Open Mark Lost Modal
+  const handleOpenMarkLost = () => {
+    setSelectedLostReason(lostReasons[0] || null);
+    setLostFeedback("");
+    setLostModalVisible(true);
+  };
 
+  // Save Mark Lost
+  const handleSaveMarkLost = async () => {
+    if (!pipeline) return;
     try {
-      setSubmitting(true);
-      const updated = await pipelineService.update(pipeline.id, {
-        title: formTitle.trim(),
-        client: formClient.trim(),
-        amount: numAmount,
-        stage: formStage,
-        priority: formPriority,
-        probability: numProb,
-        expectedCloseDate: formExpectedDate.trim() || new Date().toISOString().split("T")[0],
-        notes: formNotes.trim(),
-      });
-      setPipeline(updated);
-      setModalVisible(false);
-      showToast("success", "Berhasil Diperbarui", "Data pipeline berhasil disimpan.");
+      setSubmittingLost(true);
+      const reasonName = selectedLostReason ? selectedLostReason.name : "";
+      const feedbackText = [reasonName, lostFeedback.trim()].filter(Boolean).join(" - ");
+
+      await pipelineService.markLost(pipeline.id, selectedLostReason?.id, feedbackText);
+      showToast("success", "Status Lost (Gagal)", "Prospek berhasil ditandai sebagai Lost.");
+      setLostModalVisible(false);
+      fetchDetail();
     } catch (err: any) {
-      showToast("error", "Gagal Menyimpan", err?.message);
+      showToast("error", "Gagal Tandai Lost", err?.message);
     } finally {
-      setSubmitting(false);
+      setSubmittingLost(false);
     }
   };
 
@@ -191,7 +272,7 @@ export default function PipelineDetailScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         quality: 0.8,
       });
 
@@ -222,6 +303,7 @@ export default function PipelineDetailScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
         quality: 0.8,
       });
 
@@ -261,6 +343,51 @@ export default function PipelineDetailScreen() {
       fetchDetail();
     } catch (err: any) {
       showToast("error", "Gagal Menambah Dokumen", err?.message);
+    }
+  };
+
+  // Open / View Document, Photo, or PDF Attachment
+  const handleOpenDocument = async (att: PipelineAttachment) => {
+    if (!att) {
+      showToast("error", "Lampiran Kosong", "Berkas lampiran tidak ditemukan.");
+      return;
+    }
+
+    const attName = att.name || "Dokumen";
+    const rawUri = att.uri || "";
+    const normUri = normalizeUri(rawUri);
+
+    if (!normUri) {
+      showToast("error", "URI Tidak Valid", "Lokasi atau link berkas lampiran kosong.");
+      return;
+    }
+
+    const isImage =
+      att.type === "image" ||
+      !!attName.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+      normUri.startsWith("file://") ||
+      normUri.startsWith("content://") ||
+      normUri.startsWith("data:image");
+
+    if (isImage) {
+      setPreviewImageUri(normUri);
+      return;
+    }
+
+    try {
+      await Linking.openURL(normUri);
+    } catch {
+      Alert.alert(
+        "Detail Dokumen / Link",
+        `Nama Dokumen: ${attName}\n\nURL / Path:\n${normUri}`,
+        [
+          { text: "Tutup", style: "cancel" },
+          {
+            text: "Informasi Link",
+            onPress: () => showToast("info", "Link Berkas", normUri),
+          },
+        ]
+      );
     }
   };
 
@@ -413,13 +540,34 @@ export default function PipelineDetailScreen() {
                       pipeline.probability > 70
                         ? colors.success
                         : pipeline.probability > 30
-                        ? colors.amber
-                        : colors.error,
+                          ? colors.amber
+                          : colors.error,
                   },
                 ]}
               />
             </View>
           </View>
+        </View>
+
+        {/* Quick Deal Outcome Actions */}
+        <View style={styles.dealActionsRow}>
+          <TouchableOpacity
+            style={[styles.dealWonBtn, pipeline.stage === "Won" && styles.dealWonBtnActive]}
+            onPress={handleMarkWon}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.dealWonBtnText}>Tandai Won (Menang)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.dealLostBtn, pipeline.stage === "Lost" && styles.dealLostBtnActive]}
+            onPress={handleOpenMarkLost}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="close-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.dealLostBtnText}>Tandai Lost (Gagal)</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Quick Stage Update Stepper */}
@@ -428,31 +576,49 @@ export default function PipelineDetailScreen() {
           <Text style={styles.sectionSub}>Tekan stage di bawah untuk memperbarui status proyek:</Text>
 
           <View style={styles.stageStepperRow}>
-            {ALL_STAGES.map((stg) => {
-              const isCurrent = pipeline.stage === stg;
-              const cfg = STAGE_CONFIG[stg];
+            {(stages.length > 0 ? stages : ALL_STAGES)
+              .filter((stgItem) => {
+                const stgName = (typeof stgItem === "string" ? stgItem : stgItem.name).toLowerCase().trim();
+                return !stgName.includes("won") && !stgName.includes("lost") && !stgName.includes("menang") && !stgName.includes("gagal");
+              })
+              .map((stgItem) => {
+              const stgName = typeof stgItem === "string" ? stgItem : stgItem.name;
+              const stgId = typeof stgItem === "string" ? undefined : stgItem.id;
+
+              const isCurrent =
+                pipeline.stage.toLowerCase() === stgName.toLowerCase() ||
+                (pipeline.stageId && String(pipeline.stageId) === String(stgId));
+
+              const cfg =
+                STAGE_CONFIG[stgName as PipelineStage] || {
+                  label: stgName,
+                  bg: "#DBEAFE",
+                  text: colors.primary,
+                  icon: "bulb-outline",
+                };
+
               return (
                 <TouchableOpacity
-                  key={stg}
+                  key={String(stgId || stgName)}
                   style={[
                     styles.stageStepChip,
-                    isCurrent && { backgroundColor: cfg.bg, borderColor: cfg.text },
+                    isCurrent ? { backgroundColor: cfg.bg, borderColor: cfg.text } : null,
                   ]}
-                  onPress={() => handleQuickChangeStage(stg)}
+                  onPress={() => handleQuickChangeStage(stgName, stgId)}
                   activeOpacity={0.8}
                 >
                   <Ionicons
-                    name={cfg.icon}
+                    name={cfg.icon as any}
                     size={14}
                     color={isCurrent ? cfg.text : colors.textMuted}
                   />
                   <Text
                     style={[
                       styles.stageStepText,
-                      isCurrent && { color: cfg.text, fontWeight: "700" as any },
+                      isCurrent ? { color: cfg.text, fontWeight: "700" as any } : null,
                     ]}
                   >
-                    {stg}
+                    {stgName}
                   </Text>
                 </TouchableOpacity>
               );
@@ -491,7 +657,7 @@ export default function PipelineDetailScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.infoLabel}>Estimasi Pendapatan Terbobot</Text>
               <Text style={styles.infoVal}>
-                {formatRupiah(Math.round((pipeline.amount * pipeline.probability) / 100))}
+                {formatRupiah(pipeline.amount)}
               </Text>
             </View>
           </View>
@@ -506,8 +672,8 @@ export default function PipelineDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          {pipeline.notes ? (
-            <Text style={styles.notesBody}>{pipeline.notes}</Text>
+          {stripHtmlTags(pipeline.notes) ? (
+            <Text style={styles.notesBody}>{stripHtmlTags(pipeline.notes)}</Text>
           ) : (
             <Text style={styles.notesEmpty}>Belum ada catatan perkembangan tertulis.</Text>
           )}
@@ -557,42 +723,66 @@ export default function PipelineDetailScreen() {
             </View>
           ) : (
             <View style={styles.attList}>
-              {attachments.map((att) => (
-                <View key={att.id} style={styles.attCard}>
-                  {att.type === "image" ? (
-                    <TouchableOpacity onPress={() => setPreviewImageUri(att.uri)}>
-                      <Image source={{ uri: att.uri }} style={styles.attImageThumb} />
+              {attachments.map((att) => {
+                const attName = att?.name || "Dokumen Lampiran";
+                const rawUri = att?.uri || "";
+                const normUri = normalizeUri(rawUri);
+                const isPdf =
+                  attName.toLowerCase().endsWith(".pdf") || normUri.toLowerCase().endsWith(".pdf");
+                const isImage =
+                  (att?.type === "image" || !!attName.match(/\.(jpg|jpeg|png|gif|webp)$/i)) &&
+                  !!normUri;
+
+                return (
+                  <View key={att.id} style={styles.attCard}>
+                    {isImage && normUri ? (
+                      <TouchableOpacity onPress={() => handleOpenDocument(att)}>
+                        <Image source={{ uri: normUri }} style={styles.attImageThumb} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.attDocIconBg,
+                          isPdf ? { backgroundColor: "#FEE2E2" } : null,
+                        ]}
+                        onPress={() => handleOpenDocument(att)}
+                      >
+                        <Ionicons
+                          name={isPdf ? "document-text" : "document-attach"}
+                          size={24}
+                          color={isPdf ? colors.error : colors.primary}
+                        />
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                      style={{ flex: 1 }}
+                      onPress={() => handleOpenDocument(att)}
+                    >
+                      <Text style={styles.attName} numberOfLines={1}>
+                        {attName}
+                      </Text>
+                      <Text style={styles.attDate}>
+                        {isPdf ? "Dokumen PDF • " : isImage ? "Foto / Gambar • " : ""}{att.createdAt}
+                      </Text>
                     </TouchableOpacity>
-                  ) : (
-                    <View style={styles.attDocIconBg}>
-                      <Ionicons name="document-text" size={24} color={colors.primary} />
-                    </View>
-                  )}
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.attName} numberOfLines={1}>
-                      {att.name}
-                    </Text>
-                    <Text style={styles.attDate}>{att.createdAt}</Text>
-                  </View>
-
-                  {att.type === "image" && (
                     <TouchableOpacity
                       style={styles.attViewIconBtn}
-                      onPress={() => setPreviewImageUri(att.uri)}
+                      onPress={() => handleOpenDocument(att)}
                     >
                       <Ionicons name="eye-outline" size={18} color={colors.primary} />
                     </TouchableOpacity>
-                  )}
 
-                  <TouchableOpacity
-                    style={styles.attDeleteIconBtn}
-                    onPress={() => handleDeleteAttachment(att)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                    <TouchableOpacity
+                      style={styles.attDeleteIconBtn}
+                      onPress={() => handleDeleteAttachment(att)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -612,164 +802,6 @@ export default function PipelineDetailScreen() {
 
         <View style={{ height: hpx(40) }} />
       </ScrollView>
-
-      {/* Edit Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Pipeline Proyek</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              {/* Form Input: Title */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Judul Pipeline / Proyek *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formTitle}
-                  onChangeText={setFormTitle}
-                />
-              </View>
-
-              {/* Form Input: Client */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nama Klien / Perusahaan *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formClient}
-                  onChangeText={setFormClient}
-                />
-              </View>
-
-              {/* Form Input: Amount */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nilai Potential (Rp)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  keyboardType="numeric"
-                  value={formAmount}
-                  onChangeText={setFormAmount}
-                />
-              </View>
-
-              {/* Form Input: Stage Selection */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Tahapan (Stage)</Text>
-                <View style={styles.chipRow}>
-                  {ALL_STAGES.map((stg) => {
-                    const isSelected = formStage === stg;
-                    return (
-                      <TouchableOpacity
-                        key={stg}
-                        style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                        onPress={() => setFormStage(stg)}
-                      >
-                        <Text
-                          style={[
-                            styles.selectChipText,
-                            isSelected && styles.selectChipTextActive,
-                          ]}
-                        >
-                          {stg}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Form Input: Priority */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Prioritas</Text>
-                <View style={styles.chipRow}>
-                  {PRIORITIES.map((prio) => {
-                    const isSelected = formPriority === prio;
-                    return (
-                      <TouchableOpacity
-                        key={prio}
-                        style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                        onPress={() => setFormPriority(prio)}
-                      >
-                        <Text
-                          style={[
-                            styles.selectChipText,
-                            isSelected && styles.selectChipTextActive,
-                          ]}
-                        >
-                          {prio}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Form Input: Probability */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Probabilitas Win (%)</Text>
-                <View style={styles.chipRow}>
-                  {["25", "50", "75", "90", "100"].map((p) => {
-                    const isSelected = formProbability === p;
-                    return (
-                      <TouchableOpacity
-                        key={p}
-                        style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                        onPress={() => setFormProbability(p)}
-                      >
-                        <Text
-                          style={[
-                            styles.selectChipText,
-                            isSelected && styles.selectChipTextActive,
-                          ]}
-                        >
-                          {p}%
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Form Input: Date */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Target Closing (YYYY-MM-DD)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formExpectedDate}
-                  onChangeText={setFormExpectedDate}
-                />
-              </View>
-
-              {/* Form Input: Notes */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Catatan Perkembangan</Text>
-                <TextInput
-                  style={[styles.formInput, { height: hpx(80), textAlignVertical: "top" }]}
-                  multiline
-                  value={formNotes}
-                  onChangeText={setFormNotes}
-                />
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.saveBtn, submitting && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>Simpan Perubahan</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* Add Document Link Modal */}
       <Modal visible={docModalVisible} animationType="fade" transparent>
@@ -811,18 +843,108 @@ export default function PipelineDetailScreen() {
         </View>
       </Modal>
 
+      {/* Mark Lost Modal */}
+      <Modal visible={lostModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="close-circle" size={22} color={colors.error} />
+                <Text style={styles.modalTitle}>Tandai Prospek Sebagai Lost</Text>
+              </View>
+              <TouchableOpacity onPress={() => setLostModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ marginBottom: spacing.lg }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.formLabel}>Pilih Alasan Prospek Gagal / Lost *</Text>
+              <View style={styles.chipRow}>
+                {lostReasons.map((reason) => {
+                  const isSelected = selectedLostReason?.id === reason.id;
+                  return (
+                    <TouchableOpacity
+                      key={reason.id}
+                      style={[styles.selectChip, isSelected ? styles.selectChipActive : null]}
+                      onPress={() => setSelectedLostReason(reason)}
+                    >
+                      <Text
+                        style={[
+                          styles.selectChipText,
+                          isSelected ? styles.selectChipTextActive : null,
+                        ]}
+                      >
+                        {reason.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={[styles.formGroup, { marginTop: spacing.md }]}>
+                <Text style={styles.formLabel}>Catatan Alasan / Feedback Tambahan (Opsional)</Text>
+                <TextInput
+                  style={[styles.formInput, { height: hpx(80), textAlignVertical: "top" }]}
+                  placeholder="Contoh: Klien memilih vendor X karena harga lebih kompetitif..."
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  value={lostFeedback}
+                  onChangeText={setLostFeedback}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={{ flexDirection: "row", gap: spacing.md }}>
+              <TouchableOpacity
+                style={styles.cancelModalBtn}
+                onPress={() => setLostModalVisible(false)}
+              >
+                <Text style={styles.cancelModalBtnText}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmLostBtn, submittingLost ? { opacity: 0.6 } : null]}
+                onPress={handleSaveMarkLost}
+                disabled={submittingLost}
+              >
+                {submittingLost ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmLostBtnText}>Simpan Status Lost</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Image Preview Fullscreen Modal */}
-      <Modal visible={!!previewImageUri} transparent animationType="fade">
+      <Modal
+        visible={!!previewImageUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImageUri(null)}
+      >
         <View style={styles.previewOverlay}>
-          <TouchableOpacity
-            style={styles.previewCloseBtn}
-            onPress={() => setPreviewImageUri(null)}
-          >
-            <Ionicons name="close-circle" size={36} color="#FFFFFF" />
-          </TouchableOpacity>
-          {previewImageUri && (
-            <Image source={{ uri: previewImageUri }} style={styles.previewFullImage} resizeMode="contain" />
-          )}
+          <View style={styles.previewHeaderRow}>
+            <Text style={styles.previewTitleText}>Pratinjau Foto Lampiran</Text>
+            <TouchableOpacity
+              style={styles.previewCloseIconBtn}
+              onPress={() => setPreviewImageUri(null)}
+            >
+              <Ionicons name="close-circle" size={34} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.previewImageContainer}>
+            {previewImageUri ? (
+              <Image
+                source={{ uri: normalizeUri(previewImageUri) }}
+                style={styles.previewFullImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </View>
         </View>
       </Modal>
     </View>
@@ -1098,6 +1220,64 @@ const styles = StyleSheet.create({
   },
   deleteFullBtnText: { color: colors.error, fontWeight: "700" as any, fontSize: rf(14) },
 
+  /* Deal Outcome Actions Row */
+  dealActionsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  dealWonBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#059669",
+    paddingVertical: hpx(12),
+    borderRadius: radius.md,
+    gap: spacing.xs,
+    ...shadows.card,
+  },
+  dealWonBtnActive: {
+    backgroundColor: "#047857",
+  },
+  dealWonBtnText: { color: "#FFFFFF", fontWeight: "700" as any, fontSize: rf(13) },
+  dealLostBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DC2626",
+    paddingVertical: hpx(12),
+    borderRadius: radius.md,
+    gap: spacing.xs,
+    ...shadows.card,
+  },
+  dealLostBtnActive: {
+    backgroundColor: "#B91C1C",
+  },
+  dealLostBtnText: { color: "#FFFFFF", fontWeight: "700" as any, fontSize: rf(13) },
+
+  cancelModalBtn: {
+    flex: 1,
+    paddingVertical: hpx(12),
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  cancelModalBtnText: { color: colors.textSecondary, fontWeight: "700" as any, fontSize: rf(14) },
+  confirmLostBtn: {
+    flex: 2,
+    paddingVertical: hpx(12),
+    borderRadius: radius.md,
+    backgroundColor: colors.error,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmLostBtnText: { color: "#FFFFFF", fontWeight: "700" as any, fontSize: rf(14) },
+
   /* Modal */
   modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
   modalContent: {
@@ -1154,18 +1334,27 @@ const styles = StyleSheet.create({
   /* Fullscreen Image Preview */
   previewOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.9)",
+    backgroundColor: "rgba(0,0,0,0.95)",
+    paddingTop: hpx(45),
+    paddingBottom: hpx(25),
+  },
+  previewHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+    zIndex: 10,
+  },
+  previewTitleText: { fontSize: rf(16), fontWeight: "700" as any, color: "#FFFFFF" },
+  previewCloseIconBtn: { padding: spacing.xs },
+  previewImageContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  previewCloseBtn: {
-    position: "absolute",
-    top: hpx(50),
-    right: spacing.xl,
-    zIndex: 10,
+    padding: spacing.md,
   },
   previewFullImage: {
     width: "100%",
-    height: "80%",
+    height: "100%",
   },
 });

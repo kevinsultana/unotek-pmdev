@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,36 +26,32 @@ import {
   textPresets,
   wpx,
 } from "../src/constants/theme";
-import type {
-  PipelineItem,
-  PipelinePriority,
-  PipelineStage,
-} from "../types/pipeline";
+import type { CrmStage, PipelineItem } from "../types/pipeline";
 import { showToast } from "../utils/toast";
 
 const STAGE_CONFIG: Record<
-  PipelineStage,
+  string,
   { label: string; bg: string; text: string; icon: keyof typeof Ionicons.glyphMap }
 > = {
   Lead: { label: "Lead", bg: "#FEF3C7", text: "#D97706", icon: "bulb-outline" },
   Qualification: { label: "Kualifikasi", bg: "#EDE9FE", text: "#7C3AED", icon: "filter-outline" },
+  Qualified: { label: "Kualifikasi", bg: "#EDE9FE", text: "#7C3AED", icon: "filter-outline" },
   Proposal: { label: "Proposal", bg: "#DBEAFE", text: "#1E40AF", icon: "document-text-outline" },
+  Proposition: { label: "Proposal", bg: "#DBEAFE", text: "#1E40AF", icon: "document-text-outline" },
   Negotiation: { label: "Negosiasi", bg: "#E0E7FF", text: "#4F46E5", icon: "chatbubbles-outline" },
   Won: { label: "Won (Menang)", bg: "#D1FAE5", text: "#059669", icon: "checkmark-circle-outline" },
   Lost: { label: "Lost (Gagal)", bg: "#FEE2E2", text: "#DC2626", icon: "close-circle-outline" },
 };
 
-const STAGES: (PipelineStage | "All")[] = [
-  "All",
-  "Lead",
-  "Qualification",
-  "Proposal",
-  "Negotiation",
-  "Won",
-  "Lost",
+const DEFAULT_STAGES: CrmStage[] = [
+  { id: "all", name: "Semua Stage" },
+  { id: 1, name: "Lead" },
+  { id: 2, name: "Qualification" },
+  { id: 3, name: "Proposal" },
+  { id: 4, name: "Negotiation" },
+  { id: 5, name: "Won" },
+  { id: 6, name: "Lost" },
 ];
-
-const PRIORITIES: PipelinePriority[] = ["Low", "Medium", "High"];
 
 function formatRupiah(amount: number): string {
   return "Rp " + amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -67,38 +63,47 @@ export default function PipelineScreen() {
 
   const [pipelines, setPipelines] = useState<PipelineItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStage, setSelectedStage] = useState<PipelineStage | "All">("All");
+  const [refreshing, setRefreshing] = useState(false);
+  const [stages, setStages] = useState<CrmStage[]>(DEFAULT_STAGES);
+  const [selectedStage, setSelectedStage] = useState<CrmStage>(DEFAULT_STAGES[0]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Modal State
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingItem, setEditingItem] = useState<PipelineItem | null>(null);
+  // Fetch Stages from API
+  const fetchStages = useCallback(async () => {
+    try {
+      const fetchedStages = await pipelineService.fetchStages();
+      if (fetchedStages && fetchedStages.length > 0) {
+        const allItem: CrmStage = { id: "all", name: "Semua Stage" };
+        setStages([allItem, ...fetchedStages]);
+      }
+    } catch (err) {
+      console.warn("Failed to load CRM stages from API:", err);
+    }
+  }, []);
 
-  // Form State
-  const [formTitle, setFormTitle] = useState("");
-  const [formClient, setFormClient] = useState("");
-  const [formAmount, setFormAmount] = useState("");
-  const [formStage, setFormStage] = useState<PipelineStage>("Lead");
-  const [formPriority, setFormPriority] = useState<PipelinePriority>("Medium");
-  const [formProbability, setFormProbability] = useState("50");
-  const [formExpectedDate, setFormExpectedDate] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
+  // Fetch Pipelines list with search & stage filter
   const fetchPipelines = useCallback(async () => {
     try {
       setLoading(true);
+      const stageIdParam = selectedStage.id !== "all" ? selectedStage.id : undefined;
+      const stageNameParam = selectedStage.id === "all" ? "All" : selectedStage.name;
+
       const data = await pipelineService.list({
-        stage: selectedStage,
+        stage: stageNameParam,
+        stage_id: stageIdParam,
         search: searchQuery,
       });
       setPipelines(data);
     } catch (err: any) {
-      showToast("error", "Gagal memuat pipeline", err?.message);
+      showToast("error", "Gagal memuat CRM Leads", err?.message);
     } finally {
       setLoading(false);
     }
   }, [selectedStage, searchQuery]);
+
+  useEffect(() => {
+    fetchStages();
+  }, [fetchStages]);
 
   useEffect(() => {
     fetchPipelines();
@@ -110,82 +115,14 @@ export default function PipelineScreen() {
     }, [fetchPipelines])
   );
 
-  // Open modal for create
+  // Open full-screen form for Create
   const handleOpenCreate = () => {
-    setEditingItem(null);
-    setFormTitle("");
-    setFormClient("");
-    setFormAmount("");
-    setFormStage("Lead");
-    setFormPriority("Medium");
-    setFormProbability("50");
-    setFormExpectedDate(new Date().toISOString().split("T")[0]);
-    setFormNotes("");
-    setModalVisible(true);
+    router.push("/pipeline-form");
   };
 
-  // Open modal for edit
+  // Open full-screen form for Edit
   const handleOpenEdit = (item: PipelineItem) => {
-    setEditingItem(item);
-    setFormTitle(item.title);
-    setFormClient(item.client);
-    setFormAmount(item.amount.toString());
-    setFormStage(item.stage);
-    setFormPriority(item.priority);
-    setFormProbability(item.probability.toString());
-    setFormExpectedDate(item.expectedCloseDate);
-    setFormNotes(item.notes || "");
-    setModalVisible(true);
-  };
-
-  // Handle Save (Create or Update)
-  const handleSave = async () => {
-    if (!formTitle.trim()) {
-      showToast("error", "Judul Wajib Diisi", "Silakan masukkan nama pipeline/proyek.");
-      return;
-    }
-    if (!formClient.trim()) {
-      showToast("error", "Nama Klien Wajib Diisi", "Silakan masukkan nama klien/perusahaan.");
-      return;
-    }
-
-    const numAmount = parseFloat(formAmount.replace(/[^0-9]/g, "")) || 0;
-    const numProb = Math.min(100, Math.max(0, parseInt(formProbability) || 50));
-
-    try {
-      setSubmitting(true);
-      if (editingItem) {
-        await pipelineService.update(editingItem.id, {
-          title: formTitle.trim(),
-          client: formClient.trim(),
-          amount: numAmount,
-          stage: formStage,
-          priority: formPriority,
-          probability: numProb,
-          expectedCloseDate: formExpectedDate.trim() || new Date().toISOString().split("T")[0],
-          notes: formNotes.trim(),
-        });
-        showToast("success", "Berhasil Diperbarui", "Data pipeline telah diperbarui.");
-      } else {
-        await pipelineService.create({
-          title: formTitle.trim(),
-          client: formClient.trim(),
-          amount: numAmount,
-          stage: formStage,
-          priority: formPriority,
-          probability: numProb,
-          expectedCloseDate: formExpectedDate.trim() || new Date().toISOString().split("T")[0],
-          notes: formNotes.trim(),
-        });
-        showToast("success", "Berhasil Ditambahkan", "Pipeline baru telah dibuat.");
-      }
-      setModalVisible(false);
-      fetchPipelines();
-    } catch (err: any) {
-      showToast("error", "Gagal Menyimpan", err?.message || "Terjadi kesalahan sistem.");
-    } finally {
-      setSubmitting(false);
-    }
+    router.push({ pathname: "/pipeline-form", params: { id: item.id } });
   };
 
   // Handle Delete
@@ -201,7 +138,7 @@ export default function PipelineScreen() {
           onPress: async () => {
             try {
               await pipelineService.delete(item.id);
-              showToast("success", "Terhapus", "Pipeline berhasil dihapus.");
+              showToast("success", "Terhapus", "CRM Lead berhasil dihapus.");
               fetchPipelines();
             } catch (err: any) {
               showToast("error", "Gagal Hapus", err?.message);
@@ -212,9 +149,18 @@ export default function PipelineScreen() {
     );
   };
 
+  // Handle Pull to Refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchStages(), fetchPipelines()]);
+    setRefreshing(false);
+  }, [fetchStages, fetchPipelines]);
+
   // Compute Total Summary
   const totalAmount = pipelines.reduce((sum, i) => sum + i.amount, 0);
-  const wonCount = pipelines.filter((i) => i.stage === "Won").length;
+  const wonCount = pipelines.filter(
+    (i) => i.stage === "Won" || i.wonStatus === "won"
+  ).length;
 
   return (
     <View style={styles.container}>
@@ -230,8 +176,8 @@ export default function PipelineScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Pipeline Proyek</Text>
-          <Text style={styles.headerSub}>Manajemen Prospek, Deal, & Opporunity</Text>
+          <Text style={styles.headerTitle}>CRM Leads & Pipeline</Text>
+          <Text style={styles.headerSub}>Manajemen Prospek, Deal, & Opportunity</Text>
         </View>
 
         <TouchableOpacity style={styles.addHeaderBtn} onPress={handleOpenCreate}>
@@ -242,18 +188,26 @@ export default function PipelineScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* Metric Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Total Potential Value</Text>
+            <Text style={styles.summaryLabel}>Total Potential Revenue</Text>
             <Text style={styles.summaryValue}>{formatRupiah(totalAmount)}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <View style={styles.subSummary}>
               <Text style={styles.subSummaryNum}>{pipelines.length}</Text>
-              <Text style={styles.subSummaryLabel}>Total Items</Text>
+              <Text style={styles.subSummaryLabel}>Total Leads</Text>
             </View>
             <View style={styles.subSummary}>
               <Text style={[styles.subSummaryNum, { color: colors.success }]}>{wonCount}</Text>
@@ -267,7 +221,7 @@ export default function PipelineScreen() {
           <Ionicons name="search" size={20} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cari judul pipeline atau nama klien..."
+            placeholder="Cari prospek atau nama klien..."
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -279,18 +233,18 @@ export default function PipelineScreen() {
           ) : null}
         </View>
 
-        {/* Stage Filter Chips */}
+        {/* Stage Filter Chips (Dynamic from API / Default) */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.filterScroll}
           contentContainerStyle={styles.filterContent}
         >
-          {STAGES.map((stg) => {
-            const isSelected = selectedStage === stg;
+          {stages.map((stg) => {
+            const isSelected = selectedStage.id === stg.id;
             return (
               <TouchableOpacity
-                key={stg}
+                key={String(stg.id)}
                 style={[
                   styles.filterChip,
                   isSelected && styles.filterChipActive,
@@ -303,7 +257,7 @@ export default function PipelineScreen() {
                     isSelected && styles.filterChipTextActive,
                   ]}
                 >
-                  {stg === "All" ? "Semua Stage" : stg}
+                  {stg.name}
                 </Text>
               </TouchableOpacity>
             );
@@ -314,24 +268,30 @@ export default function PipelineScreen() {
         {loading ? (
           <View style={styles.centerLoading}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingText}>Memuat pipeline...</Text>
+            <Text style={styles.loadingText}>Memuat daftar CRM Leads...</Text>
           </View>
         ) : pipelines.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="folder-open-outline" size={48} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>Belum Ada Pipeline</Text>
+            <Text style={styles.emptyTitle}>Belum Ada CRM Leads</Text>
             <Text style={styles.emptySub}>
-              Klik tombol (+) di kanan atas atau tombol di bawah untuk menambahkan pipeline baru.
+              Klik tombol (+) di kanan atas atau tombol di bawah untuk menambahkan prospek baru.
             </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={handleOpenCreate}>
               <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.emptyBtnText}>Tambah Pipeline Baru</Text>
+              <Text style={styles.emptyBtnText}>Tambah Lead Baru</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.listContainer}>
             {pipelines.map((item) => {
-              const cfg = STAGE_CONFIG[item.stage] || STAGE_CONFIG.Lead;
+              const cfg =
+                STAGE_CONFIG[item.stage] || {
+                  label: item.stage,
+                  bg: "#DBEAFE",
+                  text: colors.primary,
+                  icon: "bulb-outline",
+                };
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -344,7 +304,7 @@ export default function PipelineScreen() {
                     <View style={[styles.stageBadge, { backgroundColor: cfg.bg }]}>
                       <Ionicons name={cfg.icon} size={14} color={cfg.text} />
                       <Text style={[styles.stageBadgeText, { color: cfg.text }]}>
-                        {cfg.label}
+                        {cfg.label || item.stage}
                       </Text>
                     </View>
 
@@ -428,163 +388,6 @@ export default function PipelineScreen() {
       <TouchableOpacity style={styles.fab} onPress={handleOpenCreate} activeOpacity={0.85}>
         <Ionicons name="add" size={30} color="#FFFFFF" />
       </TouchableOpacity>
-
-      {/* Create / Edit Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingItem ? "Edit Pipeline" : "Tambah Pipeline Baru"}
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              {/* Form Input: Title */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Judul Pipeline / Proyek *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Contoh: Pengadaan Server UNOTEK 2026"
-                  placeholderTextColor={colors.textMuted}
-                  value={formTitle}
-                  onChangeText={setFormTitle}
-                />
-              </View>
-
-              {/* Form Input: Client */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nama Klien / Perusahaan *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Contoh: PT Bank Nusantara"
-                  placeholderTextColor={colors.textMuted}
-                  value={formClient}
-                  onChangeText={setFormClient}
-                />
-              </View>
-
-              {/* Form Input: Amount */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Nilai Potential (Rp)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Contoh: 150000000"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  value={formAmount}
-                  onChangeText={setFormAmount}
-                />
-              </View>
-
-              {/* Form Input: Stage Selection */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Tahapan (Stage)</Text>
-                <View style={styles.chipRow}>
-                  {STAGES.filter((s) => s !== "All").map((stg) => {
-                    const isSelected = formStage === stg;
-                    return (
-                      <TouchableOpacity
-                        key={stg}
-                        style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                        onPress={() => setFormStage(stg as PipelineStage)}
-                      >
-                        <Text style={[styles.selectChipText, isSelected && styles.selectChipTextActive]}>
-                          {stg}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Form Input: Priority */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Prioritas</Text>
-                <View style={styles.chipRow}>
-                  {PRIORITIES.map((prio) => {
-                    const isSelected = formPriority === prio;
-                    return (
-                      <TouchableOpacity
-                        key={prio}
-                        style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                        onPress={() => setFormPriority(prio)}
-                      >
-                        <Text style={[styles.selectChipText, isSelected && styles.selectChipTextActive]}>
-                          {prio}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Form Input: Probability */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Probabilitas Win (%)</Text>
-                <View style={styles.chipRow}>
-                  {["25", "50", "75", "90", "100"].map((p) => {
-                    const isSelected = formProbability === p;
-                    return (
-                      <TouchableOpacity
-                        key={p}
-                        style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                        onPress={() => setFormProbability(p)}
-                      >
-                        <Text style={[styles.selectChipText, isSelected && styles.selectChipTextActive]}>
-                          {p}%
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Form Input: Date */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Target Selesai / Close Date (YYYY-MM-DD)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="2026-08-30"
-                  placeholderTextColor={colors.textMuted}
-                  value={formExpectedDate}
-                  onChangeText={setFormExpectedDate}
-                />
-              </View>
-
-              {/* Form Input: Notes */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Catatan & Keterangan</Text>
-                <TextInput
-                  style={[styles.formInput, { height: hpx(70), textAlignVertical: "top" }]}
-                  placeholder="Tuliskan perkembangan negosiasi atau catatan tambahan..."
-                  placeholderTextColor={colors.textMuted}
-                  multiline
-                  value={formNotes}
-                  onChangeText={setFormNotes}
-                />
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.saveBtn, submitting && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>
-                  {editingItem ? "Simpan Perubahan" : "Tambah Pipeline"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -781,57 +584,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...shadows.elevated,
   },
-
-  /* Modal */
-  modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
-  modalContent: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
-    maxHeight: "90%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalTitle: { fontSize: rf(17), fontWeight: "800" as any, color: colors.textPrimary },
-  modalScroll: { marginBottom: spacing.lg },
-  formGroup: { marginBottom: spacing.md },
-  formLabel: { fontSize: rf(13), fontWeight: "700" as any, color: colors.textPrimary, marginBottom: spacing.xs },
-  formInput: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: rf(14),
-    color: colors.textPrimary,
-  },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  selectChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  selectChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  selectChipText: { fontSize: rf(12), color: colors.textSecondary },
-  selectChipTextActive: { color: colors.primary, fontWeight: "700" as any },
-  saveBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: hpx(14),
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveBtnText: { color: "#FFFFFF", fontWeight: "800" as any, fontSize: rf(15) },
 });
