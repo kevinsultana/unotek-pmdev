@@ -39,7 +39,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           }
         };
 
-        if (route.name === "event") {
+        if (route.name === "action") {
           return (
             <TouchableOpacity
               key={route.key}
@@ -56,7 +56,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                 ]}
               >
                 <Ionicons
-                  name={isFocused ? "calendar" : "calendar-outline"}
+                  name={isFocused ? "flash" : "flash-outline"}
                   size={26}
                   color="#FFFFFF"
                 />
@@ -76,8 +76,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         let iconName = "home-outline";
         if (route.name === "home")
           iconName = isFocused ? "home" : "home-outline";
-        else if (route.name === "timeline")
-          iconName = isFocused ? "checkbox" : "checkbox-outline";
+        else if (route.name === "event")
+          iconName = isFocused ? "calendar" : "calendar-outline";
         else if (route.name === "pengajuan")
           iconName = isFocused ? "document-text" : "document-text-outline";
         else if (route.name === "profile")
@@ -112,8 +112,8 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="home" options={{ title: "Home" }} />
-      <Tabs.Screen name="timeline" options={{ title: "Task" }} />
       <Tabs.Screen name="event" options={{ title: "Event" }} />
+      <Tabs.Screen name="action" options={{ title: "Action" }} />
       <Tabs.Screen name="pengajuan" options={{ title: "Pengajuan" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>

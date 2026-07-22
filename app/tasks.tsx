@@ -12,8 +12,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTasks } from "../../hooks/useTasks";
-import { projectService } from "../../services/projectService";
+import { useTasks } from "../hooks/useTasks";
+import { projectService } from "../services/projectService";
 import {
   colors,
   hpx,
@@ -24,8 +24,8 @@ import {
   spacing,
   textPresets,
   wpx,
-} from "../../src/constants/theme";
-import type { Project, ProjectListParams } from "../../types/project";
+} from "../src/constants/theme";
+import type { Project, ProjectListParams } from "../types/project";
 
 const STAGE_MAP: Record<string, { c: string; b: string }> = {
   Open: { c: "#F59E0B", b: "#FEF3C7" },
@@ -63,7 +63,7 @@ function stripHtml(html?: string | null) {
     .trim();
 }
 
-export default function TimelineScreen() {
+export default function TasksScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ filter?: string }>();
@@ -205,8 +205,14 @@ export default function TimelineScreen() {
 
       {/* Curved Header */}
       <View style={[styles.curvedHeader]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/action"))}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Tugas</Text>
+          <Text style={styles.headerTitle}>Tugas & Projek</Text>
           <Text style={styles.headerSub}>Daftar tugas & projek perusahaan</Text>
         </View>
       </View>
@@ -549,11 +555,19 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: wpx(30),
     borderBottomRightRadius: wpx(30),
     paddingHorizontal: spacing["2xl"],
-    justifyContent: "flex-end",
+    flexDirection: "row",
+    alignItems: "flex-end",
     paddingBottom: hpx(16),
     zIndex: 1,
   },
-  headerContent: { alignItems: "center" },
+  backBtn: {
+    position: "absolute",
+    left: spacing["2xl"],
+    bottom: hpx(16),
+    padding: spacing.xs,
+    zIndex: 10,
+  },
+  headerContent: { flex: 1, alignItems: "center" },
   headerTitle: { fontSize: rf(22), fontWeight: "800" as any, color: "#FFFFFF" },
   headerSub: {
     fontSize: rf(13),

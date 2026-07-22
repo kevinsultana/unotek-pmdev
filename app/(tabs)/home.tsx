@@ -28,9 +28,9 @@ import {
 
 const MENU_GRID = [
   {
-    route: "/timeline",
-    icon: "checkbox-outline",
-    label: "Task",
+    route: "/action",
+    icon: "flash-outline",
+    label: "Action",
     color: colors.primary,
     bg: colors.primaryLight,
   },
@@ -311,7 +311,7 @@ export default function HomeScreen() {
         {/* ── Task Feed ─────────────────────────────────────────────── */}
         <View style={styles.feedHeader}>
           <Text style={styles.feedTitle}>Tugas Hari Ini</Text>
-          <TouchableOpacity onPress={() => router.push("/timeline")}>
+          <TouchableOpacity onPress={() => router.push("/tasks")}>
             <Text style={styles.feedSeeAll}>Lihat Semua</Text>
           </TouchableOpacity>
         </View>
