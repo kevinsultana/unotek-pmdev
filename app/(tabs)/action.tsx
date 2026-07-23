@@ -97,6 +97,32 @@ export default function ActionScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Menu 3: Kontak Perusahaan */}
+        <TouchableOpacity
+          style={[styles.actionCard, { marginTop: spacing.lg, borderColor: "#D1FAE5" }]}
+          onPress={() => router.push("/contact" as any)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconBg, { backgroundColor: "#059669" }]}>
+              <Ionicons name="business-outline" size={wpx(24)} color="#FFFFFF" />
+            </View>
+            <View style={[styles.badge, { backgroundColor: "#D1FAE5" }]}>
+              <Text style={[styles.badgeText, { color: "#059669" }]}>Kontak</Text>
+            </View>
+          </View>
+
+          <Text style={styles.cardTitle}>Kontak Perusahaan</Text>
+          <Text style={styles.cardSub}>
+            Kelola data kontak perusahaan (company), NPWP, alamat, serta daftar kontak person yang terhubung.
+          </Text>
+
+          <View style={[styles.ctaRow, { backgroundColor: "#D1FAE5" }]}>
+            <Text style={[styles.ctaText, { color: "#059669" }]}>Kelola Kontak Perusahaan</Text>
+            <Ionicons name="chevron-forward" size={wpx(18)} color="#059669" />
+          </View>
+        </TouchableOpacity>
+
         <View style={{ height: hpx(30) }} />
       </ScrollView>
     </View>
