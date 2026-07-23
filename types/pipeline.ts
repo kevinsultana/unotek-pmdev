@@ -1,4 +1,4 @@
-export type PipelineStage = "Lead" | "Qualification" | "Proposal" | "Negotiation" | "Won" | "Lost";
+export type PipelineStage = "Lead" | "Qualification" | "Proposal" | "Negotiation" | "Won" | "Lost" | "Opportunity" | string;
 export type PipelinePriority = "Low" | "Medium" | "High";
 
 export interface CrmStage {

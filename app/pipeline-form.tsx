@@ -21,16 +21,13 @@ import {
   radius,
   rf,
   shadows,
-  sizes,
   spacing,
-  textPresets,
-  wpx,
+  wpx
 } from "../src/constants/theme";
 import type {
   CrmStage,
-  PipelineItem,
   PipelinePriority,
-  PipelineStage,
+  PipelineStage
 } from "../types/pipeline";
 import { showToast } from "../utils/toast";
 
@@ -102,9 +99,9 @@ export default function PipelineFormScreen() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
-  const [stage, setStage] = useState<PipelineStage>("Lead");
-  const [priority, setPriority] = useState<PipelinePriority>("Medium");
-  const [probability, setProbability] = useState("50");
+  const [stage, setStage] = useState<PipelineStage>("Activity");
+  const [priority, setPriority] = useState<PipelinePriority>("Low");
+  const [probability, setProbability] = useState("10");
   const [dateDeadline, setDateDeadline] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [notes, setNotes] = useState("");
@@ -125,6 +122,11 @@ export default function PipelineFormScreen() {
         try {
           const item = await pipelineService.getById(params.id);
           if (item) {
+            if (item.wonStatus === "lost" || item.stage === "Lost") {
+              showToast("error", "Tidak Dapat Di-edit", "CRM Lead ini berstatus Lost (Gagal) dan tidak dapat diubah lagi.");
+              router.back();
+              return;
+            }
             setTitle(item.title);
             setClient(item.client);
             setEmail(item.email_from || "");
@@ -400,27 +402,27 @@ export default function PipelineFormScreen() {
                   return !name.includes("won") && !name.includes("lost") && !name.includes("menang") && !name.includes("gagal");
                 })
                 .map((stgName) => {
-                const isSelected = stage.toLowerCase() === stgName.toLowerCase();
-                return (
-                  <TouchableOpacity
-                    key={stgName}
-                    style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                    onPress={() => {
-                      setStage(stgName as PipelineStage);
-                      setProbability(getProbabilityByStage(stgName));
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.selectChipText,
-                        isSelected && styles.selectChipTextActive,
-                      ]}
+                  const isSelected = stage.toLowerCase() === stgName.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={stgName}
+                      style={[styles.selectChip, isSelected && styles.selectChipActive]}
+                      onPress={() => {
+                        setStage(stgName as PipelineStage);
+                        setProbability(getProbabilityByStage(stgName));
+                      }}
                     >
-                      {stgName}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.selectChipText,
+                          isSelected && styles.selectChipTextActive,
+                        ]}
+                      >
+                        {stgName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
             </View>
           </View>
 

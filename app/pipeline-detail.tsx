@@ -466,6 +466,7 @@ export default function PipelineDetailScreen() {
 
   const stageCfg = STAGE_CONFIG[pipeline.stage] || STAGE_CONFIG.Lead;
   const attachments = pipeline.attachments || [];
+  const isLost = pipeline.wonStatus === "lost" || pipeline.stage === "Lost";
 
   return (
     <View style={styles.container}>
@@ -485,9 +486,11 @@ export default function PipelineDetailScreen() {
         </View>
 
         <View style={styles.headerRightActions}>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={handleOpenEdit}>
-            <Ionicons name="create-outline" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
+          {!isLost && (
+            <TouchableOpacity style={styles.headerIconBtn} onPress={handleOpenEdit}>
+              <Ionicons name="create-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.headerIconBtn} onPress={handleDelete}>
             <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -498,6 +501,15 @@ export default function PipelineDetailScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
+        {isLost && (
+          <View style={styles.readOnlyBanner}>
+            <Ionicons name="lock-closed" size={18} color="#DC2626" />
+            <Text style={styles.readOnlyBannerText}>
+              Prospek ini berstatus Lost (Gagal) dan bersifat Read-Only (Hanya dapat dilihat).
+            </Text>
+          </View>
+        )}
+
         {/* Main Hero Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
@@ -550,81 +562,85 @@ export default function PipelineDetailScreen() {
         </View>
 
         {/* Quick Deal Outcome Actions */}
-        <View style={styles.dealActionsRow}>
-          <TouchableOpacity
-            style={[styles.dealWonBtn, pipeline.stage === "Won" && styles.dealWonBtnActive]}
-            onPress={handleMarkWon}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.dealWonBtnText}>Tandai Won (Menang)</Text>
-          </TouchableOpacity>
+        {!isLost && (
+          <View style={styles.dealActionsRow}>
+            <TouchableOpacity
+              style={[styles.dealWonBtn, pipeline.stage === "Won" && styles.dealWonBtnActive]}
+              onPress={handleMarkWon}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.dealWonBtnText}>Tandai Won (Menang)</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.dealLostBtn, pipeline.stage === "Lost" && styles.dealLostBtnActive]}
-            onPress={handleOpenMarkLost}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="close-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.dealLostBtnText}>Tandai Lost (Gagal)</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.dealLostBtn, pipeline.stage === "Lost" && styles.dealLostBtnActive]}
+              onPress={handleOpenMarkLost}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="close-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.dealLostBtnText}>Tandai Lost (Gagal)</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Quick Stage Update Stepper */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Ubah Tahapan Stage</Text>
-          <Text style={styles.sectionSub}>Tekan stage di bawah untuk memperbarui status proyek:</Text>
+        {!isLost && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Ubah Tahapan Stage</Text>
+            <Text style={styles.sectionSub}>Tekan stage di bawah untuk memperbarui status proyek:</Text>
 
-          <View style={styles.stageStepperRow}>
-            {(stages.length > 0 ? stages : ALL_STAGES)
-              .filter((stgItem) => {
-                const stgName = (typeof stgItem === "string" ? stgItem : stgItem.name).toLowerCase().trim();
-                return !stgName.includes("won") && !stgName.includes("lost") && !stgName.includes("menang") && !stgName.includes("gagal");
-              })
-              .map((stgItem) => {
-              const stgName = typeof stgItem === "string" ? stgItem : stgItem.name;
-              const stgId = typeof stgItem === "string" ? undefined : stgItem.id;
+            <View style={styles.stageStepperRow}>
+              {(stages.length > 0 ? stages : ALL_STAGES)
+                .filter((stgItem) => {
+                  const stgName = (typeof stgItem === "string" ? stgItem : stgItem.name).toLowerCase().trim();
+                  return !stgName.includes("won") && !stgName.includes("lost") && !stgName.includes("menang") && !stgName.includes("gagal");
+                })
+                .map((stgItem) => {
+                const stgName = typeof stgItem === "string" ? stgItem : stgItem.name;
+                const stgId = typeof stgItem === "string" ? undefined : stgItem.id;
 
-              const isCurrent =
-                pipeline.stage.toLowerCase() === stgName.toLowerCase() ||
-                (pipeline.stageId && String(pipeline.stageId) === String(stgId));
+                const isCurrent =
+                  pipeline.stage.toLowerCase() === stgName.toLowerCase() ||
+                  (pipeline.stageId && String(pipeline.stageId) === String(stgId));
 
-              const cfg =
-                STAGE_CONFIG[stgName as PipelineStage] || {
-                  label: stgName,
-                  bg: "#DBEAFE",
-                  text: colors.primary,
-                  icon: "bulb-outline",
-                };
+                const cfg =
+                  STAGE_CONFIG[stgName as PipelineStage] || {
+                    label: stgName,
+                    bg: "#DBEAFE",
+                    text: colors.primary,
+                    icon: "bulb-outline",
+                  };
 
-              return (
-                <TouchableOpacity
-                  key={String(stgId || stgName)}
-                  style={[
-                    styles.stageStepChip,
-                    isCurrent ? { backgroundColor: cfg.bg, borderColor: cfg.text } : null,
-                  ]}
-                  onPress={() => handleQuickChangeStage(stgName, stgId)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={cfg.icon as any}
-                    size={14}
-                    color={isCurrent ? cfg.text : colors.textMuted}
-                  />
-                  <Text
+                return (
+                  <TouchableOpacity
+                    key={String(stgId || stgName)}
                     style={[
-                      styles.stageStepText,
-                      isCurrent ? { color: cfg.text, fontWeight: "700" as any } : null,
+                      styles.stageStepChip,
+                      isCurrent ? { backgroundColor: cfg.bg, borderColor: cfg.text } : null,
                     ]}
+                    onPress={() => handleQuickChangeStage(stgName, stgId)}
+                    activeOpacity={0.8}
                   >
-                    {stgName}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Ionicons
+                      name={cfg.icon as any}
+                      size={14}
+                      color={isCurrent ? cfg.text : colors.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.stageStepText,
+                        isCurrent ? { color: cfg.text, fontWeight: "700" as any } : null,
+                      ]}
+                    >
+                      {stgName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Informational Specs */}
         <View style={styles.sectionCard}>
@@ -667,9 +683,11 @@ export default function PipelineDetailScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.notesHeaderRow}>
             <Text style={styles.sectionTitle}>Catatan & Perkembangan</Text>
-            <TouchableOpacity onPress={handleOpenEdit}>
-              <Text style={styles.editNotesText}>Edit Catatan</Text>
-            </TouchableOpacity>
+            {!isLost && (
+              <TouchableOpacity onPress={handleOpenEdit}>
+                <Text style={styles.editNotesText}>Edit Catatan</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {stripHtmlTags(pipeline.notes) ? (
@@ -691,29 +709,31 @@ export default function PipelineDetailScreen() {
           </View>
 
           {/* Action Buttons to Add Attachments */}
-          <View style={styles.addAttButtonsRow}>
-            <TouchableOpacity style={styles.addAttBtn} onPress={handlePickImage}>
-              <Ionicons name="images-outline" size={18} color={colors.primary} />
-              <Text style={styles.addAttBtnText}>Galeri</Text>
-            </TouchableOpacity>
+          {!isLost && (
+            <View style={styles.addAttButtonsRow}>
+              <TouchableOpacity style={styles.addAttBtn} onPress={handlePickImage}>
+                <Ionicons name="images-outline" size={18} color={colors.primary} />
+                <Text style={styles.addAttBtnText}>Galeri</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity style={styles.addAttBtn} onPress={handleTakeCamera}>
-              <Ionicons name="camera-outline" size={18} color={colors.primary} />
-              <Text style={styles.addAttBtnText}>Kamera</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.addAttBtn} onPress={handleTakeCamera}>
+                <Ionicons name="camera-outline" size={18} color={colors.primary} />
+                <Text style={styles.addAttBtnText}>Kamera</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.addAttBtn}
-              onPress={() => {
-                setDocName("");
-                setDocUri("");
-                setDocModalVisible(true);
-              }}
-            >
-              <Ionicons name="document-attach-outline" size={18} color={colors.primary} />
-              <Text style={styles.addAttBtnText}>Link / Dokumen</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                style={styles.addAttBtn}
+                onPress={() => {
+                  setDocName("");
+                  setDocUri("");
+                  setDocModalVisible(true);
+                }}
+              >
+                <Ionicons name="document-attach-outline" size={18} color={colors.primary} />
+                <Text style={styles.addAttBtnText}>Link / Dokumen</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Attachment List */}
           {attachments.length === 0 ? (
@@ -774,12 +794,14 @@ export default function PipelineDetailScreen() {
                       <Ionicons name="eye-outline" size={18} color={colors.primary} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.attDeleteIconBtn}
-                      onPress={() => handleDeleteAttachment(att)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.error} />
-                    </TouchableOpacity>
+                    {!isLost && (
+                      <TouchableOpacity
+                        style={styles.attDeleteIconBtn}
+                        onPress={() => handleDeleteAttachment(att)}
+                      >
+                        <Ionicons name="trash-outline" size={18} color={colors.error} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               })}
@@ -789,12 +811,17 @@ export default function PipelineDetailScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsRow}>
-          <TouchableOpacity style={styles.editFullBtn} onPress={handleOpenEdit}>
-            <Ionicons name="create-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.editFullBtnText}>Edit Pipeline</Text>
-          </TouchableOpacity>
+          {!isLost && (
+            <TouchableOpacity style={styles.editFullBtn} onPress={handleOpenEdit}>
+              <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.editFullBtnText}>Edit Pipeline</Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity style={styles.deleteFullBtn} onPress={handleDelete}>
+          <TouchableOpacity
+            style={[styles.deleteFullBtn, isLost ? { flex: 1 } : null]}
+            onPress={handleDelete}
+          >
             <Ionicons name="trash-outline" size={20} color={colors.error} />
             <Text style={styles.deleteFullBtnText}>Hapus</Text>
           </TouchableOpacity>
@@ -998,6 +1025,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing["2xl"],
     paddingTop: hpx(16),
     paddingBottom: hpx(40),
+  },
+
+  readOnlyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  readOnlyBannerText: {
+    flex: 1,
+    fontSize: rf(12),
+    color: "#991B1B",
+    fontWeight: "600" as any,
   },
 
   /* Hero Card */

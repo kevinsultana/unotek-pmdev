@@ -36,6 +36,7 @@ const STAGE_CONFIG: Record<
   Lead: { label: "Lead", bg: "#FEF3C7", text: "#D97706", icon: "bulb-outline" },
   Qualification: { label: "Kualifikasi", bg: "#EDE9FE", text: "#7C3AED", icon: "filter-outline" },
   Qualified: { label: "Kualifikasi", bg: "#EDE9FE", text: "#7C3AED", icon: "filter-outline" },
+  Opportunity: { label: "Opportunity", bg: "#DBEAFE", text: "#1E40AF", icon: "briefcase-outline" },
   Proposal: { label: "Proposal", bg: "#DBEAFE", text: "#1E40AF", icon: "document-text-outline" },
   Proposition: { label: "Proposal", bg: "#DBEAFE", text: "#1E40AF", icon: "document-text-outline" },
   Negotiation: { label: "Negosiasi", bg: "#E0E7FF", text: "#4F46E5", icon: "chatbubbles-outline" },
@@ -85,12 +86,18 @@ export default function PipelineScreen() {
   const fetchPipelines = useCallback(async () => {
     try {
       setLoading(true);
-      const stageIdParam = selectedStage.id !== "all" ? selectedStage.id : undefined;
+      const stgNameLower = selectedStage.name.toLowerCase();
+      const isLostStage = stgNameLower.includes("lost");
+      const isWonStage = stgNameLower.includes("won");
+
+      const stageIdParam = (selectedStage.id !== "all" && !isLostStage && !isWonStage) ? selectedStage.id : undefined;
       const stageNameParam = selectedStage.id === "all" ? "All" : selectedStage.name;
+      const wonStatusParam = isLostStage ? "lost" : isWonStage ? "won" : undefined;
 
       const data = await pipelineService.list({
         stage: stageNameParam,
         stage_id: stageIdParam,
+        won_status: wonStatusParam,
         search: searchQuery,
       });
       setPipelines(data);
@@ -285,6 +292,7 @@ export default function PipelineScreen() {
         ) : (
           <View style={styles.listContainer}>
             {pipelines.map((item) => {
+              const isLost = item.wonStatus === "lost" || item.stage === "Lost";
               const cfg =
                 STAGE_CONFIG[item.stage] || {
                   label: item.stage,
@@ -309,15 +317,21 @@ export default function PipelineScreen() {
                     </View>
 
                     <View style={styles.cardActions}>
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={(e) => {
-                          e?.stopPropagation?.();
-                          handleOpenEdit(item);
-                        }}
-                      >
-                        <Ionicons name="create-outline" size={18} color={colors.primary} />
-                      </TouchableOpacity>
+                      {!isLost ? (
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={(e) => {
+                            e?.stopPropagation?.();
+                            handleOpenEdit(item);
+                          }}
+                        >
+                          <Ionicons name="create-outline" size={18} color={colors.primary} />
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.actionBtn}>
+                          <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
+                        </View>
+                      )}
                       <TouchableOpacity
                         style={styles.actionBtn}
                         onPress={(e) => {

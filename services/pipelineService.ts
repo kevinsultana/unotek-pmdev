@@ -112,12 +112,23 @@ const INITIAL_PIPELINES: PipelineItem[] = [
 // Helper to map backend CrmLead to unified PipelineItem
 export function mapCrmLeadToPipelineItem(lead: CrmLead): PipelineItem {
   let stageName: PipelineStage = "Lead";
-  if (typeof lead.stage === "string") {
+  if (lead.won_status === "lost") {
+    stageName = "Lost";
+  } else if (lead.won_status === "won") {
+    stageName = "Won";
+  } else if (typeof lead.stage === "string") {
     stageName = (lead.stage as PipelineStage) || "Lead";
   } else if (lead.stage && typeof lead.stage === "object") {
     stageName = (lead.stage.name as PipelineStage) || "Lead";
   } else if (lead.stage_name) {
     stageName = (lead.stage_name as PipelineStage) || "Lead";
+  }
+
+  let probability = lead.probability ?? 50;
+  if (lead.won_status === "lost") {
+    probability = 0;
+  } else if (lead.won_status === "won") {
+    probability = 100;
   }
 
   let priority: PipelinePriority = "Medium";
@@ -153,7 +164,7 @@ export function mapCrmLeadToPipelineItem(lead: CrmLead): PipelineItem {
     stage: stageName,
     stageId: typeof lead.stage === "object" && lead.stage?.id ? lead.stage.id : lead.stage_id,
     priority,
-    probability: lead.probability ?? 50,
+    probability,
     expectedCloseDate: lead.date_deadline || new Date().toISOString().split("T")[0],
     notes: lead.description || "",
     attachments: mappedAtts,
@@ -225,15 +236,25 @@ export const pipelineService = {
   // Fetch List of CRM Leads with filters
   list: async (params?: PipelineListParams): Promise<PipelineItem[]> => {
     try {
+      const isLostFilter = params?.won_status === "lost" || (params?.stage && params.stage.toLowerCase().includes("lost"));
+      const isWonFilter = params?.won_status === "won" || (params?.stage && params.stage.toLowerCase().includes("won"));
+
       const queryParams: Record<string, any> = {
         page: params?.page || 1,
         per_page: params?.per_page || 50,
       };
       if (params?.search?.trim()) queryParams.search = params.search.trim();
-      if (params?.stage_id) queryParams.stage_id = params.stage_id;
+      if (params?.stage_id && !isLostFilter && !isWonFilter) queryParams.stage_id = params.stage_id;
       if (params?.type) queryParams.type = params.type;
       if (params?.priority !== undefined) queryParams.priority = params.priority;
-      if (params?.won_status) queryParams.won_status = params.won_status;
+
+      if (isLostFilter) {
+        queryParams.won_status = "lost";
+      } else if (isWonFilter) {
+        queryParams.won_status = "won";
+      } else if (params?.won_status) {
+        queryParams.won_status = params.won_status;
+      }
 
       const res = await api.get<ApiResponse<CrmLead[]> | { data: CrmLead[] } | CrmLead[]>("/crm-leads", {
         params: queryParams,
@@ -251,8 +272,13 @@ export const pipelineService = {
 
       if (rawList.length > 0) {
         let mapped = rawList.map(mapCrmLeadToPipelineItem);
-        if (params?.stage && params.stage !== "All") {
-          mapped = mapped.filter((i) => i.stage === params.stage);
+
+        if (isLostFilter) {
+          mapped = mapped.filter((i) => i.wonStatus === "lost" || i.stage === "Lost");
+        } else if (isWonFilter) {
+          mapped = mapped.filter((i) => i.wonStatus === "won" || i.stage === "Won");
+        } else if (params?.stage && params.stage !== "All") {
+          mapped = mapped.filter((i) => i.stage === params.stage && i.wonStatus !== "lost");
         }
         return mapped;
       }
@@ -262,10 +288,18 @@ export const pipelineService = {
 
     // Local Storage Fallback
     let items = await getStoredItems();
-    if (params?.stage && params.stage !== "All") {
-      items = items.filter((i) => i.stage === params.stage);
+    const isLostFilter = params?.won_status === "lost" || (params?.stage && params.stage.toLowerCase().includes("lost"));
+    const isWonFilter = params?.won_status === "won" || (params?.stage && params.stage.toLowerCase().includes("won"));
+
+    if (isLostFilter) {
+      items = items.filter((i) => i.wonStatus === "lost" || i.stage === "Lost");
+    } else if (isWonFilter) {
+      items = items.filter((i) => i.wonStatus === "won" || i.stage === "Won");
+    } else if (params?.stage && params.stage !== "All") {
+      items = items.filter((i) => i.stage === params.stage && i.wonStatus !== "lost");
     }
-    if (params?.stage_id) {
+
+    if (params?.stage_id && !isLostFilter && !isWonFilter) {
       items = items.filter((i) => String(i.stageId) === String(params.stage_id));
     }
     if (params?.search?.trim()) {
