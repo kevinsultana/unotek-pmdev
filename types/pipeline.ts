@@ -46,6 +46,7 @@ export interface CrmLead {
   description?: string;
   won_status?: "pending" | "won" | "lost";
   lost_reason_id?: number | null;
+  lost_reason?: CrmLostReason | string | null;
   lost_feedback?: string;
   attachments?: PipelineAttachment[];
   created_at?: string;
@@ -106,6 +107,7 @@ export interface PipelineItem {
   createdAt: string;
   wonStatus?: "pending" | "won" | "lost";
   lost_reason_id?: number | null;
+  lostReason?: string;
   lost_feedback?: string;
 }
 

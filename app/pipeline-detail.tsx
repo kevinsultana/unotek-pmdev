@@ -504,9 +504,16 @@ export default function PipelineDetailScreen() {
         {isLost && (
           <View style={styles.readOnlyBanner}>
             <Ionicons name="lock-closed" size={18} color="#DC2626" />
-            <Text style={styles.readOnlyBannerText}>
-              Prospek ini berstatus Lost (Gagal) dan bersifat Read-Only (Hanya dapat dilihat).
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.readOnlyBannerText}>
+                Prospek ini berstatus Lost (Gagal) dan bersifat Read-Only (Hanya dapat dilihat).
+              </Text>
+              {(pipeline.lostReason || pipeline.lost_feedback) ? (
+                <Text style={styles.readOnlyBannerReason}>
+                  Alasan Lost: {pipeline.lostReason || pipeline.lost_feedback}
+                </Text>
+              ) : null}
+            </View>
           </View>
         )}
 
@@ -677,6 +684,20 @@ export default function PipelineDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {isLost && (pipeline.lostReason || pipeline.lost_feedback) ? (
+            <View style={styles.infoRow}>
+              <View style={[styles.infoIconBg, { backgroundColor: "#FEE2E2" }]}>
+                <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoLabel}>Alasan Lost (Gagal)</Text>
+                <Text style={[styles.infoVal, { color: colors.error, fontWeight: "700" as any }]}>
+                  {pipeline.lostReason || pipeline.lost_feedback}
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Notes & Description Card */}
@@ -1039,10 +1060,15 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   readOnlyBannerText: {
-    flex: 1,
     fontSize: rf(12),
     color: "#991B1B",
     fontWeight: "600" as any,
+  },
+  readOnlyBannerReason: {
+    fontSize: rf(12),
+    color: "#B91C1C",
+    fontWeight: "700" as any,
+    marginTop: 3,
   },
 
   /* Hero Card */

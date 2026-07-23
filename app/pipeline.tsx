@@ -351,6 +351,16 @@ export default function PipelineScreen() {
                     <Text style={styles.clientText}>{item.client}</Text>
                   </View>
 
+                  {/* Lost Reason Badge if Lost */}
+                  {isLost && (item.lostReason || item.lost_feedback) ? (
+                    <View style={styles.lostReasonBox}>
+                      <Ionicons name="alert-circle-outline" size={14} color={colors.error} />
+                      <Text style={styles.lostReasonBoxText} numberOfLines={1}>
+                        Alasan Lost: {item.lostReason || item.lost_feedback}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {/* Amount Value */}
                   <View style={styles.amountBox}>
                     <Text style={styles.amountLabel}>Nilai Prospek:</Text>
@@ -554,6 +564,22 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: rf(15), fontWeight: "700" as any, color: colors.textPrimary, marginTop: spacing.xs },
   clientRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
   clientText: { fontSize: rf(12), color: colors.textMuted },
+  lostReasonBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    marginTop: spacing.xs,
+    gap: 4,
+  },
+  lostReasonBoxText: {
+    fontSize: rf(11),
+    color: colors.error,
+    fontWeight: "700" as any,
+    flex: 1,
+  },
   amountBox: {
     flexDirection: "row",
     alignItems: "center",

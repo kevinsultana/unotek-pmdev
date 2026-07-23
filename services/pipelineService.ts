@@ -154,6 +154,15 @@ export function mapCrmLeadToPipelineItem(lead: CrmLead): PipelineItem {
     };
   });
 
+  let lostReasonText = "";
+  if (typeof lead.lost_reason === "string") {
+    lostReasonText = lead.lost_reason;
+  } else if (lead.lost_reason && typeof lead.lost_reason === "object" && (lead.lost_reason as any).name) {
+    lostReasonText = (lead.lost_reason as any).name;
+  } else if (lead.lost_feedback) {
+    lostReasonText = lead.lost_feedback;
+  }
+
   return {
     id: String(lead.id),
     title: lead.name || "Tanpa Judul Prospek",
@@ -170,6 +179,9 @@ export function mapCrmLeadToPipelineItem(lead: CrmLead): PipelineItem {
     attachments: mappedAtts,
     createdAt: lead.created_at ? lead.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
     wonStatus: lead.won_status || "pending",
+    lost_reason_id: typeof lead.lost_reason === "object" && (lead.lost_reason as any)?.id ? (lead.lost_reason as any).id : lead.lost_reason_id,
+    lostReason: lostReasonText || undefined,
+    lost_feedback: lead.lost_feedback || undefined,
   };
 }
 
@@ -508,6 +520,9 @@ export const pipelineService = {
       items[index].stage = "Lost";
       items[index].probability = 0;
       items[index].wonStatus = "lost";
+      items[index].lost_reason_id = lostReasonId;
+      items[index].lostReason = lostFeedback;
+      items[index].lost_feedback = lostFeedback;
       await saveStoredItems(items);
     }
     return true;
