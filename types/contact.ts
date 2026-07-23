@@ -14,7 +14,6 @@ export interface Contact {
   company_type: CompanyType;
   email?: string;
   phone?: string;
-  mobile?: string;
   website?: string;
   vat?: string; // NPWP
   function?: string; // Job position (for person)
@@ -55,7 +54,6 @@ export interface ContactCreateParams {
   company_type?: CompanyType;
   email?: string;
   phone?: string;
-  mobile?: string;
   website?: string;
   vat?: string;
   function?: string;

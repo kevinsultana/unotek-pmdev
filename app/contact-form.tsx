@@ -48,7 +48,6 @@ export default function ContactFormScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [mobile, setMobile] = useState("");
   const [website, setWebsite] = useState("");
   const [vat, setVat] = useState("");
   const [jobFunction, setJobFunction] = useState("");
@@ -95,7 +94,6 @@ export default function ContactFormScreen() {
         setCompanyType(data.company_type || "company");
         setEmail(data.email || "");
         setPhone(data.phone || "");
-        setMobile(data.mobile || "");
         setWebsite(data.website || "");
         setVat(data.vat || "");
         setJobFunction(data.function || "");
@@ -134,7 +132,6 @@ export default function ContactFormScreen() {
           company_type: companyType,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
-          mobile: mobile.trim() || undefined,
           website: website.trim() || undefined,
           vat: vat.trim() || undefined,
           function: jobFunction.trim() || undefined,
@@ -153,7 +150,6 @@ export default function ContactFormScreen() {
           company_type: companyType,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
-          mobile: mobile.trim() || undefined,
           website: website.trim() || undefined,
           vat: vat.trim() || undefined,
           function: jobFunction.trim() || undefined,
@@ -417,30 +413,16 @@ export default function ContactFormScreen() {
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>No. Telepon (Kantor / Fixed)</Text>
+              <Text style={styles.fieldLabel}>No. Telepon / HP (phone)</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="cth. +62215551234"
+                placeholder="cth. +6281234567890"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 value={phone}
                 onChangeText={setPhone}
               />
             </View>
-
-            {companyType === "person" ? (
-              <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>No. HP / Mobile</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="cth. +6281234567890"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="phone-pad"
-                  value={mobile}
-                  onChangeText={setMobile}
-                />
-              </View>
-            ) : null}
           </View>
 
           {/* Address Group */}

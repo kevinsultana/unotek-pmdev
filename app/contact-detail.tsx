@@ -393,14 +393,14 @@ export default function ContactDetailScreen() {
 
                 {/* Person details */}
                 <View style={styles.personBody}>
-                  {person.mobile || person.phone ? (
+                  {person.phone ? (
                     <TouchableOpacity
                       style={styles.personContactRow}
-                      onPress={() => openPhone(person.mobile || person.phone)}
+                      onPress={() => openPhone(person.phone)}
                     >
                       <Ionicons name="call-outline" size={wpx(14)} color={colors.primary} />
                       <Text style={[styles.personContactText, { color: colors.primary }]}>
-                        {person.mobile || person.phone}
+                        {person.phone}
                       </Text>
                     </TouchableOpacity>
                   ) : null}

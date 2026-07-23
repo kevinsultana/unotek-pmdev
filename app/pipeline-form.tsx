@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { contactService } from "../services/contactService";
 import { pipelineService } from "../services/pipelineService";
 import {
   colors,
@@ -21,21 +23,22 @@ import {
   radius,
   rf,
   shadows,
+  sizes,
   spacing,
-  wpx
+  wpx,
 } from "../src/constants/theme";
+import type { Contact } from "../types/contact";
 import type {
   CrmStage,
   PipelinePriority,
-  PipelineStage
+  PipelineStage,
 } from "../types/pipeline";
 import { showToast } from "../utils/toast";
 
 const DEFAULT_STAGES: PipelineStage[] = [
+  "Activity",
   "Lead",
-  "Qualification",
-  "Proposal",
-  "Negotiation",
+  "Opportunity",
 ];
 
 const PRIORITIES: PipelinePriority[] = ["Low", "Medium", "High"];
@@ -61,7 +64,6 @@ export function getProbabilityByStage(stageName: string): string {
   if (name.includes("lost") || name.includes("gagal")) {
     return "0";
   }
-  // Opportunity, Qualification, Proposal, Negotiation, etc.
   return "90";
 }
 
@@ -105,6 +107,13 @@ export default function PipelineFormScreen() {
   const [dateDeadline, setDateDeadline] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [notes, setNotes] = useState("");
+
+  // Contact Selection Modal state
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [companiesList, setCompaniesList] = useState<Contact[]>([]);
+  const [personsMap, setPersonsMap] = useState<Record<number, Contact[]>>({});
+  const [contactSearchQuery, setContactSearchQuery] = useState("");
 
   // Load stages & initial data if editing
   useEffect(() => {
@@ -156,6 +165,60 @@ export default function PipelineFormScreen() {
     init();
   }, [isEdit, params.id]);
 
+  // Load contacts list for modal
+  const handleOpenContactModal = async () => {
+    setContactModalVisible(true);
+    if (companiesList.length === 0) {
+      try {
+        setContactsLoading(true);
+        const res = await contactService.list({ company_type: "company", per_page: 100 });
+        const comps = res.items || [];
+        setCompaniesList(comps);
+
+        const pMap: Record<number, Contact[]> = {};
+        await Promise.all(
+          comps.map(async (c) => {
+            try {
+              const pList = await contactService.getPersonsForCompany(c.id);
+              pMap[c.id] = pList;
+            } catch {
+              pMap[c.id] = [];
+            }
+          })
+        );
+        setPersonsMap(pMap);
+      } catch (err) {
+        console.warn("Failed loading contacts for pipeline modal:", err);
+      } finally {
+        setContactsLoading(false);
+      }
+    }
+  };
+
+  // Select contact & auto-populate email + phone
+  const handleSelectCompanyContact = (company: Contact) => {
+    setClient(company.name);
+    if (company.email) setEmail(company.email);
+    if (company.phone) {
+      setPhone(company.phone);
+    }
+    setContactModalVisible(false);
+    showToast("info", "Kontak Dipilih", `Mengisi data dari perusahaan ${company.name}`);
+  };
+
+  const handleSelectPersonContact = (person: Contact, parentComp?: Contact) => {
+    const clientName = parentComp
+      ? `${person.name} (${parentComp.name})`
+      : person.name;
+    setClient(clientName);
+    if (person.email) setEmail(person.email);
+    if (person.phone) {
+      setPhone(person.phone);
+    }
+    setContactModalVisible(false);
+    showToast("info", "Kontak Person Dipilih", `Mengisi data dari ${person.name}`);
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       showToast("error", "Judul Wajib Diisi", "Masukkan judul opportunity / prospek.");
@@ -185,14 +248,14 @@ export default function PipelineFormScreen() {
           email_from: email.trim(),
           phone: phone.trim(),
           amount: numAmount,
-          stage,
-          stageId,
-          priority,
+          stage: stage,
+          stageId: stageId,
+          priority: priority,
           probability: numProb,
           expectedCloseDate: formattedDate,
           notes: notes.trim(),
         });
-        showToast("success", "Berhasil Diperbarui", "Data CRM Lead telah diperbarui.");
+        showToast("success", "CRM Lead Diperbarui", "Perubahan berhasil disimpan.");
       } else {
         await pipelineService.create({
           title: title.trim(),
@@ -200,58 +263,93 @@ export default function PipelineFormScreen() {
           email_from: email.trim(),
           phone: phone.trim(),
           amount: numAmount,
-          stage,
-          stageId,
-          priority,
+          stage: stage,
+          stageId: stageId,
+          priority: priority,
           probability: numProb,
           expectedCloseDate: formattedDate,
           notes: notes.trim(),
         });
-        showToast("success", "Berhasil Ditambahkan", "CRM Lead baru telah dibuat.");
+        showToast("success", "CRM Lead Ditambahkan", "Prospek baru berhasil disimpan ke pipeline.");
       }
       router.back();
     } catch (err: any) {
-      showToast("error", "Gagal Menyimpan", err?.message || "Terjadi kesalahan sistem.");
+      showToast("error", "Gagal Menyimpan", err?.message);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const filteredCompanies = companiesList.filter((comp) => {
+    const q = contactSearchQuery.toLowerCase();
+    if (!q) return true;
+    const compMatch =
+      comp.name.toLowerCase().includes(q) ||
+      comp.email?.toLowerCase().includes(q) ||
+      comp.phone?.toLowerCase().includes(q) ||
+      comp.city?.toLowerCase().includes(q);
+
+    const persons = personsMap[comp.id] || [];
+    const personMatch = persons.some(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.email?.toLowerCase().includes(q) ||
+        p.phone?.toLowerCase().includes(q) ||
+        p.function?.toLowerCase().includes(q)
+    );
+
+    return compMatch || personMatch;
+  });
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
         <StatusBar style="light" />
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Memuat formulir CRM Lead...</Text>
+        <Text style={styles.loadingText}>Memuat formulir...</Text>
       </View>
     );
   }
-
-  const stageOptions = stages.length > 0 ? stages.map((s) => s.name) : DEFAULT_STAGES;
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Header */}
+      {/* Header Standard Curved matching App */}
       <View style={styles.curvedHeader}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={wpx(24)} color="#FFFFFF" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitle}>
-            {isEdit ? "Edit CRM Lead" : "Tambah CRM Lead Baru"}
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {isEdit ? "Edit CRM Lead" : "Tambah CRM Lead"}
           </Text>
-          <Text style={styles.headerSub}>
-            {isEdit ? "Perbarui informasi prospek bisnis" : "Isi formulir prospek bisnis baru"}
-          </Text>
+          <Text style={styles.headerSub}>Formulir Prospek & Opportunity</Text>
         </View>
+
+        <TouchableOpacity
+          style={[styles.saveHeaderBtn, submitting && { opacity: 0.6 }]}
+          onPress={handleSave}
+          disabled={submitting}
+          activeOpacity={0.8}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveHeaderBtnText}>Simpan</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Section 1: Informasi Prospek & Klien */}
         <View style={styles.sectionCard}>
@@ -271,15 +369,28 @@ export default function PipelineFormScreen() {
             />
           </View>
 
+          {/* Nama Klien / Perusahaan - Dropdown Modal Trigger */}
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Nama Klien / Perusahaan *</Text>
-            <TextInput
-              style={styles.formInput}
-              placeholder="Contoh: PT Bank Nusantara Tbk"
-              placeholderTextColor={colors.textMuted}
-              value={client}
-              onChangeText={setClient}
-            />
+            <TouchableOpacity
+              style={styles.selectInput}
+              onPress={handleOpenContactModal}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="business-outline" size={wpx(18)} color={colors.primary} />
+              <Text
+                style={client ? styles.selectInputText : styles.selectInputPlaceholder}
+                numberOfLines={1}
+              >
+                {client || "Pilih Kontak / Perusahaan..."}
+              </Text>
+              <Ionicons name="chevron-down" size={wpx(18)} color={colors.textMuted} />
+            </TouchableOpacity>
+            {client ? (
+              <Text style={styles.fieldHelper}>
+                * Anda dapat mengubah email & no telp di bawah ini jika diperlukan.
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.formGroup}>
@@ -328,122 +439,79 @@ export default function PipelineFormScreen() {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Target Deadline / Closing</Text>
-            {Platform.OS === "ios" ? (
-              <View style={styles.datePickerBtn}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                  <Text style={styles.datePickerText}>
-                    {dateDeadline.toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <DateTimePicker
-                  value={dateDeadline}
-                  mode="date"
-                  display="default"
-                  locale="id-ID"
-                  themeVariant="light"
-                  onChange={(_e, d) => {
-                    if (d) setDateDeadline(d);
-                  }}
-                />
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.datePickerBtn}
-                activeOpacity={0.7}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                  <Text style={styles.datePickerText}>
-                    {dateDeadline.toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
+            <Text style={styles.formLabel}>Estimasi Tanggal Closing</Text>
+            <TouchableOpacity
+              style={styles.datePickerBtn}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.datePickerText}>
+                {dateDeadline.toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
 
-            {Platform.OS === "android" && showDatePicker && (
+            {showDatePicker && (
               <DateTimePicker
                 value={dateDeadline}
                 mode="date"
-                display="default"
-                onChange={(_e, d) => {
-                  if (d) setDateDeadline(d);
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
                   setShowDatePicker(false);
+                  if (selectedDate) setDateDeadline(selectedDate);
                 }}
               />
             )}
           </View>
         </View>
 
-        {/* Section 3: Status & Klasifikasi */}
+        {/* Section 3: Stage & Probabilitas */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionTitleRow}>
             <Ionicons name="git-network-outline" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Status & Klasifikasi Stage</Text>
+            <Text style={styles.sectionTitle}>Tahapan Deal (Stage)</Text>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Tahapan Stage</Text>
+            <Text style={styles.formLabel}>Pilih Stage</Text>
             <View style={styles.chipRow}>
-              {stageOptions
-                .filter((stgName) => {
-                  const name = stgName.toLowerCase().trim();
-                  return !name.includes("won") && !name.includes("lost") && !name.includes("menang") && !name.includes("gagal");
-                })
-                .map((stgName) => {
-                  const isSelected = stage.toLowerCase() === stgName.toLowerCase();
-                  return (
-                    <TouchableOpacity
-                      key={stgName}
-                      style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                      onPress={() => {
-                        setStage(stgName as PipelineStage);
-                        setProbability(getProbabilityByStage(stgName));
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.selectChipText,
-                          isSelected && styles.selectChipTextActive,
-                        ]}
-                      >
-                        {stgName}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              {DEFAULT_STAGES.map((stg) => {
+                const isActive = stage === stg;
+                return (
+                  <TouchableOpacity
+                    key={stg}
+                    style={[styles.selectChip, isActive && styles.selectChipActive]}
+                    onPress={() => {
+                      setStage(stg);
+                      setProbability(getProbabilityByStage(stg));
+                    }}
+                  >
+                    <Text style={[styles.selectChipText, isActive && styles.selectChipTextActive]}>
+                      {stg}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Prioritas</Text>
             <View style={styles.chipRow}>
-              {PRIORITIES.map((prio) => {
-                const isSelected = priority === prio;
+              {PRIORITIES.map((p) => {
+                const isActive = priority === p;
                 return (
                   <TouchableOpacity
-                    key={prio}
-                    style={[styles.selectChip, isSelected && styles.selectChipActive]}
-                    onPress={() => setPriority(prio)}
+                    key={p}
+                    style={[styles.selectChip, isActive && styles.selectChipActive]}
+                    onPress={() => setPriority(p)}
                   >
-                    <Text
-                      style={[
-                        styles.selectChipText,
-                        isSelected && styles.selectChipTextActive,
-                      ]}
-                    >
-                      {prio}
+                    <Text style={[styles.selectChipText, isActive && styles.selectChipTextActive]}>
+                      {p}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -489,6 +557,134 @@ export default function PipelineFormScreen() {
 
         <View style={{ height: hpx(40) }} />
       </ScrollView>
+
+      {/* Modal Selection for Contacts & Companies */}
+      <Modal
+        visible={contactModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setContactModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <StatusBar style="light" />
+
+          {/* Modal Header */}
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setContactModalVisible(false)}
+            >
+              <Ionicons name="close" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.modalHeaderTitle}>Pilih Kontak Perusahaan / Person</Text>
+            <View style={{ width: wpx(36) }} />
+          </View>
+
+          {/* Search Box inside Modal */}
+          <View style={styles.modalSearchBox}>
+            <Ionicons name="search" size={wpx(18)} color={colors.textMuted} />
+            <TextInput
+              style={styles.modalSearchInput}
+              placeholder="Cari perusahaan, person, email, telp..."
+              placeholderTextColor={colors.textMuted}
+              value={contactSearchQuery}
+              onChangeText={setContactSearchQuery}
+            />
+            {contactSearchQuery ? (
+              <TouchableOpacity onPress={() => setContactSearchQuery("")}>
+                <Ionicons name="close-circle" size={wpx(18)} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {contactsLoading ? (
+            <View style={styles.modalCenterLoading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Memuat kontak perusahaan & person...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.modalScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {filteredCompanies.length === 0 ? (
+                <View style={styles.modalEmptyBox}>
+                  <Ionicons name="business-outline" size={wpx(48)} color={colors.textMuted} />
+                  <Text style={styles.modalEmptyTitle}>Kontak Tidak Ditemukan</Text>
+                  <Text style={styles.modalEmptySub}>
+                    Tidak ada kontak yang cocok dengan "{contactSearchQuery}".
+                  </Text>
+                </View>
+              ) : (
+                filteredCompanies.map((comp) => {
+                  const pList = personsMap[comp.id] || [];
+                  return (
+                    <View key={comp.id} style={styles.contactCompCard}>
+                      {/* Company Row */}
+                      <TouchableOpacity
+                        style={styles.companyRowSelect}
+                        onPress={() => handleSelectCompanyContact(comp)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.compIconBg}>
+                          <Ionicons name="business" size={wpx(20)} color={colors.primary} />
+                        </View>
+                        <View style={styles.compMainInfo}>
+                          <Text style={styles.compNameText}>{comp.name}</Text>
+                          {comp.email || comp.phone ? (
+                            <Text style={styles.compSubText} numberOfLines={1}>
+                              {[comp.email, comp.phone].filter(Boolean).join(" • ")}
+                            </Text>
+                          ) : (
+                            <Text style={styles.compSubText}>Perusahaan (Company)</Text>
+                          )}
+                        </View>
+                        <View style={styles.selectBtnBadge}>
+                          <Text style={styles.selectBtnBadgeText}>Pilih Company</Text>
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Linked Persons List */}
+                      {pList.length > 0 ? (
+                        <View style={styles.personSubSection}>
+                          <Text style={styles.personSubHeaderLabel}>
+                            Person Terkait ({pList.length}):
+                          </Text>
+                          {pList.map((person) => (
+                            <TouchableOpacity
+                              key={person.id}
+                              style={styles.personRowSelect}
+                              onPress={() => handleSelectPersonContact(person, comp)}
+                              activeOpacity={0.8}
+                            >
+                              <View style={styles.personMiniAvatar}>
+                                <Ionicons name="person" size={wpx(14)} color="#7C3AED" />
+                              </View>
+                              <View style={styles.personMainInfo}>
+                                <Text style={styles.personNameText}>{person.name}</Text>
+                                <Text style={styles.personSubText} numberOfLines={1}>
+                                  {[person.function, person.phone, person.email]
+                                    .filter(Boolean)
+                                    .join(" • ")}
+                                </Text>
+                              </View>
+                              <Ionicons
+                                name="chevron-forward"
+                                size={wpx(16)}
+                                color={colors.primary}
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -516,9 +712,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   backBtn: { padding: spacing.xs },
-  headerTitleBox: { flex: 1, alignItems: "center", marginRight: spacing.xl },
-  headerTitle: { fontSize: rf(19), fontWeight: "800" as any, color: "#FFFFFF" },
-  headerSub: { fontSize: rf(11), color: "rgba(255, 255, 255, 0.7)", marginTop: 2 },
+  headerTitleBox: { flex: 1, alignItems: "center" },
+  headerTitle: { fontSize: rf(20), fontWeight: "800" as any, color: "#FFFFFF" },
+  headerSub: { fontSize: rf(12), color: "rgba(255, 255, 255, 0.8)", marginTop: hpx(2) },
+  saveHeaderBtn: { padding: spacing.xs },
+  saveHeaderBtnText: { fontSize: rf(14), fontWeight: "700" as any, color: "#FFFFFF" },
 
   scroll: {
     paddingHorizontal: spacing["2xl"],
@@ -558,6 +756,35 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     fontSize: rf(14),
     color: colors.textPrimary,
+  },
+  selectInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    height: hpx(48),
+    gap: spacing.sm,
+  },
+  selectInputText: {
+    flex: 1,
+    fontSize: rf(14),
+    fontWeight: "600" as any,
+    color: colors.textPrimary,
+  },
+  selectInputPlaceholder: {
+    flex: 1,
+    fontSize: rf(14),
+    color: colors.textMuted,
+  },
+  fieldHelper: {
+    fontSize: rf(11),
+    color: colors.textMuted,
+    marginTop: hpx(4),
+    fontStyle: "italic",
   },
 
   datePickerBtn: {
@@ -601,4 +828,168 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   saveBtnText: { color: "#FFFFFF", fontWeight: "800" as any, fontSize: rf(15) },
+
+  /* Modal Styles */
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.surface,
+  },
+  modalHeader: {
+    height: hpx(90),
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xl,
+    paddingTop: hpx(24),
+  },
+  modalCloseBtn: {
+    width: wpx(36),
+    height: wpx(36),
+    borderRadius: radius.full,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalHeaderTitle: {
+    fontSize: rf(16),
+    fontWeight: "800" as any,
+    color: "#FFFFFF",
+  },
+  modalSearchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    height: sizes.searchHeight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: rf(14),
+    color: colors.textPrimary,
+  },
+  modalCenterLoading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalScroll: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: hpx(40),
+    paddingTop: spacing.sm,
+  },
+  modalEmptyBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: hpx(50),
+  },
+  modalEmptyTitle: {
+    fontSize: rf(16),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+    marginTop: spacing.md,
+  },
+  modalEmptySub: {
+    fontSize: rf(12),
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  contactCompCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
+  companyRowSelect: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  compIconBg: {
+    width: wpx(38),
+    height: wpx(38),
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compMainInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  compNameText: {
+    fontSize: rf(15),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  compSubText: {
+    fontSize: rf(12),
+    color: colors.textMuted,
+    marginTop: hpx(1),
+  },
+  selectBtnBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+  },
+  selectBtnBadgeText: {
+    fontSize: rf(11),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  personSubSection: {
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    gap: spacing.xs,
+  },
+  personSubHeaderLabel: {
+    fontSize: rf(11),
+    fontWeight: "700" as any,
+    color: colors.textMuted,
+    marginBottom: hpx(4),
+  },
+  personRowSelect: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  personMiniAvatar: {
+    width: wpx(28),
+    height: wpx(28),
+    borderRadius: radius.full,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  personMainInfo: {
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
+  personNameText: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: colors.textPrimary,
+  },
+  personSubText: {
+    fontSize: rf(11),
+    color: colors.textSecondary,
+    marginTop: hpx(1),
+  },
 });
