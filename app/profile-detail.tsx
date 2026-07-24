@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter, useFocusEffect } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,8 +16,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useProfile } from "../hooks/useProfile";
+import { assetService } from "../services/assetService";
 import { employeeService } from "../services/employeeService";
-import type { Employee } from "../types/employee";
 import { Avatar } from "../src/components/ui";
 import {
   colors,
@@ -30,8 +30,8 @@ import {
   textPresets,
   wpx,
 } from "../src/constants/theme";
-import { assetService } from "../services/assetService";
 import type { Asset } from "../types/asset";
+import type { Employee } from "../types/employee";
 
 
 
@@ -53,7 +53,7 @@ const formatBirthday = (bdayStr?: string | null) => {
     const year = parts[0];
     const monthIdx = parseInt(parts[1], 10) - 1;
     const day = parseInt(parts[2], 10);
-    
+
     const months = [
       "Januari", "Februari", "Maret", "April", "Mei", "Juni",
       "Juli", "Agustus", "September", "Oktober", "November", "Desember"
@@ -73,7 +73,7 @@ const formatDate = (dateStr?: string | null) => {
     const year = parts[0];
     const monthIdx = parseInt(parts[1], 10) - 1;
     const day = parseInt(parts[2], 10);
-    
+
     const months = [
       "Januari", "Februari", "Maret", "April", "Mei", "Juni",
       "Juli", "Agustus", "September", "Oktober", "November", "Desember"
@@ -119,7 +119,7 @@ export default function ProfileDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, isLoading: isProfileLoading } = useProfile();
-  
+
   const [employeeDetail, setEmployeeDetail] = useState<Employee | null>(null);
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
 
@@ -285,45 +285,45 @@ export default function ProfileDetailScreen() {
       value?: string | null;
     }>;
   }> = [
-    {
-      title: "Akun",
-      color: colors.primary,
-      items: [
-        { icon: "person-outline", label: "Username", value: user?.login },
-        { icon: "mail-outline", label: "Email Akun", value: user?.email },
-      ],
-    },
-    {
-      title: "Pekerjaan",
-      color: "#059669",
-      items: [
-        { icon: "briefcase-outline", label: "Jabatan", value: emp?.job_title },
-        { icon: "layers-outline", label: "Departemen", value: emp?.department?.name || (emp as any)?.department },
-        { icon: "business-outline", label: "Perusahaan", value: (emp as any)?.company || "UNOTEK" },
-        { icon: "call-outline", label: "Telepon Kantor", value: emp?.work_phone },
-        { icon: "mail-unread-outline", label: "Email Kantor", value: emp?.work_email },
-      ],
-    },
-    {
-      title: "Info Pribadi",
-      color: "#D97706",
-      items: [
-        { icon: "mail-outline", label: "Email Pribadi", value: emp?.private_email },
-        { icon: "phone-portrait-outline", label: "Telepon Pribadi", value: emp?.private_phone || emp?.mobile_phone },
-        { icon: "calendar-outline", label: "Tanggal Lahir", value: formatBirthday(emp?.birthday) },
-        { icon: "male-female-outline", label: "Jenis Kelamin", value: mapGender(emp?.sex) },
-        { icon: "heart-outline", label: "Status Pernikahan", value: mapMarital(emp?.marital) },
-        { icon: "card-outline", label: "Nomor Identitas (NIK)", value: emp?.identification_id },
-      ],
-    },
-  ];
+      {
+        title: "Akun",
+        color: colors.primary,
+        items: [
+          { icon: "person-outline", label: "Username", value: user?.login },
+          { icon: "mail-outline", label: "Email Akun", value: user?.email },
+        ],
+      },
+      {
+        title: "Pekerjaan",
+        color: "#059669",
+        items: [
+          { icon: "briefcase-outline", label: "Jabatan", value: emp?.job_title },
+          { icon: "layers-outline", label: "Departemen", value: emp?.department?.name || (emp as any)?.department },
+          { icon: "business-outline", label: "Perusahaan", value: (emp as any)?.company || "UNOTEK" },
+          { icon: "call-outline", label: "Telepon Kantor", value: emp?.work_phone },
+          { icon: "mail-unread-outline", label: "Email Kantor", value: emp?.work_email },
+        ],
+      },
+      {
+        title: "Info Pribadi",
+        color: "#D97706",
+        items: [
+          { icon: "mail-outline", label: "Email Pribadi", value: emp?.private_email },
+          { icon: "phone-portrait-outline", label: "Telepon Pribadi", value: emp?.private_phone || emp?.mobile_phone },
+          { icon: "calendar-outline", label: "Tanggal Lahir", value: formatBirthday(emp?.birthday) },
+          { icon: "male-female-outline", label: "Jenis Kelamin", value: mapGender(emp?.sex) },
+          { icon: "heart-outline", label: "Status Pernikahan", value: mapMarital(emp?.marital) },
+          { icon: "card-outline", label: "Nomor Identitas (NIK)", value: emp?.identification_id },
+        ],
+      },
+    ];
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={[styles.curvedHeader, { paddingTop: insets.top }]}>
+      <View style={[styles.curvedHeader, { height: hpx(130) }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -333,7 +333,7 @@ export default function ProfileDetailScreen() {
             <Ionicons name="arrow-back" size={wpx(22)} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Detail Data Diri</Text>
-          
+
           {emp?.id ? (
             <TouchableOpacity
               onPress={() => router.push({ pathname: "/profile-edit", params: { id: emp.id } })}
@@ -349,7 +349,10 @@ export default function ProfileDetailScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom > 0 ? insets.bottom + hpx(40) : hpx(40) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.floatingCard}>
@@ -445,7 +448,7 @@ export default function ProfileDetailScreen() {
             )}
           </View>
         </View>
-        <View style={{ height: hpx(24) }} />
+        <View style={{ height: insets.bottom > 0 ? insets.bottom + hpx(24) : hpx(24) }} />
 
         {/* Asset Form Modal */}
         <Modal
@@ -456,7 +459,7 @@ export default function ProfileDetailScreen() {
         >
           <View style={styles.modalOverlay}>
             <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseAssetModal} />
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   Edit Aset Kantor
@@ -549,7 +552,7 @@ export default function ProfileDetailScreen() {
         >
           <View style={styles.modalOverlay}>
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowCategoryPicker(false)} />
-            <View style={styles.modalStatusSelectContent}>
+            <View style={[styles.modalStatusSelectContent, { paddingBottom: Math.max(insets.bottom, spacing["2xl"]) }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Pilih Kategori Aset</Text>
                 <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>

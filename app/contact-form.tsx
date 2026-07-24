@@ -287,9 +287,9 @@ export default function ContactFormScreen() {
             {isEdit
               ? `Edit ${companyType === "company" ? "Perusahaan" : "Person"}`
               : currentStep === 2
-                ? "Tambah Person (Step 2)"
+                ? "Tambah Person"
                 : companyType === "company"
-                  ? "Tambah Perusahaan (Step 1)"
+                  ? "Tambah Perusahaan"
                   : "Tambah Person"}
           </Text>
           <Text style={styles.headerSub}>

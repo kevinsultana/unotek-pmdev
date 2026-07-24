@@ -23,8 +23,7 @@ import {
   shadows,
   sizes,
   spacing,
-  textPresets,
-  wpx,
+  wpx
 } from "../src/constants/theme";
 import type { CrmStage, PipelineItem } from "../types/pipeline";
 import { showToast } from "../utils/toast";
@@ -383,8 +382,8 @@ export default function PipelineScreen() {
                               item.probability > 70
                                 ? colors.success
                                 : item.probability > 30
-                                ? colors.amber
-                                : colors.error,
+                                  ? colors.amber
+                                  : colors.error,
                           },
                         ]}
                       />
@@ -616,8 +615,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: spacing["2xl"],
     bottom: hpx(30),
-    width: wpx(56),
-    height: wpx(56),
+    width: sizes.fabSize,
+    height: sizes.fabSize,
     borderRadius: radius.full,
     backgroundColor: colors.primary,
     alignItems: "center",

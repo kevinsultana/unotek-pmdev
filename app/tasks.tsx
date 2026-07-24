@@ -204,7 +204,7 @@ export default function TasksScreen() {
       <StatusBar style="light" />
 
       {/* Curved Header */}
-      <View style={[styles.curvedHeader]}>
+      <View style={[styles.curvedHeader, { height: hpx(130) }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/action"))}
@@ -218,7 +218,10 @@ export default function TasksScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom > 0 ? insets.bottom + hpx(40) : hpx(40) },
+        ]}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -527,13 +530,16 @@ export default function TasksScreen() {
             />
           )}
         </View>
-        <View style={{ height: hpx(80) }} />
+        <View style={{ height: insets.bottom > 0 ? insets.bottom + hpx(70) : hpx(80) }} />
       </ScrollView>
 
       {/* FAB */}
       {activeTab !== "projects" && (
         <TouchableOpacity
-          style={styles.fab}
+          style={[
+            styles.fab,
+            { bottom: insets.bottom > 0 ? insets.bottom + spacing["2xl"] : spacing["2xl"] },
+          ]}
           onPress={() => router.push("/task-create")}
           activeOpacity={0.85}
         >

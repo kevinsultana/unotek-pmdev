@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: rf(17),
+    fontSize: rf(20),
     fontWeight: "700" as any,
     color: "#FFFFFF",
     flex: 1,

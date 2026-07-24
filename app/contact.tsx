@@ -307,7 +307,6 @@ export default function ContactScreen() {
         activeOpacity={0.88}
       >
         <Ionicons name="add" size={wpx(26)} color="#FFFFFF" />
-        <Text style={styles.fabText}>Tambah Perusahaan</Text>
       </TouchableOpacity>
     </View>
   );
@@ -507,18 +506,15 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: spacing.xl,
-    flexDirection: "row",
+    width: sizes.fabSize,
+    height: sizes.fabSize,
+    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: hpx(12),
     borderRadius: radius.full,
+    backgroundColor: colors.primary,
     ...shadows.elevated,
-    gap: spacing.xs,
   },
-  fabText: {
-    fontSize: rf(14),
-    fontWeight: "700" as any,
-    color: "#FFFFFF",
+  fabIcon: {
+    color: "#ffffff",
   },
 });
