@@ -27,7 +27,7 @@ import {
   spacing,
   wpx,
 } from "../src/constants/theme";
-import type { Contact } from "../types/contact";
+import type { CompanyType, Contact } from "../types/contact";
 import type {
   CrmStage,
   PipelinePriority,
@@ -114,6 +114,51 @@ export default function PipelineFormScreen() {
   const [companiesList, setCompaniesList] = useState<Contact[]>([]);
   const [personsMap, setPersonsMap] = useState<Record<number, Contact[]>>({});
   const [contactSearchQuery, setContactSearchQuery] = useState("");
+
+  // Quick Create Contact Modal state (Full 2-Step Flow)
+  const [createContactModalVisible, setCreateContactModalVisible] = useState(false);
+  const [newContactStep, setNewContactStep] = useState<1 | 2>(1);
+  const [newContactType, setNewContactType] = useState<CompanyType>("company");
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [newContactWebsite, setNewContactWebsite] = useState("");
+  const [newContactVat, setNewContactVat] = useState("");
+  const [newContactFunction, setNewContactFunction] = useState("");
+  const [newContactStreet, setNewContactStreet] = useState("");
+  const [newContactStreet2, setNewContactStreet2] = useState("");
+  const [newContactCity, setNewContactCity] = useState("");
+  const [newContactZip, setNewContactZip] = useState("");
+  const [newContactComment, setNewContactComment] = useState("");
+  const [newContactParentId, setNewContactParentId] = useState<number | undefined>(undefined);
+  const [creatingContact, setCreatingContact] = useState(false);
+
+  // Success modals inside quick create modal
+  const [createdCompanyInModal, setCreatedCompanyInModal] = useState<Contact | null>(null);
+  const [showCompanyModalSuccess, setShowCompanyModalSuccess] = useState(false);
+  const [showPersonModalSuccess, setShowPersonModalSuccess] = useState(false);
+  const [lastCreatedPersonNameModal, setLastCreatedPersonNameModal] = useState("");
+
+  const resetQuickCreateState = () => {
+    setNewContactStep(1);
+    setNewContactType("company");
+    setNewContactName("");
+    setNewContactEmail("");
+    setNewContactPhone("");
+    setNewContactWebsite("");
+    setNewContactVat("");
+    setNewContactFunction("");
+    setNewContactStreet("");
+    setNewContactStreet2("");
+    setNewContactCity("");
+    setNewContactZip("");
+    setNewContactComment("");
+    setNewContactParentId(undefined);
+    setCreatedCompanyInModal(null);
+    setShowCompanyModalSuccess(false);
+    setShowPersonModalSuccess(false);
+    setLastCreatedPersonNameModal("");
+  };
 
   // Load stages & initial data if editing
   useEffect(() => {
@@ -217,6 +262,129 @@ export default function PipelineFormScreen() {
     }
     setContactModalVisible(false);
     showToast("info", "Kontak Person Dipilih", `Mengisi data dari ${person.name}`);
+  };
+
+  const handleQuickCreateContact = async () => {
+    if (!newContactName.trim()) {
+      showToast("error", "Nama Wajib Diisi", "Masukkan nama perusahaan atau kontak person.");
+      return;
+    }
+
+    try {
+      setCreatingContact(true);
+      const isCompany = newContactType === "company";
+
+      const created = await contactService.create({
+        name: newContactName.trim(),
+        company_type: newContactType,
+        email: newContactEmail.trim() || undefined,
+        phone: newContactPhone.trim() || undefined,
+        website: isCompany ? newContactWebsite.trim() || undefined : undefined,
+        vat: isCompany ? newContactVat.trim() || undefined : undefined,
+        function: !isCompany ? newContactFunction.trim() || undefined : undefined,
+        street: isCompany ? newContactStreet.trim() || undefined : undefined,
+        street2: isCompany ? newContactStreet2.trim() || undefined : undefined,
+        city: isCompany ? newContactCity.trim() || undefined : undefined,
+        zip: isCompany ? newContactZip.trim() || undefined : undefined,
+        comment: newContactComment.trim() || undefined,
+        parent_id: !isCompany ? newContactParentId : undefined,
+      });
+
+      // Refresh contacts list in state
+      const res = await contactService.list({ company_type: "company", per_page: 100 });
+      const comps = res.items || [];
+      setCompaniesList(comps);
+
+      const pMap: Record<number, Contact[]> = {};
+      await Promise.all(
+        comps.map(async (c) => {
+          try {
+            const pList = await contactService.getPersonsForCompany(c.id);
+            pMap[c.id] = pList;
+          } catch {
+            pMap[c.id] = [];
+          }
+        })
+      );
+      setPersonsMap(pMap);
+
+      if (isCompany && newContactStep === 1) {
+        setCreatedCompanyInModal(created);
+        setShowCompanyModalSuccess(true);
+      } else if (newContactStep === 2) {
+        setLastCreatedPersonNameModal(created.name);
+        setShowPersonModalSuccess(true);
+      } else {
+        showToast("success", "Kontak Dibuat", `${created.name} berhasil disimpan.`);
+        setCreateContactModalVisible(false);
+        setContactModalVisible(false);
+        resetQuickCreateState();
+
+        if (newContactType === "company") {
+          handleSelectCompanyContact(created);
+        } else {
+          const parentComp = comps.find((c) => c.id === newContactParentId);
+          handleSelectPersonContact(created, parentComp);
+        }
+      }
+    } catch (err: any) {
+      console.warn("Failed creating contact in modal:", err);
+      showToast("error", "Gagal Membuat Kontak", err?.message || "Terjadi kesalahan saat menyimpan kontak.");
+    } finally {
+      setCreatingContact(false);
+    }
+  };
+
+  const handleGoToModalStep2 = () => {
+    if (!createdCompanyInModal) return;
+    setShowCompanyModalSuccess(false);
+    setNewContactStep(2);
+    setNewContactType("person");
+    setNewContactParentId(createdCompanyInModal.id);
+
+    // Clear person fields
+    setNewContactName("");
+    setNewContactEmail("");
+    setNewContactPhone("");
+    setNewContactFunction("");
+    setNewContactComment("");
+  };
+
+  const handleFinishModalCompany = () => {
+    setShowCompanyModalSuccess(false);
+    setCreateContactModalVisible(false);
+    setContactModalVisible(false);
+    if (createdCompanyInModal) {
+      handleSelectCompanyContact(createdCompanyInModal);
+    }
+    resetQuickCreateState();
+  };
+
+  const handleAddAnotherModalPerson = () => {
+    setShowPersonModalSuccess(false);
+    setNewContactName("");
+    setNewContactEmail("");
+    setNewContactPhone("");
+    setNewContactFunction("");
+    setNewContactComment("");
+  };
+
+  const handleFinishModalPerson = () => {
+    setShowPersonModalSuccess(false);
+    setCreateContactModalVisible(false);
+    setContactModalVisible(false);
+
+    if (createdCompanyInModal) {
+      const parentComp = companiesList.find((c) => c.id === createdCompanyInModal.id) || createdCompanyInModal;
+      const personsForThisComp = personsMap[createdCompanyInModal.id] || [];
+      const lastPerson = personsForThisComp.find((p) => p.name === lastCreatedPersonNameModal) || personsForThisComp[0];
+      if (lastPerson) {
+        handleSelectPersonContact(lastPerson, parentComp);
+      } else {
+        handleSelectCompanyContact(createdCompanyInModal);
+      }
+    }
+    resetQuickCreateState();
   };
 
   const handleSave = async () => {
@@ -577,7 +745,13 @@ export default function PipelineFormScreen() {
               <Ionicons name="close" size={wpx(22)} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.modalHeaderTitle}>Pilih Kontak Perusahaan / Person</Text>
-            <View style={{ width: wpx(36) }} />
+            <TouchableOpacity
+              style={styles.modalAddHeaderBtn}
+              onPress={() => setCreateContactModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={wpx(18)} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
 
           {/* Search Box inside Modal */}
@@ -684,6 +858,368 @@ export default function PipelineFormScreen() {
             </ScrollView>
           )}
         </View>
+      </Modal>
+
+      {/* Modal Quick Create Contact (2-Step Flow) */}
+      <Modal
+        visible={createContactModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          setCreateContactModalVisible(false);
+          resetQuickCreateState();
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <StatusBar style="light" />
+
+          {/* Modal Header */}
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => {
+                setCreateContactModalVisible(false);
+                resetQuickCreateState();
+              }}
+            >
+              <Ionicons name="close" size={wpx(22)} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+              {newContactStep === 2
+                ? "Tambah Person (Step 2)"
+                : newContactType === "company"
+                ? "Tambah Perusahaan (Step 1)"
+                : "Tambah Person"}
+            </Text>
+            <View style={{ width: wpx(36) }} />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.createModalScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Stepper Header for 2-Step Flow */}
+            <View style={styles.stepperContainer}>
+              <View style={[styles.stepItem, newContactStep === 1 && styles.stepItemActive]}>
+                <View
+                  style={[
+                    styles.stepBadge,
+                    newContactStep === 1
+                      ? styles.stepBadgeActive
+                      : newContactStep > 1
+                      ? styles.stepBadgeDone
+                      : styles.stepBadgeInactive,
+                  ]}
+                >
+                  {newContactStep > 1 ? (
+                    <Ionicons name="checkmark" size={wpx(14)} color="#FFFFFF" />
+                  ) : (
+                    <Text style={[styles.stepBadgeText, newContactStep === 1 && styles.stepBadgeTextActive]}>
+                      1
+                    </Text>
+                  )}
+                </View>
+                <Text style={[styles.stepLabel, newContactStep === 1 && styles.stepLabelActive]}>
+                  Perusahaan
+                </Text>
+              </View>
+
+              <View style={[styles.stepLine, newContactStep > 1 && styles.stepLineActive]} />
+
+              <View style={[styles.stepItem, newContactStep === 2 && styles.stepItemActive]}>
+                <View
+                  style={[
+                    styles.stepBadge,
+                    newContactStep === 2 ? styles.stepBadgeActive : styles.stepBadgeInactive,
+                  ]}
+                >
+                  <Text style={[styles.stepBadgeText, newContactStep === 2 && styles.stepBadgeTextActive]}>
+                    2
+                  </Text>
+                </View>
+                <Text style={[styles.stepLabel, newContactStep === 2 && styles.stepLabelActive]}>
+                  Person Terkait
+                </Text>
+              </View>
+            </View>
+
+            {/* Locked Parent Company Banner when in Step 2 */}
+            {newContactStep === 2 && createdCompanyInModal ? (
+              <View style={styles.parentLockedBanner}>
+                <View style={styles.parentLockedIcon}>
+                  <Ionicons name="business" size={wpx(22)} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.parentLockedSub}>Menambahkan Person Terkait Untuk:</Text>
+                  <Text style={styles.parentLockedName}>{createdCompanyInModal.name}</Text>
+                </View>
+                <View style={styles.parentLockedTag}>
+                  <Ionicons name="lock-closed" size={wpx(13)} color={colors.primary} />
+                  <Text style={styles.parentLockedTagText}>Terhubung</Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Basic Info Group */}
+            <View style={styles.formGroupCard}>
+              <Text style={styles.formGroupTitle}>Informasi Utama</Text>
+
+              <View style={styles.fieldBlock}>
+                <Text style={styles.formLabel}>
+                  {newContactType === "company" ? "Nama Perusahaan *" : "Nama Lengkap Kontak Person *"}
+                </Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder={
+                    newContactType === "company"
+                      ? "Contoh: PT. Bank Nusantara Tbk"
+                      : "Contoh: Budi Santoso"
+                  }
+                  placeholderTextColor={colors.textMuted}
+                  value={newContactName}
+                  onChangeText={setNewContactName}
+                />
+              </View>
+
+              {newContactType === "person" ? (
+                <View style={styles.fieldBlock}>
+                  <Text style={styles.formLabel}>Jabatan / Posisi Pekerjaan</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Contoh: Manager IT / Procurement"
+                    placeholderTextColor={colors.textMuted}
+                    value={newContactFunction}
+                    onChangeText={setNewContactFunction}
+                  />
+                </View>
+              ) : (
+                <>
+                  <View style={styles.fieldBlock}>
+                    <Text style={styles.formLabel}>NPWP / Tax ID (VAT)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Contoh: 01.234.567.8-012.000"
+                      placeholderTextColor={colors.textMuted}
+                      value={newContactVat}
+                      onChangeText={setNewContactVat}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={styles.formLabel}>Website Perusahaan</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Contoh: https://www.perusahaan.co.id"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      value={newContactWebsite}
+                      onChangeText={setNewContactWebsite}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* Contact Methods Group */}
+            <View style={styles.formGroupCard}>
+              <Text style={styles.formGroupTitle}>Informasi Kontak & Komunikasi</Text>
+
+              <View style={styles.fieldBlock}>
+                <Text style={styles.formLabel}>Email</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Contoh: contact@perusahaan.co.id"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={newContactEmail}
+                  onChangeText={setNewContactEmail}
+                />
+              </View>
+
+              <View style={styles.fieldBlock}>
+                <Text style={styles.formLabel}>No. Telepon / HP</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Contoh: +6281234567890"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  value={newContactPhone}
+                  onChangeText={setNewContactPhone}
+                />
+              </View>
+            </View>
+
+            {/* Address Group (Only for Company) */}
+            {newContactType === "company" ? (
+              <View style={styles.formGroupCard}>
+                <Text style={styles.formGroupTitle}>Alamat Lokasi</Text>
+
+                <View style={styles.fieldBlock}>
+                  <Text style={styles.formLabel}>Alamat Jalan (Street)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Contoh: Jl. Jend. Sudirman No. 45"
+                    placeholderTextColor={colors.textMuted}
+                    value={newContactStreet}
+                    onChangeText={setNewContactStreet}
+                  />
+                </View>
+
+                <View style={styles.fieldBlock}>
+                  <Text style={styles.formLabel}>Alamat Tambahan (Gedung / Lt)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Contoh: Gedung Menara Palma Lt. 12"
+                    placeholderTextColor={colors.textMuted}
+                    value={newContactStreet2}
+                    onChangeText={setNewContactStreet2}
+                  />
+                </View>
+
+                <View style={styles.rowTwoCols}>
+                  <View style={[styles.fieldBlock, { flex: 1 }]}>
+                    <Text style={styles.formLabel}>Kota (City)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Contoh: Jakarta Selatan"
+                      placeholderTextColor={colors.textMuted}
+                      value={newContactCity}
+                      onChangeText={setNewContactCity}
+                    />
+                  </View>
+                  <View style={[styles.fieldBlock, { flex: 0.6 }]}>
+                    <Text style={styles.formLabel}>Kode Pos (Zip)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="Contoh: 12190"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="number-pad"
+                      value={newContactZip}
+                      onChangeText={setNewContactZip}
+                    />
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Notes Group */}
+            <View style={styles.formGroupCard}>
+              <Text style={styles.formGroupTitle}>Catatan Tambahan</Text>
+              <TextInput
+                style={[styles.formInput, styles.textArea]}
+                placeholder="Tambahkan catatan khusus..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                value={newContactComment}
+                onChangeText={setNewContactComment}
+              />
+            </View>
+
+            {/* Save Action Button */}
+            <TouchableOpacity
+              style={[styles.saveBtn, creatingContact && { opacity: 0.6 }]}
+              onPress={handleQuickCreateContact}
+              disabled={creatingContact}
+              activeOpacity={0.85}
+            >
+              {creatingContact ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveBtnText}>
+                  {newContactStep === 1 ? "Simpan Perusahaan & Lanjut" : "Simpan Kontak Person"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={{ height: hpx(30) }} />
+          </ScrollView>
+        </View>
+
+        {/* Modal Prompt 1: Company Success Prompt */}
+        <Modal
+          visible={showCompanyModalSuccess}
+          transparent
+          animationType="fade"
+          onRequestClose={handleFinishModalCompany}
+        >
+          <View style={styles.promptOverlay}>
+            <View style={styles.promptCard}>
+              <View style={styles.promptSuccessIconBg}>
+                <Ionicons name="business" size={wpx(36)} color="#059669" />
+              </View>
+              <Text style={styles.promptTitle}>Perusahaan Berhasil Dibuat!</Text>
+              <Text style={styles.promptSub}>
+                Perusahaan <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{createdCompanyInModal?.name}</Text> telah disimpan.
+                {"\n\n"}Apakah Anda ingin langsung menambahkan Kontak Person untuk perusahaan ini?
+              </Text>
+
+              <View style={styles.promptActionsColumn}>
+                <TouchableOpacity
+                  style={styles.promptPrimaryBtn}
+                  onPress={handleGoToModalStep2}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="person-add" size={wpx(18)} color="#FFFFFF" />
+                  <Text style={styles.promptPrimaryBtnText}>+ Langsung Tambah Person</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.promptSecondaryBtn}
+                  onPress={handleFinishModalCompany}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={wpx(18)} color={colors.textSecondary} />
+                  <Text style={styles.promptSecondaryBtnText}>Selesai & Pilih Perusahaan Ini</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Modal Prompt 2: Person Success Prompt */}
+        <Modal
+          visible={showPersonModalSuccess}
+          transparent
+          animationType="fade"
+          onRequestClose={handleFinishModalPerson}
+        >
+          <View style={styles.promptOverlay}>
+            <View style={styles.promptCard}>
+              <View style={styles.promptSuccessIconBgPerson}>
+                <Ionicons name="person-circle" size={wpx(36)} color="#7C3AED" />
+              </View>
+              <Text style={styles.promptTitle}>Person Berhasil Ditambahkan!</Text>
+              <Text style={styles.promptSub}>
+                Kontak <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{lastCreatedPersonNameModal}</Text> telah terhubung ke perusahaan <Text style={{ fontWeight: "700", color: colors.textPrimary }}>{createdCompanyInModal?.name}</Text>.
+              </Text>
+
+              <View style={styles.promptActionsColumn}>
+                <TouchableOpacity
+                  style={styles.promptPrimaryBtnPerson}
+                  onPress={handleAddAnotherModalPerson}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="person-add" size={wpx(18)} color="#FFFFFF" />
+                  <Text style={styles.promptPrimaryBtnText}>+ Tambah Person Lainnya</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.promptSecondaryBtn}
+                  onPress={handleFinishModalPerson}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="checkmark-done-circle" size={wpx(18)} color={colors.textSecondary} />
+                  <Text style={styles.promptSecondaryBtnText}>Selesai & Pilih Kontak Ini</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </Modal>
     </View>
   );
@@ -991,5 +1527,286 @@ const styles = StyleSheet.create({
     fontSize: rf(11),
     color: colors.textSecondary,
     marginTop: hpx(1),
+  },
+  modalAddHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    gap: hpx(4),
+  },
+  modalAddHeaderBtnText: {
+    fontSize: rf(13),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+  },
+  createModalScroll: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: hpx(50),
+  },
+  typeSelectorRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  typeTabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
+  },
+  typeTabBtnActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  typeTabText: {
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+    color: colors.textMuted,
+  },
+  typeTabTextActive: {
+    color: colors.primary,
+    fontWeight: "700" as any,
+  },
+  typeTabTextActivePerson: {
+    color: "#7C3AED",
+    fontWeight: "700" as any,
+  },
+  formGroupCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
+  formGroupTitle: {
+    fontSize: rf(14),
+    fontWeight: "800" as any,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  fieldBlock: {
+    marginBottom: spacing.md,
+  },
+  rowTwoCols: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  textArea: {
+    height: hpx(80),
+    paddingVertical: spacing.sm,
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
+  stepItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  stepItemActive: {},
+  stepBadge: {
+    width: wpx(24),
+    height: wpx(24),
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepBadgeActive: {
+    backgroundColor: colors.primary,
+  },
+  stepBadgeDone: {
+    backgroundColor: "#059669",
+  },
+  stepBadgeInactive: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stepBadgeText: {
+    fontSize: rf(12),
+    fontWeight: "700" as any,
+    color: colors.textMuted,
+  },
+  stepBadgeTextActive: {
+    color: "#FFFFFF",
+  },
+  stepLabel: {
+    fontSize: rf(12),
+    fontWeight: "600" as any,
+    color: colors.textMuted,
+  },
+  stepLabelActive: {
+    color: colors.primary,
+    fontWeight: "800" as any,
+  },
+  stepLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.sm,
+  },
+  stepLineActive: {
+    backgroundColor: "#059669",
+  },
+  parentLockedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + "40",
+    gap: spacing.md,
+  },
+  parentLockedIcon: {
+    width: wpx(40),
+    height: wpx(40),
+    borderRadius: radius.md,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  parentLockedSub: {
+    fontSize: rf(11),
+    color: colors.primary,
+    fontWeight: "600" as any,
+  },
+  parentLockedName: {
+    fontSize: rf(15),
+    fontWeight: "800" as any,
+    color: colors.primary,
+    marginTop: hpx(1),
+  },
+  parentLockedTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: hpx(4),
+    borderRadius: radius.full,
+    gap: hpx(4),
+  },
+  parentLockedTagText: {
+    fontSize: rf(11),
+    fontWeight: "700" as any,
+    color: colors.primary,
+  },
+  promptOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
+  },
+  promptCard: {
+    width: "100%",
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    alignItems: "center",
+    ...shadows.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  promptSuccessIconBg: {
+    width: wpx(64),
+    height: wpx(64),
+    borderRadius: radius.full,
+    backgroundColor: "#D1FAE5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  promptSuccessIconBgPerson: {
+    width: wpx(64),
+    height: wpx(64),
+    borderRadius: radius.full,
+    backgroundColor: "#F3E8FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  promptTitle: {
+    fontSize: rf(18),
+    fontWeight: "800" as any,
+    color: colors.textPrimary,
+    textAlign: "center",
+    marginBottom: spacing.xs,
+  },
+  promptSub: {
+    fontSize: rf(13),
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: rf(19),
+    marginBottom: spacing.xl,
+  },
+  promptActionsColumn: {
+    width: "100%",
+    gap: spacing.sm,
+  },
+  promptPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingVertical: hpx(14),
+    gap: spacing.xs,
+    ...shadows.card,
+  },
+  promptPrimaryBtnPerson: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#7C3AED",
+    borderRadius: radius.lg,
+    paddingVertical: hpx(14),
+    gap: spacing.xs,
+    ...shadows.card,
+  },
+  promptPrimaryBtnText: {
+    fontSize: rf(14),
+    fontWeight: "700" as any,
+    color: "#FFFFFF",
+  },
+  promptSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingVertical: hpx(12),
+    gap: spacing.xs,
+  },
+  promptSecondaryBtnText: {
+    fontSize: rf(13),
+    fontWeight: "600" as any,
+    color: colors.textSecondary,
   },
 });
