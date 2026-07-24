@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useDebounce } from "../hooks/useDebounce";
 import { contactService } from "../services/contactService";
 import {
   colors,
@@ -37,14 +38,17 @@ export default function ContactScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   const fetchContacts = useCallback(async () => {
     try {
       setLoading(true);
-      // Fetch contacts with param company_type = company
+      // Fetch contacts with param company_type = company, sort_by = created_at, order = desc
       const res = await contactService.list({
         company_type: "company",
-        search: searchQuery,
+        search: debouncedSearchQuery,
+        sort_by: "created_at",
+        order: "desc",
       });
 
       const companyList = res.items || [];
@@ -70,7 +74,7 @@ export default function ContactScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   useFocusEffect(
     useCallback(() => {

@@ -206,6 +206,18 @@ export const contactService = {
       );
     }
 
+    if (params.sort_by) {
+      const key = params.sort_by as keyof Contact;
+      const isDesc = params.order === "desc";
+      filtered.sort((a, b) => {
+        const valA = a[key] ?? "";
+        const valB = b[key] ?? "";
+        if (valA < valB) return isDesc ? 1 : -1;
+        if (valA > valB) return isDesc ? -1 : 1;
+        return 0;
+      });
+    }
+
     const page = params.page || 1;
     const perPage = params.per_page || 20;
     const startIndex = (page - 1) * perPage;

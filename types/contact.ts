@@ -47,6 +47,8 @@ export interface ContactListParams {
   country_id?: number;
   category_id?: number;
   active?: boolean;
+  sort_by?: string;
+  order?: "asc" | "desc" | string;
 }
 
 export interface ContactCreateParams {
